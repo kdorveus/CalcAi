@@ -34,3 +34,13 @@ yarn-error.*
 
 # typescript
 *.tsbuildinfo
+.qodo
+
+# local env files
+.env
+
+# local env files
+pc-api-key.json
+
+# local env files
+android/app/release.keystore

@@ -1,0 +1,41 @@
+{
+  "cli": {
+    "version": ">= 5.2.0"
+  },
+  "build": {
+    "preview": {
+      "distribution": "internal",
+      "channel": "preview",
+      "android": {
+        "buildType": "apk",
+        "signingKeyPath": "./android/app/debug.keystore",
+        "signingConfigType": "debug"
+      },
+      "env": {
+        "ENVIRONMENT": "preview"
+      }
+    },
+    "production": {
+      "channel": "production",
+      "android": {
+        "buildType": "app-bundle",
+        "signingConfigType": "app-store",
+        "signingKeyPath": "./android/app/release.keystore"
+      },
+      "ios": {
+        "signingConfigType": "app-store"
+      },
+      "env": {
+        "ENVIRONMENT": "production"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "android": {
+        "serviceAccountKeyPath": "./pc-api-key.json",
+        "track": "production"
+      }
+    }
+  }
+}

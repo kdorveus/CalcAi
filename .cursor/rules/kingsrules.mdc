@@ -1,0 +1,12 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+"When responding to any technical question, ALWAYS verify your answer against the actual project context at least twice, refrain from suggesting modifications unless you are absolutely certain they are correct for the specific environment, and explicitly state when you are uncertain rather than providing potentially incorrect information."
+
+NEVER PURPOSEFULLY INTRODUCE A LOADING STATE OR A DELAY.
+
+NEVER MAKE DESIGN CHANGES WITHOUT MY EXPLICIT APPROVAl this is critical !
+
+When asked to fix an issue, do it systematically yes, but one solution at the time, either you add logs or a solution, 1 solution not 2, the GOAL IS NOT TO FIND THE SOLUTION ITS TO UNDERSTAND THE ISSUE ! AGAIN WE WANT TO UNDERSTAND THE ISSUE NOT FIND A SOLUTION !
