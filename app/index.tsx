@@ -21,6 +21,9 @@ import {
   Image,
   Clipboard,
   ToastAndroid,
+  Dimensions, // Add Dimensions import for responsive layout
+  AppState,
+  InteractionManager,
 } from 'react-native';
 import { Audio } from 'expo-av';
 import * as Speech from 'expo-speech';
@@ -36,8 +39,73 @@ import {
 } from 'expo-speech-recognition';
 import Animated from 'react-native-reanimated';
 
-// Add debug logs
-// console.log('CalculatorScreen module loading...');
+// Preload Material Icons for web
+if (Platform.OS === 'web') {
+  // Execute immediately at module load
+  (() => {
+    // Inject Material Icons CSS on module load, not waiting for component mount
+    if (typeof document !== 'undefined' && !document.getElementById('material-icons-css')) {
+      const link = document.createElement('link');
+      link.id = 'material-icons-css';
+      link.rel = 'stylesheet';
+      link.href = 'https://fonts.googleapis.com/icon?family=Material+Icons';
+      // Set high priority for loading
+      link.setAttribute('importance', 'high');
+      // Preconnect to Google Fonts to speed up loading
+      const preconnect = document.createElement('link');
+      preconnect.rel = 'preconnect';
+      preconnect.href = 'https://fonts.googleapis.com';
+      document.head.appendChild(preconnect);
+      document.head.appendChild(link);
+    }
+  })();
+}
+
+// Optimized font loading detection
+// const useFontLoader = () => {
+//   const [fallbackNeeded, setFallbackNeeded] = useState(false);
+  
+//   useEffect(() => {
+//     if (Platform.OS !== 'web') return;
+    
+//     // Use immediate check on first render with requestAnimationFrame 
+//     // for higher priority than setTimeout
+//     requestAnimationFrame(() => {
+//       try {
+//         const testEl = document.createElement('i');
+//         testEl.className = 'material-icons';
+//         testEl.textContent = 'calculate';
+//         testEl.style.position = 'absolute';
+//         testEl.style.opacity = '0';
+//         document.body.appendChild(testEl);
+        
+//         const style = window.getComputedStyle(testEl);
+//         const fontFamily = style.fontFamily.toLowerCase();
+        
+//         if (!fontFamily.includes('material') || testEl.offsetWidth < 10) {
+//           setFallbackNeeded(true);
+//         }
+        
+//         document.body.removeChild(testEl);
+//       } catch (e) {
+//         setFallbackNeeded(true);
+//       }
+//     });
+//   }, []);
+
+//   return fallbackNeeded;
+// };
+
+// Preload app assets
+const usePreloadAssets = () => {
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      // Preload the logo image
+      const logoPreload = new window.Image();
+      logoPreload.src = require('../assets/images/LOGO.png').uri || '';
+    }
+  }, []);
+};
 
 // Types
 interface ChatBubble {
@@ -66,6 +134,28 @@ const MainScreen: React.FC = () => {
   // Setup animation values for swipe effects
   // const translateX = useSharedValue(0);
   // const translateY = useSharedValue(0);
+  
+  // No longer needed as we directly inject the font
+  // const fallbackNeeded = false;
+  
+  // Add responsive dimensions
+  const { height: screenHeight, width: screenWidth } = Dimensions.get('window');
+  const isSmallScreen = screenHeight < 700;
+  const isWebMobile = Platform.OS === 'web' && screenWidth < 768;
+  
+  // --- Force immediate render of critical UI ---
+  useEffect(() => {
+    // High priority UI updates with requestAnimationFrame
+    if (Platform.OS === 'web') {
+      // Force immediate paint of critical UI elements
+      requestAnimationFrame(() => {
+        // This forces layout calculation
+        if (flatListRef.current) {
+          flatListRef.current.recordInteraction();
+        }
+      });
+    }
+  }, []);
   
   // Refs
   const flatListRef = useRef<FlatList>(null);
@@ -1094,7 +1184,10 @@ const MainScreen: React.FC = () => {
   const sendWebhookData = async (equation: string, result: string) => {
     if (!webhookSettingsLoaded) {
       // Store calculation for later without logging
-      pendingWebhookDataRef.current.push({ equation, result });
+      pendingWebhookDataRef.current.push({ 
+        equation: sanitizeInput(equation), 
+        result: sanitizeInput(result) 
+      });
       return;
     }
 
@@ -1102,20 +1195,42 @@ const MainScreen: React.FC = () => {
     
     if (activeWebhooks.length === 0) {
       // Store calculation for later without logging
-      pendingWebhookDataRef.current.push({ equation, result });
+      pendingWebhookDataRef.current.push({ 
+        equation: sanitizeInput(equation), 
+        result: sanitizeInput(result) 
+      });
       return;
     }
 
+    // Sanitize input before sending to webhook
+    const sanitizedEquation = sanitizeInput(equation);
+    const sanitizedResult = sanitizeInput(result);
+
     const dataToSend = {
-      equation: sendEquation ? equation : undefined,
-      result
+      equation: sendEquation ? sanitizedEquation : undefined,
+      result: sanitizedResult
     };
 
     if (streamResults) {
       try {
-        const promises = activeWebhooks.map(webhook => 
-          axios.post(webhook.url, dataToSend)
-        );
+        const promises = activeWebhooks.map(webhook => {
+          // Additional validation of webhook URL
+          const validatedUrl = validateWebhookUrl(webhook.url);
+          if (!validatedUrl) {
+            console.warn('Invalid webhook URL detected:', webhook.url);
+            return Promise.resolve(); // Skip this webhook
+          }
+          
+          return axios.post(validatedUrl, dataToSend, {
+            headers: {
+              'Content-Type': 'application/json',
+              // Prevent CSRF
+              'X-Requested-With': 'XMLHttpRequest'
+            },
+            // Set timeout to prevent hanging requests
+            timeout: 5000
+          });
+        }).filter(Boolean); // Filter out any skipped webhooks
         
         await Promise.allSettled(promises);
       } catch (error) {
@@ -1132,6 +1247,49 @@ const MainScreen: React.FC = () => {
         data: JSON.stringify(dataToSend)
       };
       setBulkData(prev => [...prev, newItem]);
+    }
+  };
+
+  // Helper function to sanitize user input
+  const sanitizeInput = (input: string): string => {
+    if (!input) return '';
+    
+    // Remove any HTML/script tags
+    let sanitized = input.replace(/<[^>]*>/g, '');
+    
+    // Encode special characters
+    sanitized = sanitized
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+      
+    // Limit the length to prevent DoS
+    return sanitized.substring(0, 1000);
+  };
+
+  // Helper function to validate webhook URLs
+  const validateWebhookUrl = (url: string): string | null => {
+    try {
+      // Basic URL validation
+      if (!url || typeof url !== 'string') return null;
+      
+      // Must start with http:// or https://
+      if (!url.startsWith('http://') && !url.startsWith('https://')) return null;
+      
+      // Create URL object to validate and parse
+      const parsedUrl = new URL(url);
+      
+      // Check for valid protocol (extra safety)
+      if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') return null;
+      
+      // Additional checks could be added here, e.g. blocklist of domains
+      
+      return url;
+    } catch (e) {
+      // If URL parsing fails, return null
+      return null;
     }
   };
 
@@ -1564,7 +1722,10 @@ const MainScreen: React.FC = () => {
         <View style={styles.logoContainer}>
           <Image 
             source={require('../assets/images/LOGO.png')} 
-            style={{ width: 200, height: 80, resizeMode: 'contain' }} 
+            style={{ width: 200, height: 80, resizeMode: 'contain' }}
+            fadeDuration={0}
+            // Use default loading priority
+            defaultSource={require('../assets/images/LOGO.png')}
           />
           <Text style={styles.betaText}>BETA</Text>
         </View>
@@ -1591,7 +1752,10 @@ const MainScreen: React.FC = () => {
         <View style={styles.logoContainer}>
           <Image 
             source={require('../assets/images/LOGO.png')} 
-            style={{ width: 180, height: 72, resizeMode: 'contain' }} 
+            style={{ width: 180, height: 72, resizeMode: 'contain' }}
+            fadeDuration={0}
+            // Use default loading priority
+            defaultSource={require('../assets/images/LOGO.png')}
           />
           <Text style={styles.betaText}>BETA</Text>
         </View>
@@ -1647,8 +1811,9 @@ const MainScreen: React.FC = () => {
       <View style={{ 
         flex: 1, 
         minHeight: 200, 
-        marginBottom: 15,
-        maxHeight: showKeypad ? '50%' : '85%' // Adjust height based on keypad visibility
+        marginBottom: isWebMobile ? 80 : 15, // Add more bottom margin for web mobile
+        maxHeight: showKeypad ? (isWebMobile ? '40%' : '50%') : '85%', // Adjust height based on keypad visibility and platform
+        overflow: 'hidden', // Prevent content from overflowing
       }}> 
         <FlatList
           style={{ flex: 1 }}
@@ -1679,7 +1844,7 @@ const MainScreen: React.FC = () => {
       </View> 
       
       {showKeypad && (
-        <>
+        <View style={isWebMobile ? styles.calculatorAreaMobileWeb : styles.calculatorArea}>
           <TouchableOpacity
             style={{
               alignSelf: 'flex-end',
@@ -1692,7 +1857,7 @@ const MainScreen: React.FC = () => {
           >
             <MaterialIcons name="backspace" size={28} color="#eee" />
           </TouchableOpacity>
-          <View style={styles.calculatorArea}>
+          <View style={styles.keypadContainer}>
             {KEYPAD.map((row, i) => (
               <View key={i} style={styles.keypadRow}>
                 {row.map((key) => {
@@ -1708,16 +1873,14 @@ const MainScreen: React.FC = () => {
                   return (
                     <TouchableOpacity
                       key={key}
-                      style={buttonStyle}
+                      style={[buttonStyle, isWebMobile && styles.keypadKeyWebMobile]}
                       onPress={() => onKeypadPress(key)}
                       activeOpacity={0.7}
                       delayPressIn={0}
                     >
                       {key === '↺' ? (
-                        // Render reset icon
                         <MaterialIcons name="refresh" size={28} color="#eee" style={{ transform: [{ scaleX: -1 }] }} />
                       ) : key === 'CHECK_ICON' ? (
-                        // Render a send icon instead of return icon
                         <MaterialIcons name="send" size={24} color="#eee" />
                       ) : (
                         <Text style={styles.keypadKeyText}>{key}</Text>
@@ -1728,7 +1891,7 @@ const MainScreen: React.FC = () => {
               </View>
             ))}
           </View>
-        </>
+        </View>
       )}
       
       <Settings 
@@ -1765,15 +1928,18 @@ const MainScreen: React.FC = () => {
       />
       
       {/* Bottom bar with proper spacing and button sizes */}
-      <View style={styles.bottomBar}>
+      <View style={[
+        styles.bottomBar,
+        isWebMobile && styles.bottomBarWebMobile
+      ]}>
         <TouchableOpacity onPress={() => setShowKeypad(s => !s)} style={styles.bottomButton}>
           <MaterialIcons name="calculate" size={28} color="#ccc" />
         </TouchableOpacity>
         <TouchableOpacity
           style={[
             styles.micButton, // Base style
-            isRecording ? { backgroundColor: '#0066cc' } : // Blue if recording
-            {} // Default grey otherwise (covers idle and transcribing)
+            isRecording ? { backgroundColor: '#0066cc' } : {}, // Blue if recording
+            isWebMobile && styles.micButtonWebMobile // Additional styles for web mobile
           ]}
           onPress={isRecording ? stopRecording : startRecording}
           disabled={isTranscribing}
@@ -1781,7 +1947,7 @@ const MainScreen: React.FC = () => {
           {isTranscribing ? (
             <ActivityIndicator color="#eee" />
           ) : (
-            <MaterialIcons name={isRecording ? "stop" : "mic"} size={60} color="#eee" />
+            <MaterialIcons name={isRecording ? "stop" : "mic"} size={isWebMobile ? 40 : 60} color="#eee" />
           )}
         </TouchableOpacity>
         {/* Webhook Icon with tooltip */}
@@ -1867,12 +2033,17 @@ interface ComponentStyles {
   quickSendText: TextStyle;
   chatArea: ViewStyle;
   bottomBar: ViewStyle;
+  bottomBarWebMobile: ViewStyle; // Added for web mobile
   bottomButton: ViewStyle;
   micButton: ViewStyle;
+  micButtonWebMobile: ViewStyle; // Added for web mobile
   calculatorArea: ViewStyle;
+  calculatorAreaMobileWeb: ViewStyle; // Added for web mobile
+  keypadContainer: ViewStyle; // Added for organization
   keypadRow: ViewStyle;
   keypadKey: ViewStyle;
   keypadKeyText: TextStyle;
+  keypadKeyWebMobile: ViewStyle; // Added for web mobile
   currentUserBubbleContainer: ViewStyle;
   userBubble: ViewStyle;
   userText: TextStyle;
@@ -2301,6 +2472,37 @@ const styles = StyleSheet.create<ComponentStyles>({
     padding: 8,
     borderRadius: 20,
     backgroundColor: '#1C1C1E',
+  },
+  bottomBarWebMobile: {
+    position: 'fixed',
+    bottom: 15,
+    left: 0,
+    right: 0,
+    marginHorizontal: 15,
+    zIndex: 1000,
+  },
+  micButtonWebMobile: {
+    width: 80,
+    height: 80,
+  },
+  calculatorAreaMobileWeb: {
+    width: '100%',
+    alignItems: 'center',
+    backgroundColor: '#121212',
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#333',
+    marginTop: 5,
+    paddingBottom: 80, // Add padding at bottom for the fixed bottom bar
+  },
+  keypadContainer: {
+    width: '100%',
+    alignItems: 'center',
+  },
+  keypadKeyWebMobile: {
+    width: 50,
+    height: 50,
+    marginHorizontal: 2,
   },
 });
 

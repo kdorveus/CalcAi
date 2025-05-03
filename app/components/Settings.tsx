@@ -180,63 +180,94 @@ const WebhookSettings: React.FC<WebhookSettingsProps> = ({
     action();
   };
 
-  // Modified handlers to require auth
+  // Helper function to sanitize user input
+  const sanitizeInput = (input: string): string => {
+    if (!input) return '';
+    
+    // Remove any HTML/script tags
+    let sanitized = input.replace(/<[^>]*>/g, '');
+    
+    // Encode special characters
+    sanitized = sanitized
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+      
+    // Limit the length to prevent DoS
+    return sanitized.substring(0, 500);
+  };
+
+  // Helper function to validate webhook URLs
+  const validateWebhookUrl = (url: string): string | null => {
+    try {
+      // Basic URL validation
+      if (!url || typeof url !== 'string') return null;
+      
+      const trimmedUrl = url.trim();
+      
+      // Must start with http:// or https://
+      if (!trimmedUrl.startsWith('http://') && !trimmedUrl.startsWith('https://')) return null;
+      
+      // Create URL object to validate and parse
+      const parsedUrl = new URL(trimmedUrl);
+      
+      // Check for valid protocol (extra safety)
+      if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') return null;
+      
+      return trimmedUrl;
+    } catch (e) {
+      // If URL parsing fails, return null
+      return null;
+    }
+  };
+
   const handleAddWebhookLocal = () => {
     requireAuth(() => {
-      const trimmedUrl = localWebhookUrl.trim();
-      const trimmedTitle = localWebhookTitle.trim();
+      // Sanitize inputs
+      const sanitizedTitle = sanitizeInput(localWebhookTitle);
+      const validatedUrl = validateWebhookUrl(localWebhookUrl);
       
-      // Basic validation
-      if (!trimmedUrl) {
-        Alert.alert("Error", "Please enter a webhook URL.");
+      if (!validatedUrl) {
+        Alert.alert("Invalid URL", "Webhook URL must be a valid URL starting with http:// or https://");
         return;
       }
       
-      // Validate URL format
-      if (!trimmedUrl.startsWith('http://') && !trimmedUrl.startsWith('https://')) {
-        Alert.alert("Invalid URL", "Webhook URL must start with http:// or https://");
-        return;
-      }
+      const urlExists = localWebhookUrls.some(webhook => webhook.url === validatedUrl);
       
-      // Check for duplicates
-      if (localWebhookUrls.some(webhook => webhook.url === trimmedUrl)) {
-        Alert.alert("Duplicate", "This webhook URL already exists.");
-        return;
-      }
-      
-      // Create the new webhook object
-      const newWebhook = { 
-        url: trimmedUrl, 
-        active: true,
-        title: trimmedTitle || undefined
-      };
-      
-      // Update the webhook URLs array
-      const updatedWebhooks = [...localWebhookUrls, newWebhook];
-      
-      try {
+      if (validatedUrl && !urlExists) {
+        // Add new webhook with active state set to true and include title if provided
+        const newWebhook = { 
+          url: validatedUrl, 
+          active: true,
+          title: sanitizedTitle || undefined // Only include title if it's not empty
+        };
+        
+        const updatedWebhooks = [...localWebhookUrls, newWebhook];
+        setLocalWebhookUrls(updatedWebhooks);
+        
+        // Update parent state if setter provided
+        if (setWebhookUrls) {
+          setWebhookUrls(updatedWebhooks);
+        }
+        
         // Save to AsyncStorage
         AsyncStorage.setItem('webhookUrls', JSON.stringify(updatedWebhooks))
-          .then(() => {
-            setLocalWebhookUrls(updatedWebhooks);
-            if (setWebhookUrls) {
-              setWebhookUrls(updatedWebhooks);
-            }
-            if (handleAddWebhook) {
-              handleAddWebhook();
-            } else {
-              setLocalWebhookUrl('');
-              setLocalWebhookTitle('');
-              if (setNewWebhookUrl) setNewWebhookUrl('');
-              if (setNewWebhookTitle) setNewWebhookTitle('');
-            }
-            Alert.alert("Success", "Webhook added successfully!");
-          })
-          .catch(() => {
-            Alert.alert("Error", "Failed to save webhook. Please try again.");
+          .catch(error => {
+            console.error('Error saving webhooks:', error);
           });
-      } catch (error) {
-        Alert.alert("Error", "An unexpected error occurred while adding the webhook.");
+        
+        // Clear input fields
+        setLocalWebhookUrl('');
+        updateLocalWebhookUrl('');
+        setLocalWebhookTitle('');
+        updateLocalWebhookTitle('');
+        
+        // Close dropdown if it's open
+        setWebhookTitleOpen(false);
+      } else if (urlExists) {
+        Alert.alert("Duplicate", "This URL is already added.");
       }
     });
   };
@@ -468,20 +499,17 @@ const WebhookSettings: React.FC<WebhookSettingsProps> = ({
   };
 
   const saveEditedWebhook = async (oldUrl: string) => {
-    if (!editingWebhookValue.trim()) {
-      Alert.alert('Invalid URL', 'Webhook URL cannot be empty.');
-      return;
-    }
+    const sanitizedTitle = sanitizeInput(editingWebhookTitle);
+    const validatedUrl = validateWebhookUrl(editingWebhookValue);
     
-    // Ensure it starts with http:// or https://
-    if (!editingWebhookValue.trim().startsWith('http://') && !editingWebhookValue.trim().startsWith('https://')) {
-      Alert.alert('Invalid URL', 'Webhook URL must start with http:// or https://');
+    if (!validatedUrl) {
+      Alert.alert('Invalid URL', 'Please enter a valid URL that starts with http:// or https://');
       return;
     }
     
     if (
       localWebhookUrls.some(
-        (w) => w.url === editingWebhookValue.trim() && w.url !== oldUrl
+        (w) => w.url === validatedUrl && w.url !== oldUrl
       )
     ) {
       Alert.alert('Duplicate URL', 'This webhook URL already exists.');
@@ -491,8 +519,8 @@ const WebhookSettings: React.FC<WebhookSettingsProps> = ({
     const updated = localWebhookUrls.map((w) =>
       w.url === oldUrl ? { 
         ...w, 
-        url: editingWebhookValue.trim(), 
-        title: editingWebhookTitle 
+        url: validatedUrl, 
+        title: sanitizedTitle 
       } : w
     );
     
