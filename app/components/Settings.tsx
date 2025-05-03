@@ -16,11 +16,14 @@ import {
   StatusBar,
   Alert,
   Settings,
+  Image,
+  Animated,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
+import GoogleLogo from '../components/GoogleLogo';
 // import { router } from 'expo-router'; // Keep commented if not needed for direct nav
 
 interface BulkDataItem {
@@ -62,6 +65,8 @@ interface WebhookSettingsProps {
   toggleSpeechMute?: () => void;
   vibrationEnabled?: boolean;
   setVibrationEnabled?: (value: boolean) => void;
+  openInCalcMode?: boolean;
+  setOpenInCalcMode?: (value: boolean) => void;
 }
 
 const WebhookSettings: React.FC<WebhookSettingsProps> = ({
@@ -91,13 +96,25 @@ const WebhookSettings: React.FC<WebhookSettingsProps> = ({
   toggleSpeechMute,
   vibrationEnabled = false,
   setVibrationEnabled,
+  openInCalcMode = false,
+  setOpenInCalcMode,
 }) => {
-  // Auth state from context
-  const { user, loading, signOut, authError } = useAuth(); // Use real context
-  
-  // Local state for webhooks
+  const { user, loading, signOut, authError, signIn, signInWithGoogle, verifyOtp } = useAuth();
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [lastAttemptedAction, setLastAttemptedAction] = useState<(() => void) | null>(null);
   const [localWebhookUrls, setLocalWebhookUrls] = useState<WebhookItem[]>(webhookUrls || []);
+  const [localWebhookTitle, setLocalWebhookTitle] = useState<string>(newWebhookTitle || '');
+  const [localWebhookUrl, setLocalWebhookUrl] = useState<string>(newWebhookUrl || '');
+  const [editingWebhookUrl, setEditingWebhookUrl] = useState<string | null>(null);
+  const [editingWebhookValue, setEditingWebhookValue] = useState<string>('');
+  const [editingWebhookTitle, setEditingWebhookTitle] = useState<string>('');
   
+  // Auth state
+  const [email, setEmail] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
+  const [otp, setOtp] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+
   // Auth error display
   useEffect(() => {
     if (authError) {
@@ -114,14 +131,9 @@ const WebhookSettings: React.FC<WebhookSettingsProps> = ({
   const [editingItemId, setEditingItemId] = useState<string | number | null>(null);
   const [editingItemValue, setEditingItemValue] = useState('');
   const [sendingItemId, setSendingItemId] = useState<string | number | null>(null);
-  const [editingWebhookUrl, setEditingWebhookUrl] = useState<string | null>(null);
-  const [editingWebhookValue, setEditingWebhookValue] = useState<string>('');
-  const [editingWebhookTitle, setEditingWebhookTitle] = useState<string>('');
-  const [localWebhookTitle, setLocalWebhookTitle] = useState<string>(newWebhookTitle || '');
-  const [localWebhookUrl, setLocalWebhookUrl] = useState<string>(newWebhookUrl || '');
   const [optionsOpen, setOptionsOpen] = useState<boolean>(false);
-  const [webhookTitleOpen, setWebhookTitleOpen] = useState<boolean>(true); // Open webhook section by default
-  const [authSectionOpen, setAuthSectionOpen] = useState<boolean>(true); // Open auth section by default
+  const [webhookTitleOpen, setWebhookTitleOpen] = useState<boolean>(false);
+  const [authSectionOpen, setAuthSectionOpen] = useState<boolean>(!user); // Only open for non-logged in users
   
   // Sync local state with parent component
   useEffect(() => {
@@ -135,13 +147,10 @@ const WebhookSettings: React.FC<WebhookSettingsProps> = ({
   // Use the real signOut handler from context
   const handleSignOut = async () => {
     try {
-      console.log("Signing out...");
       await signOut(); // Use context signOut
       onClose(); // Close the modal first
       // No need to redirect here, _layout protection will handle it
-      console.log("Sign out successful.");
     } catch (error: any) {
-      console.error("Sign out error:", error);
       Alert.alert('Error', error.message || 'Failed to sign out');
     }
   };
@@ -161,76 +170,290 @@ const WebhookSettings: React.FC<WebhookSettingsProps> = ({
     }
   };
   
-  // Add local implementation that ensures webhooks are created
+  // Wrap actions that need auth
+  const requireAuth = (action: () => void) => {
+    if (!user) {
+      setLastAttemptedAction(() => action);
+      setShowLoginModal(true);
+      return;
+    }
+    action();
+  };
+
+  // Modified handlers to require auth
   const handleAddWebhookLocal = () => {
-    const trimmedUrl = localWebhookUrl.trim();
-    const trimmedTitle = localWebhookTitle.trim();
-    
-    console.log("Adding webhook - URL:", trimmedUrl, "Title:", trimmedTitle);
-    
-    // Basic validation
-    if (!trimmedUrl) {
-      Alert.alert("Error", "Please enter a webhook URL.");
-      return;
-    }
-    
-    // Validate URL format
-    if (!trimmedUrl.startsWith('http://') && !trimmedUrl.startsWith('https://')) {
-      Alert.alert("Invalid URL", "Webhook URL must start with http:// or https://");
-      return;
-    }
-    
-    // Check for duplicates
-    if (localWebhookUrls.some(webhook => webhook.url === trimmedUrl)) {
-      Alert.alert("Duplicate", "This webhook URL already exists.");
-      return;
-    }
-    
-    // Create the new webhook object
-    const newWebhook = { 
-      url: trimmedUrl, 
-      active: true,
-      title: trimmedTitle || undefined // Only include title if not empty
-    };
-    
-    // Update the webhook URLs array
-    const updatedWebhooks = [...localWebhookUrls, newWebhook];
-    
-    try {
-      // Save to AsyncStorage
-      AsyncStorage.setItem('webhookUrls', JSON.stringify(updatedWebhooks))
-        .then(() => {
-          // Update local state
-          setLocalWebhookUrls(updatedWebhooks);
-          
-          // Call the parent handler to update parent state
-          if (setWebhookUrls) {
-            setWebhookUrls(updatedWebhooks);
-          }
-          
-          // If parent handleAddWebhook exists, call it to handle any other logic
-          if (handleAddWebhook) {
-            handleAddWebhook();
-          } else {
-            // Clear the input fields
-            setLocalWebhookUrl('');
-            setLocalWebhookTitle('');
-            if (setNewWebhookUrl) setNewWebhookUrl('');
-            if (setNewWebhookTitle) setNewWebhookTitle('');
-          }
-          
-          Alert.alert("Success", "Webhook added successfully!");
-        })
-        .catch(error => {
-          console.error("Error saving webhooks:", error);
-          Alert.alert("Error", "Failed to save webhook. Please try again.");
-        });
-    } catch (error) {
-      console.error("Error in webhook add process:", error);
-      Alert.alert("Error", "An unexpected error occurred while adding the webhook.");
-    }
+    requireAuth(() => {
+      const trimmedUrl = localWebhookUrl.trim();
+      const trimmedTitle = localWebhookTitle.trim();
+      
+      // Basic validation
+      if (!trimmedUrl) {
+        Alert.alert("Error", "Please enter a webhook URL.");
+        return;
+      }
+      
+      // Validate URL format
+      if (!trimmedUrl.startsWith('http://') && !trimmedUrl.startsWith('https://')) {
+        Alert.alert("Invalid URL", "Webhook URL must start with http:// or https://");
+        return;
+      }
+      
+      // Check for duplicates
+      if (localWebhookUrls.some(webhook => webhook.url === trimmedUrl)) {
+        Alert.alert("Duplicate", "This webhook URL already exists.");
+        return;
+      }
+      
+      // Create the new webhook object
+      const newWebhook = { 
+        url: trimmedUrl, 
+        active: true,
+        title: trimmedTitle || undefined
+      };
+      
+      // Update the webhook URLs array
+      const updatedWebhooks = [...localWebhookUrls, newWebhook];
+      
+      try {
+        // Save to AsyncStorage
+        AsyncStorage.setItem('webhookUrls', JSON.stringify(updatedWebhooks))
+          .then(() => {
+            setLocalWebhookUrls(updatedWebhooks);
+            if (setWebhookUrls) {
+              setWebhookUrls(updatedWebhooks);
+            }
+            if (handleAddWebhook) {
+              handleAddWebhook();
+            } else {
+              setLocalWebhookUrl('');
+              setLocalWebhookTitle('');
+              if (setNewWebhookUrl) setNewWebhookUrl('');
+              if (setNewWebhookTitle) setNewWebhookTitle('');
+            }
+            Alert.alert("Success", "Webhook added successfully!");
+          })
+          .catch(() => {
+            Alert.alert("Error", "Failed to save webhook. Please try again.");
+          });
+      } catch (error) {
+        Alert.alert("Error", "An unexpected error occurred while adding the webhook.");
+      }
+    });
   };
   
+  const handleToggleWebhookWrapped = (url: string, active: boolean) => {
+    requireAuth(() => handleToggleWebhook(url, active));
+  };
+  
+  const handleDeleteWebhookWrapped = (url: string) => {
+    requireAuth(() => handleDeleteWebhook(url));
+  };
+  
+  const handleSendSingleItemWrapped = (item: BulkDataItem) => {
+    requireAuth(() => handleSendSingleItem(item));
+  };
+  
+  const handleSendBulkDataWrapped = () => {
+    requireAuth(() => handleSendBulkData());
+  };
+  
+  const clearBulkDataWrapped = () => {
+    requireAuth(() => clearBulkData());
+  };
+
+  // Auth handlers
+  const handleEmailLogin = async () => {
+    if (!email) {
+      Alert.alert('Error', 'Please enter your email');
+      return;
+    }
+
+    if (otpSent && !otp) {
+      Alert.alert('Error', 'Please enter the verification code');
+      return;
+    }
+
+    setIsLoading(true);
+    
+    if (otpSent) {
+      const { error } = await verifyOtp(email, otp);
+      if (!error) {
+        setShowLoginModal(false);
+        if (lastAttemptedAction) {
+          lastAttemptedAction();
+          setLastAttemptedAction(null);
+        }
+      }
+    } else {
+      const { error } = await signIn(email);
+      if (!error) {
+        setOtpSent(true);
+      }
+    }
+    
+    setIsLoading(false);
+  };
+
+  const handleGoogleLogin = async () => {
+    setIsLoading(true);
+    const { error } = await signInWithGoogle();
+    setIsLoading(false);
+    if (!error) {
+      setShowLoginModal(false);
+      if (lastAttemptedAction) {
+        lastAttemptedAction();
+        setLastAttemptedAction(null);
+      }
+    } else {
+      Alert.alert('Error', error.message);
+    }
+  };
+
+  // Login Modal Component
+  const LoginModal = () => {
+    const [email, setEmail] = useState('');
+    const [otpSent, setOtpSent] = useState(false);
+    const [otp, setOtp] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+
+    const handleEmailLogin = async () => {
+      if (!email) {
+        Alert.alert('Error', 'Please enter your email');
+        return;
+      }
+
+      if (otpSent && !otp) {
+        Alert.alert('Error', 'Please enter the verification code');
+        return;
+      }
+
+      setIsLoading(true);
+      
+      if (otpSent) {
+        const { error } = await verifyOtp(email, otp);
+        if (!error) {
+          setShowLoginModal(false);
+          if (lastAttemptedAction) {
+            lastAttemptedAction();
+            setLastAttemptedAction(null);
+          }
+        }
+      } else {
+        const { error } = await signIn(email);
+        if (!error) {
+          setOtpSent(true);
+        }
+      }
+      
+      setIsLoading(false);
+    };
+
+    const handleGoogleLogin = async () => {
+      setIsLoading(true);
+      const { error } = await signInWithGoogle();
+      setIsLoading(false);
+      if (!error) {
+        setShowLoginModal(false);
+        if (lastAttemptedAction) {
+          lastAttemptedAction();
+          setLastAttemptedAction(null);
+        }
+      } else {
+        Alert.alert('Error', error.message);
+      }
+    };
+
+    return (
+      <Modal
+        visible={showLoginModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowLoginModal(false)}
+      >
+        <View style={styles.loginModalOverlay}>
+          <View style={styles.loginModalContent}>
+            <View style={styles.loginModalHeader}>
+              <View style={styles.logoContainer}>
+                <Image 
+                  source={require('../../assets/images/LOGO.png')} 
+                  style={{ width: 180, height: 72, marginBottom: 20, resizeMode: 'contain' }} 
+                />
+                <Text style={styles.betaText}>BETA</Text>
+              </View>
+              <Text style={styles.loginModalTitle}>Sign in to continue</Text>
+              <TouchableOpacity 
+                style={styles.loginModalClose}
+                onPress={() => setShowLoginModal(false)}
+              >
+                <MaterialIcons name="close" size={24} color="#888" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.loginInputContainer}>
+              <TouchableOpacity 
+                style={styles.googleButton}
+                onPress={handleGoogleLogin}
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <ActivityIndicator color="#0066cc" />
+                ) : (
+                  <>
+                    <GoogleLogo size={20} />
+                    <Text style={styles.googleButtonText}>Continue with Google</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+
+              <View style={styles.loginSeparator}>
+                <View style={styles.loginSeparatorLine} />
+                <Text style={styles.loginSeparatorText}>or</Text>
+                <View style={styles.loginSeparatorLine} />
+              </View>
+
+              <TextInput
+                style={styles.loginInput}
+                placeholder="Enter your email"
+                placeholderTextColor="#666"
+                value={email}
+                onChangeText={setEmail}
+                autoCapitalize="none"
+                keyboardType="email-address"
+                editable={!otpSent}
+              />
+              {otpSent && (
+                <>
+                  <Text style={styles.otpMessage}>Check your email for the verification code</Text>
+                  <TextInput
+                    style={styles.loginInput}
+                    placeholder="Enter verification code"
+                    placeholderTextColor="#666"
+                    value={otp}
+                    onChangeText={setOtp}
+                    keyboardType="number-pad"
+                  />
+                </>
+              )}
+              <TouchableOpacity 
+                style={styles.loginButton}
+                onPress={handleEmailLogin}
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.loginButtonText}>
+                    {otpSent ? 'Verify Code' : 'Continue with Email'}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    );
+  };
+
   const startEditingWebhook = (url: string) => {
     setEditingWebhookUrl(url);
     setEditingWebhookValue(url);
@@ -274,7 +497,6 @@ const WebhookSettings: React.FC<WebhookSettingsProps> = ({
     );
     
     try {
-      console.log("Saving updated webhooks:", JSON.stringify(updated));
       await AsyncStorage.setItem('webhookUrls', JSON.stringify(updated));
       
       // Update local state
@@ -292,7 +514,6 @@ const WebhookSettings: React.FC<WebhookSettingsProps> = ({
       
       Alert.alert('Success', 'Webhook updated successfully!');
     } catch (e) {
-      console.error("Error saving webhook:", e);
       Alert.alert('Save Error', 'Could not save the webhook URL.');
     }
   };
@@ -332,7 +553,6 @@ ${failures > 0 ? `Failed to send to ${failures} endpoint${failures !== 1 ? 's' :
       );
       
     } catch (error: unknown) {
-      console.error("Error sending individual item:", error);
       Alert.alert("Send Error", "An error occurred while sending the data.");
     } finally {
       setSendingItemId(null);
@@ -347,37 +567,30 @@ ${failures > 0 ? `Failed to send to ${failures} endpoint${failures !== 1 ? 's' :
   
   // Function to save edited bulk data item
   const saveEditedItem = (itemId: string | number) => {
-    // Find the item in the bulkData array
     const updatedBulkData = bulkData.map(item => 
       item.id === itemId ? { ...item, data: editingItemValue } : item
     );
     
-    // Update the bulkData array in AsyncStorage
     AsyncStorage.setItem('bulkData', JSON.stringify(updatedBulkData))
       .then(() => {
-        // Reset editing state
         setEditingItemId(null);
         setEditingItemValue('');
         setBulkData(updatedBulkData);
       })
-      .catch((error: Error) => {
-        console.error("Error saving edited item:", error);
+      .catch(() => {
         Alert.alert("Save Error", "An error occurred while saving the edited data.");
       });
   };
   
   // Function to delete a bulk data item
   const deleteBulkItem = (itemId: string | number) => {
-    // Filter out the item from the bulkData array
     const updatedBulkData = bulkData.filter(item => item.id !== itemId);
     
-    // Update the bulkData array in AsyncStorage
     AsyncStorage.setItem('bulkData', JSON.stringify(updatedBulkData))
       .then(() => {
         setBulkData(updatedBulkData);
       })
-      .catch((error: Error) => {
-        console.error("Error deleting item:", error);
+      .catch(() => {
         Alert.alert("Delete Error", "An error occurred while deleting the item.");
       });
   };
@@ -399,7 +612,7 @@ ${failures > 0 ? `Failed to send to ${failures} endpoint${failures !== 1 ? 's' :
             >
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <MaterialIcons name="settings" size={20} color="#888" style={{ marginRight: 8 }} />
-                <Text style={styles.subHeader}>General Settings</Text>
+                <Text style={styles.subHeader}>General</Text>
               </View>
               <View style={{ flex: 1 }} />
               <MaterialIcons
@@ -417,7 +630,7 @@ ${failures > 0 ? `Failed to send to ${failures} endpoint${failures !== 1 ? 's' :
                     <Text style={styles.settingLabel}>Mute Voice Output (M)</Text>
                     <Switch
                       value={isSpeechMuted}
-                      onValueChange={() => toggleSpeechMute?.()}
+                      onValueChange={() => requireAuth(() => toggleSpeechMute?.())}
                       trackColor={{ false: "#333", true: "#0066cc" }}
                       thumbColor={isSpeechMuted ? "#0066cc" : "#f4f3f4"}
                     />
@@ -426,7 +639,7 @@ ${failures > 0 ? `Failed to send to ${failures} endpoint${failures !== 1 ? 's' :
                     <Text style={styles.settingLabel}>New Line on Send</Text>
                     <Switch
                       value={enterKeyNewLine}
-                      onValueChange={v => setEnterKeyNewLine?.(v)}
+                      onValueChange={v => requireAuth(() => setEnterKeyNewLine?.(v))}
                       trackColor={{ false: "#333", true: "#0066cc" }}
                       thumbColor={enterKeyNewLine ? "#0066cc" : "#f4f3f4"}
                     />
@@ -436,20 +649,31 @@ ${failures > 0 ? `Failed to send to ${failures} endpoint${failures !== 1 ? 's' :
                       <Text style={styles.settingLabel}>Enable Vibration</Text>
                       <Switch
                         value={vibrationEnabled}
-                        onValueChange={v => setVibrationEnabled?.(v)}
+                        onValueChange={v => requireAuth(() => setVibrationEnabled?.(v))}
                         trackColor={{ false: "#333", true: "#0066cc" }}
                         thumbColor={vibrationEnabled ? "#0066cc" : "#f4f3f4"}
                       />
                     </View>
                   )}
+                  {Platform.OS !== 'web' && (
+                    <View style={styles.settingRowCompact}>
+                      <Text style={styles.settingLabel}>Open in Calculator Mode</Text>
+                      <Switch
+                        value={openInCalcMode}
+                        onValueChange={v => requireAuth(() => setOpenInCalcMode?.(v))}
+                        trackColor={{ false: "#333", true: "#0066cc" }}
+                        thumbColor={openInCalcMode ? "#0066cc" : "#f4f3f4"}
+                      />
+                    </View>
+                  )}
                   <View style={{ marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: '#333' }}>
-                    <Text style={[styles.settingLabel, { color: '#888', fontSize: 14, marginBottom: 8 }]}>Settings</Text>
+                    <Text style={[styles.settingLabel, { color: '#888', fontSize: 14, marginBottom: 8 }]}>Webhooks</Text>
                   </View>
                   <View style={styles.settingRowCompact}>
                     <Text style={styles.settingLabel}>Send Answer Without Equation</Text>
                     <Switch
                       value={!sendEquation}
-                      onValueChange={v => setSendEquation(!v)}
+                      onValueChange={v => requireAuth(() => setSendEquation(!v))}
                       trackColor={{ false: "#333", true: "#0066cc" }}
                       thumbColor={!sendEquation ? "#0066cc" : "#f4f3f4"}
                     />
@@ -458,7 +682,7 @@ ${failures > 0 ? `Failed to send to ${failures} endpoint${failures !== 1 ? 's' :
                     <Text style={styles.settingLabel}>Queue Results for Manual Sending</Text>
                     <Switch
                       value={!streamResults}
-                      onValueChange={v => setStreamResults(!v)}
+                      onValueChange={v => requireAuth(() => setStreamResults(!v))}
                       trackColor={{ false: "#333", true: "#0066cc" }}
                       thumbColor={!streamResults ? "#0066cc" : "#f4f3f4"}
                     />
@@ -522,53 +746,10 @@ ${failures > 0 ? `Failed to send to ${failures} endpoint${failures !== 1 ? 's' :
                   <View style={styles.sectionDivider} />
                   
                   <Text style={[styles.sectionSubtitle, styles.sectionTopMargin]}>My webhooks</Text>
-                {localWebhookUrls.length > 0 ? (
-                <FlatList
-                  data={localWebhookUrls}
-                  keyExtractor={(item) => item.url}
-                  scrollEnabled={false}
-                  renderItem={({ item }) => {
-                    // Use explicit return View for both branches
-                    if (editingWebhookUrl === item.url) {
-                      // Editing mode
-                      return (
-                        // Apply base item styles + edit-specific styles
-                        <View style={[styles.webhookItem, styles.sectionPadding, styles.webhookEditRow]}> 
-                          <View style={styles.webhookEditInputsContainer}>
-                            <TextInput
-                              style={styles.webhookInput}
-                              value={editingWebhookTitle}
-                              onChangeText={setEditingWebhookTitle}
-                              placeholder="Webhook title (optional)"
-                              autoCapitalize="sentences"
-                            />
-                            <TextInput
-                              style={styles.webhookInput}
-                              value={editingWebhookValue}
-                              onChangeText={setEditingWebhookValue}
-                              autoFocus
-                              keyboardType="url"
-                            />
-                          </View>
-                          <TouchableOpacity
-                            style={styles.saveButton}
-                            onPress={() => saveEditedWebhook(item.url)}
-                          >
-                            <MaterialIcons name="check" size={20} color="#fff" />
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            style={styles.cancelButton}
-                            onPress={cancelEditingWebhook}
-                          >
-                            <MaterialIcons name="close" size={20} color="#888888" />
-                          </TouchableOpacity>
-                        </View>
-                      );
-                    } else {
-                      // Display mode (No fragment)
-                      return (
-                        // Apply base item styles
-                        <View style={[styles.webhookItem, styles.sectionPadding]}> 
+                  {localWebhookUrls.length > 0 ? (
+                    <View style={styles.webhookList}>
+                      {localWebhookUrls.map((item) => (
+                        <View key={item.url} style={[styles.webhookItem, styles.sectionPadding]}>
                           <Text style={styles.webhookUrlText} numberOfLines={1} ellipsizeMode="middle">
                             {item.title ? item.title : item.url}
                           </Text>
@@ -576,7 +757,7 @@ ${failures > 0 ? `Failed to send to ${failures} endpoint${failures !== 1 ? 's' :
                             <Switch
                               value={item.active}
                               onValueChange={(value) => {
-                                handleToggleWebhook(item.url, value);
+                                handleToggleWebhookWrapped(item.url, value);
                                 const updated = localWebhookUrls.map(webhook => 
                                   webhook.url === item.url ? { ...webhook, active: value } : webhook
                                 );
@@ -594,7 +775,7 @@ ${failures > 0 ? `Failed to send to ${failures} endpoint${failures !== 1 ? 's' :
                             </TouchableOpacity>
                             <TouchableOpacity
                               onPress={() => {
-                                handleDeleteWebhook(item.url);
+                                handleDeleteWebhookWrapped(item.url);
                                 const updated = localWebhookUrls.filter(webhook => webhook.url !== item.url);
                                 setLocalWebhookUrls(updated);
                               }}
@@ -604,14 +785,11 @@ ${failures > 0 ? `Failed to send to ${failures} endpoint${failures !== 1 ? 's' :
                             </TouchableOpacity>
                           </View>
                         </View>
-                      );
-                    }
-                  }}
-                  style={styles.webhookList}
-                />
-                ) : (
-                  <Text style={styles.emptyListText}>No webhooks added yet</Text>
-                )}
+                      ))}
+                    </View>
+                  ) : (
+                    <Text style={styles.emptyListText}>No webhooks added yet</Text>
+                  )}
                 </View>
               </View>
             )}
@@ -623,7 +801,7 @@ ${failures > 0 ? `Failed to send to ${failures} endpoint${failures !== 1 ? 's' :
               <View style={styles.bulkHeaderContainer}>
                 <Text style={styles.subHeader}>Bulk Data ({bulkData.length} items)</Text>
                 <TouchableOpacity 
-                  onPress={clearBulkData} 
+                  onPress={clearBulkDataWrapped} 
                   style={styles.deleteAllButton} 
                   disabled={isSendingBulk} 
                 >
@@ -677,7 +855,7 @@ ${failures > 0 ? `Failed to send to ${failures} endpoint${failures !== 1 ? 's' :
                             
                             <TouchableOpacity 
                               style={styles.bulkItemAction}
-                              onPress={() => handleSendSingleItem(item)}
+                              onPress={() => handleSendSingleItemWrapped(item)}
                               disabled={sendingItemId === item.id || localWebhookUrls.filter(webhook => webhook.active).length === 0}
                             >
                               {sendingItemId === item.id ? (
@@ -710,7 +888,7 @@ ${failures > 0 ? `Failed to send to ${failures} endpoint${failures !== 1 ? 's' :
                   styles.bulkSendButton,
                   (bulkData.length === 0 || localWebhookUrls.filter(webhook => webhook.active).length === 0 || isSendingBulk) && styles.disabledButton
                 ]}
-                onPress={handleSendBulkData}
+                onPress={handleSendBulkDataWrapped}
                 disabled={bulkData.length === 0 || localWebhookUrls.filter(webhook => webhook.active).length === 0 || isSendingBulk}
               >
                 <MaterialIcons name="send" size={20} color="#fff" style={{ marginRight: 8 }} />
@@ -728,15 +906,35 @@ ${failures > 0 ? `Failed to send to ${failures} endpoint${failures !== 1 ? 's' :
           {/* Authentication Section */}
           <View style={styles.sectionCard}>
             <TouchableOpacity
-              style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 4 }}
+              style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 4 }}
               onPress={() => setAuthSectionOpen((prev) => !prev)}
               activeOpacity={0.7}
             >
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <MaterialIcons name="account-circle" size={20} color="#888" style={{ marginRight: 8 }} />
-                <Text style={styles.subHeader}>Account</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                {user ? (
+                  user.user_metadata?.avatar_url ? (
+                    <Image 
+                      source={{ uri: user.user_metadata.avatar_url }} 
+                      style={{ width: 40, height: 40, borderRadius: 20, marginRight: 12 }}
+                    />
+                  ) : (
+                    <MaterialIcons name="account-circle" size={40} color="#888" style={{ marginRight: 12 }} />
+                  )
+                ) : (
+                  <Image 
+                    source={require('../../assets/images/cat.webp')} 
+                    style={{ width: 40, height: 40, borderRadius: 20, marginRight: 12 }}
+                  />
+                )}
+                <View>
+                  <Text style={[styles.subHeader, { fontSize: 18, marginBottom: 2, fontWeight: 'bold', color: '#fff' }]}>
+                    {user ? (user.user_metadata?.full_name || 'User') : 'Anonymous Cat'}
+                  </Text>
+                  <Text style={[styles.userSubtitle, { fontSize: 14, color: '#888' }]}>
+                    {user ? user.email : 'Guest User'}
+                  </Text>
+                </View>
               </View>
-              <View style={{ flex: 1 }} />
               <MaterialIcons
                 name={authSectionOpen ? 'expand-less' : 'expand-more'}
                 size={24}
@@ -751,32 +949,94 @@ ${failures > 0 ? `Failed to send to ${failures} endpoint${failures !== 1 ? 's' :
                    {/* Use actual user state */}
                   {user ? ( 
                     <View style={styles.authContainer}>
-                      <View style={styles.profileInfo}>
-                        <MaterialIcons name="account-circle" size={40} color="#0066cc" />
-                        <View style={styles.userInfoContainer}>
-                          {/* Display user email or other identifier */}
-                          <Text style={styles.emailText} numberOfLines={1} ellipsizeMode="tail">{user.email || 'Authenticated User'}</Text>
-                          {/* Optionally display user ID or other info */}
-                          {/* <Text style={styles.userIdText}>ID: {user.id}</Text> */}
-                        </View>
-                      </View>
-                      
                       <TouchableOpacity
                         style={styles.signOutButton}
-                        onPress={handleSignOut} // Use the updated handleSignOut
+                        onPress={handleSignOut}
                       >
-                        <MaterialIcons name="logout" size={18} color="#fff" style={{ marginRight: 8 }} />
+                        <MaterialIcons name="logout" size={18} color="#FF3B30" style={{ marginRight: 8 }} />
                         <Text style={styles.signOutButtonText}>Sign Out</Text>
                       </TouchableOpacity>
                     </View>
                   ) : (
-                     // Show login prompt or info if not logged in (though typically modal might not show)
                     <View style={styles.authContainer}>
-                      <Text style={styles.authTitle}>Not Signed In</Text>
-                       {/* Optionally add a button to trigger login if needed, though unusual in settings */}
-                       {/* <TouchableOpacity style={styles.authButton} onPress={() => { onClose(); router.replace('/auth/login'); }}> */}
-                       {/*   <Text style={styles.authButtonText}>Sign In</Text> */}
-                       {/* </TouchableOpacity> */}
+                      <View style={styles.promoContainer}>
+                        <View style={styles.logoContainer}>
+                          <Image 
+                            source={require('../../assets/images/LOGO.png')} 
+                            style={{ width: 180, height: 72, marginBottom: 20, resizeMode: 'contain' }} 
+                          />
+                          <Text style={styles.betaText}>BETA</Text>
+                        </View>
+                        <Text style={styles.limitedTimeOffer}>First 100 Users Get Lifetime Access</Text>
+                        <Text style={[styles.limitedTimeOffer, { color: '#e0e0e0' }]}>to Premium! - Sign up here </Text>
+                        <View style={styles.promoFeatures}>
+                          <Text style={styles.promoFeature}>
+                            <MaterialIcons name="verified" size={16} color="#fff" /> Unlimited Calculations
+                          </Text>
+                          <Text style={styles.promoFeature}>
+                            <MaterialIcons name="webhook" size={16} color="#fff" /> Webhook Integration
+                          </Text>
+                          <Text style={styles.promoFeature}>
+                            <MaterialIcons name="history" size={16} color="#fff" /> History & Sync
+                            <Text style={styles.comingSoon}> (soon)</Text>
+                          </Text>
+                        </View>
+                      </View>
+
+                      <TouchableOpacity 
+                        style={styles.googleButton}
+                        onPress={handleGoogleLogin}
+                        disabled={isLoading}
+                      >
+                        {isLoading ? (
+                          <ActivityIndicator color="#0066cc" />
+                        ) : (
+                          <>
+                            <GoogleLogo size={20} />
+                            <Text style={styles.googleButtonText}>Continue with Google</Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
+
+                      <View style={styles.loginSeparator}>
+                        <View style={styles.loginSeparatorLine} />
+                        <Text style={styles.loginSeparatorText}>or</Text>
+                        <View style={styles.loginSeparatorLine} />
+                      </View>
+
+                      <TextInput
+                        style={styles.authInput}
+                        placeholder="Enter your email"
+                        placeholderTextColor="#666"
+                        value={email}
+                        onChangeText={setEmail}
+                        autoCapitalize="none"
+                        keyboardType="email-address"
+                        editable={!otpSent}
+                      />
+                      {otpSent && (
+                        <TextInput
+                          style={styles.authInput}
+                          placeholder="Enter verification code"
+                          placeholderTextColor="#666"
+                          value={otp}
+                          onChangeText={setOtp}
+                          keyboardType="number-pad"
+                        />
+                      )}
+                      <TouchableOpacity
+                        style={styles.authButton}
+                        onPress={handleEmailLogin}
+                        disabled={isLoading}
+                      >
+                        {isLoading ? (
+                          <ActivityIndicator color="#fff" />
+                        ) : (
+                          <Text style={styles.authButtonText}>
+                            {otpSent ? 'Verify Code' : 'Continue with Email'}
+                          </Text>
+                        )}
+                      </TouchableOpacity>
                     </View>
                   )}
                 </View>
@@ -786,28 +1046,46 @@ ${failures > 0 ? `Failed to send to ${failures} endpoint${failures !== 1 ? 's' :
         </ScrollView>
   );
   
+  const [mounted, setMounted] = useState(false);
+  const [opacity] = useState(new Animated.Value(1));
+
+  useEffect(() => {
+    if (visible) {
+      setMounted(true);
+    } else {
+      setTimeout(() => setMounted(false), 200);
+    }
+  }, [visible]);
+
+  if (!mounted && !visible) {
+    return null;
+  }
+
   return (
-    <Modal
-      visible={visible}
-      animationType={Platform.OS === 'web' ? "fade" : "slide"}
-      transparent={false}
-      onRequestClose={onClose}
-    >
-      <StatusBar barStyle="light-content" backgroundColor="#000" />
-      <SafeAreaView style={styles.modalContainer}>
-        <View style={styles.header}>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <MaterialIcons name="webhook" size={24} color="#fff" style={{ marginRight: 8 }} />
-            <Text style={styles.modalTitle}>Settings</Text>
+    <>
+      <Modal
+        visible={visible}
+        animationType={Platform.OS === 'web' ? "none" : "slide"}
+        transparent={false}
+        onRequestClose={onClose}
+      >
+        <StatusBar barStyle="light-content" backgroundColor="#000" />
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.header}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <MaterialIcons name="webhook" size={24} color="#fff" style={{ marginRight: 8 }} />
+              <Text style={styles.modalTitle}>Settings</Text>
+            </View>
+            <TouchableOpacity style={styles.closeIcon} onPress={onClose}>
+              <MaterialIcons name="close" size={24} color="#fff" />
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity style={styles.closeIcon} onPress={onClose}>
-            <MaterialIcons name="close" size={24} color="#fff" />
-          </TouchableOpacity>
-        </View>
-        
-        {ScrollViewContent}
-      </SafeAreaView>
-    </Modal>
+          
+          {ScrollViewContent}
+        </SafeAreaView>
+      </Modal>
+      <LoginModal />
+    </>
   );
 };
 
@@ -1162,26 +1440,24 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   authInput: {
-    backgroundColor: '#1e1e1e',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 12,
+    backgroundColor: '#1C1C1E',
     color: '#fff',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 10,
     fontSize: 16,
   },
   authButton: {
     backgroundColor: '#0066cc',
-    borderRadius: 8,
     padding: 12,
+    borderRadius: 8,
     alignItems: 'center',
-    marginVertical: 10,
-    flexDirection: 'row',
-    justifyContent: 'center',
+    marginBottom: 10,
   },
   authButtonText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '500',
   },
   switchAuthModeButton: {
     alignItems: 'center',
@@ -1194,33 +1470,43 @@ const styles = StyleSheet.create({
   profileInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 15,
+    backgroundColor: '#1C1C1E',
+    padding: 12,
+    borderRadius: 12,
+  },
+  profileImage: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    marginRight: 12,
   },
   userInfoContainer: {
-    marginLeft: 15,
     flex: 1,
   },
   emailText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '600',
+    marginBottom: 4,
   },
-  userIdText: {
+  userSubtitle: {
     color: '#888',
-    fontSize: 12,
-    marginTop: 4,
+    fontSize: 14,
   },
   signOutButton: {
-    backgroundColor: '#333',
-    borderRadius: 8,
-    padding: 12,
-    alignItems: 'center',
     flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1C1C1E',
+    padding: 12,
+    borderRadius: 8,
     justifyContent: 'center',
+    marginTop: 10,
   },
   signOutButtonText: {
-    color: '#fff',
+    color: '#FF3B30',
     fontSize: 16,
+    fontWeight: '500',
   },
   loadingContainer: {
     flex: 1,
@@ -1232,6 +1518,220 @@ const styles = StyleSheet.create({
     color: '#fff',
     marginTop: 16,
     fontSize: 16,
+  },
+  loginModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loginModalContent: {
+    backgroundColor: '#121212',
+    borderRadius: 12,
+    padding: 24,
+    width: '90%',
+    maxWidth: 400,
+    borderWidth: 1,
+    borderColor: '#333',
+  },
+  loginModalHeader: {
+    alignItems: 'center',
+    marginBottom: 24,
+    position: 'relative',
+  },
+  loginModalTitle: {
+    fontSize: 24,
+    color: '#fff',
+    fontWeight: 'bold',
+    marginTop: 12,
+  },
+  loginModalClose: {
+    position: 'absolute',
+    right: -12,
+    top: -12,
+    padding: 8,
+  },
+  loginInputContainer: {
+    gap: 16,
+  },
+  loginInput: {
+    backgroundColor: '#1e1e1e',
+    borderRadius: 8,
+    padding: 15,
+    color: '#fff',
+    fontSize: 16,
+  },
+  loginButton: {
+    backgroundColor: '#0066cc',
+    borderRadius: 8,
+    padding: 15,
+    alignItems: 'center',
+  },
+  loginButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  loginSeparator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 15,
+  },
+  loginSeparatorLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#333',
+  },
+  loginSeparatorText: {
+    color: '#888',
+    marginHorizontal: 10,
+    fontSize: 14,
+  },
+  googleButton: {
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    padding: 15,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  googleButtonText: {
+    color: '#000',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  loginContainer: {
+    alignItems: 'center',
+    padding: 20,
+  },
+  loginPromptText: {
+    color: '#888',
+    fontSize: 16,
+    marginBottom: 16,
+  },
+  loginPromptButton: {
+    backgroundColor: '#0066cc',
+    borderRadius: 8,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  loginPromptButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  otpMessage: {
+    color: '#0066cc',
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 15,
+  },
+  limitedTimeOffer: {
+    color: '#fff',
+    fontSize: 26,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 4,
+    letterSpacing: 0.5,
+  },
+  limitedTimeSubtext: {
+    color: '#888',
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  promoContainer: {
+    padding: 24,
+    borderRadius: 16,
+    backgroundColor: '#1C1C1E',
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#333',
+    alignItems: 'center',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 5,
+      },
+      web: {
+        boxShadow: '0 4px 8px rgba(0, 0, 0, 0.2)',
+      }
+    }),
+  },
+  logoContainer: {
+    position: 'relative',
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+  },
+  betaText: {
+    position: 'absolute',
+    top: 10,
+    right: -42,
+    backgroundColor: '#0066cc',
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: 'bold',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    overflow: 'hidden',
+    letterSpacing: 0.5,
+  },
+  promoBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 215, 0, 0.15)',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    marginBottom: 20,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#FFD700',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+      web: {
+        boxShadow: '0 2px 4px rgba(255, 215, 0, 0.1)',
+      }
+    }),
+  },
+  promoBadgeText: {
+    color: '#FFD700',
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+  },
+  promoFeatures: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 20,
+    gap: 20,
+  },
+  promoFeature: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+    opacity: 0.95,
+  },
+  comingSoon: {
+    color: '#666',
+    fontSize: 13,
+    fontWeight: '500',
   },
 });
 

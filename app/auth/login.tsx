@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,18 +10,38 @@ import {
   KeyboardAvoidingView,
   Platform,
   Image,
+  Animated,
+  Dimensions,
+  Easing,
 } from 'react-native';
 import { useAuth } from '../../contexts/AuthContext';
 import { router } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import GoogleLogo from '../components/GoogleLogo';
 
+interface Benefit {
+  icon: 'speed' | 'history' | 'webhook' | 'lightbulb';
+  text: string;
+}
+
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
+  const [otp, setOtp] = useState('');
   const [localLoading, setLocalLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
-  const { signIn, signInWithGoogle, authError } = useAuth();
+  const { signIn, verifyOtp, signInWithGoogle, authError } = useAuth();
+
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const slideAnim = useRef(new Animated.Value(0)).current;
+  const { width } = Dimensions.get('window');
+  const contentWidth = width * 0.8; // 80% of screen width for text
+
+  const benefits: Benefit[] = [
+    { icon: 'lightbulb', text: 'You can use voice recognition to calculate 3x faster than traditional methods' },
+    { icon: 'lightbulb', text: 'You can use magic history to never forget a calculation... Never' },
+    { icon: 'lightbulb', text: 'You can use webhooks to send results where they matter, instantly' },
+  ];
 
   useEffect(() => {
     if (authError) {
@@ -29,19 +49,66 @@ export default function LoginScreen() {
     }
   }, [authError]);
 
+  useEffect(() => {
+    const animateNext = () => {
+      // Start animation from current position
+      slideAnim.setValue(0);
+      
+      // Animate slide out to left
+      Animated.timing(slideAnim, {
+        toValue: -contentWidth,
+        duration: 400,
+        useNativeDriver: true,
+        easing: Easing.inOut(Easing.ease),
+      }).start(() => {
+        // Update content and reset position
+        setCurrentIndex((prev) => (prev + 1) % benefits.length);
+        slideAnim.setValue(contentWidth);
+        
+        // Animate slide in from right
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: 400,
+          useNativeDriver: true,
+          easing: Easing.inOut(Easing.ease),
+        }).start();
+      });
+    };
+
+    const timer = setInterval(animateNext, 4000);
+    return () => clearInterval(timer);
+  }, [slideAnim, contentWidth, benefits.length]);
+
   const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert('Input Error', 'Please enter both email and password');
+    if (!email) {
+      Alert.alert('Input Error', 'Please enter your email');
       return;
     }
-    setLocalLoading(true);
-    console.log("Attempting email/password login...");
-    await signIn(email, password);
-    setLocalLoading(false);
-  };
 
-  const navigateToSignUp = () => {
-    router.push('/auth/signup');
+    if (otpSent && !otp) {
+      Alert.alert('Input Error', 'Please enter the verification code from your email');
+      return;
+    }
+
+    setLocalLoading(true);
+    
+    if (otpSent) {
+      // Verify OTP
+      const { error } = await verifyOtp(email, otp);
+      if (!error) {
+        // OTP verified successfully, let useProtectedRoute handle navigation
+        setOtp('');
+        setOtpSent(false);
+      }
+    } else {
+      // Send OTP
+      const { error } = await signIn(email);
+      if (!error) {
+        setOtpSent(true);
+      }
+    }
+    
+    setLocalLoading(false);
   };
 
   const handleGoogleLogin = async () => {
@@ -49,6 +116,7 @@ export default function LoginScreen() {
     console.log("Attempting Google Sign-In...");
     await signInWithGoogle();
     setGoogleLoading(false);
+    // Let useProtectedRoute handle navigation after successful login
   };
 
   return (
@@ -57,9 +125,33 @@ export default function LoginScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <View style={styles.formContainer}>
+        <View style={styles.logoContainer}>
+          <Image 
+            source={require('../../assets/images/LOGO.png')} 
+            style={styles.logo}
+          />
+          <Text style={styles.betaText}>BETA</Text>
+        </View>
+
+        <View style={styles.benefitsContainer}>
+          <View style={styles.benefitsClipContainer}>
+            <Animated.View 
+              style={[
+                styles.benefitItem,
+                {
+                  transform: [{ translateX: slideAnim }],
+                  width: contentWidth,
+                }
+              ]}
+            >
+              <Text style={styles.benefitText}>
+                {benefits[currentIndex].text}
+              </Text>
+            </Animated.View>
+          </View>
+        </View>
+
         <View style={styles.headerContainer}>
-          <MaterialIcons name="calculate" size={60} color="#fff" />
-          <Text style={styles.title}>CalcAI</Text>
           <Text style={styles.subtitle}>Sign in to your account</Text>
         </View>
 
@@ -72,15 +164,21 @@ export default function LoginScreen() {
             onChangeText={setEmail}
             autoCapitalize="none"
             keyboardType="email-address"
+            editable={!otpSent}
           />
-          <TextInput
-            style={styles.input}
-            placeholder="Password"
-            placeholderTextColor="#666"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-          />
+          {otpSent && (
+            <>
+              <Text style={styles.otpMessage}>Check your email for the verification code</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter verification code"
+                placeholderTextColor="#666"
+                value={otp}
+                onChangeText={setOtp}
+                keyboardType="number-pad"
+              />
+            </>
+          )}
         </View>
 
         <TouchableOpacity
@@ -91,7 +189,9 @@ export default function LoginScreen() {
           {localLoading ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.buttonText}>Sign In</Text>
+            <Text style={styles.buttonText}>
+              {otpSent ? 'Verify Code' : 'Send Login Link'}
+            </Text>
           )}
         </TouchableOpacity>
 
@@ -121,7 +221,7 @@ export default function LoginScreen() {
 
         <View style={styles.footerContainer}>
           <Text style={styles.footerText}>Don't have an account?</Text>
-          <TouchableOpacity onPress={navigateToSignUp}>
+          <TouchableOpacity onPress={() => router.push('/auth/signup')}>
             <Text style={styles.signUpText}>Sign Up</Text>
           </TouchableOpacity>
         </View>
@@ -145,13 +245,34 @@ const styles = StyleSheet.create({
   },
   headerContainer: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 30,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
+  logo: {
+    width: 200,
+    height: 80,
+    resizeMode: 'contain',
+    marginBottom: 20,
+    alignSelf: 'center',
+  },
+  logoContainer: {
+    position: 'relative',
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+  },
+  betaText: {
+    position: 'absolute',
+    top: 10,
+    right: -40,
+    backgroundColor: '#0066cc',
     color: '#fff',
-    marginTop: 10,
+    fontSize: 10,
+    fontWeight: 'bold',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    overflow: 'hidden',
+    letterSpacing: 0.5,
   },
   subtitle: {
     fontSize: 16,
@@ -246,5 +367,37 @@ const styles = StyleSheet.create({
     color: '#8E8E93',
     paddingHorizontal: 10,
     fontSize: 14,
+  },
+  otpMessage: {
+    color: '#0066cc',
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 15,
+  },
+  benefitsContainer: {
+    height: 70,
+    marginBottom: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
+  },
+  benefitsClipContainer: {
+    width: '80%',
+    alignItems: 'center',
+    position: 'relative',
+    minHeight: 70,
+  },
+  benefitItem: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 70,
+  },
+  benefitText: {
+    color: '#fff',
+    fontSize: 15,
+    textAlign: 'center',
+    fontWeight: '500',
+    letterSpacing: 0.5,
+    lineHeight: 22,
   },
 });

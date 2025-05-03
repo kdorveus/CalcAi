@@ -10,11 +10,11 @@ import Constants from 'expo-constants';
 
 // Define the shape of the context data
 type AuthContextType = {
-  signIn: (email?: string, password?: string) => Promise<{ error: AuthError | null }>;
-  signUp: (email?: string, password?: string) => Promise<{ error: AuthError | null, session: Session | null, user: User | null }>;
+  signIn: (email: string) => Promise<{ error: AuthError | null }>;
+  signUp: (email: string) => Promise<{ error: AuthError | null, session: Session | null, user: User | null }>;
   signOut: () => Promise<{ error: AuthError | null }>;
-  // resetPassword: (email: string) => Promise<{ error: AuthError | null }>; // Add if needed
   signInWithGoogle: () => Promise<{ error: AuthError | null }>;
+  verifyOtp: (email: string, token: string) => Promise<{ error: AuthError | null }>;
   user: User | null;
   session: Session | null;
   loading: boolean; // Indicates initial session load AND ongoing auth operations
@@ -26,8 +26,8 @@ const AuthContext = createContext<AuthContextType>({
   signIn: async () => ({ error: null }),
   signUp: async () => ({ error: null, session: null, user: null }),
   signOut: async () => ({ error: null }),
-  // resetPassword: async () => ({ error: null }),
   signInWithGoogle: async () => ({ error: null }),
+  verifyOtp: async () => ({ error: null }),
   user: null,
   session: null,
   loading: true, // Start loading true
@@ -108,41 +108,70 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
   }, []);
 
-  // --- Sign In (Email/Password) ---
-  const signIn = async (email?: string, password?: string) => {
-    if (!email || !password) {
-      const errorMsg = "Email and password are required.";
+  // Sign In with OTP
+  const signIn = async (email: string) => {
+    if (!email) {
+      const errorMsg = "Email is required.";
       setAuthError(errorMsg);
       return { error: { name: 'InputError', message: errorMsg } as AuthError };
     }
     setLoading(true);
     setAuthError(null);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error } = await supabase.auth.signInWithOtp({ 
+      email,
+      options: {
+        emailRedirectTo: Linking.createURL('auth/callback')
+      }
+    });
     if (error) setAuthError(error.message);
     setLoading(false);
     return { error };
   };
 
-  // --- Sign Up (Email/Password) ---
-  const signUp = async (email?: string, password?: string) => {
-     if (!email || !password) {
-       const errorMsg = "Email and password are required.";
-       setAuthError(errorMsg);
-       return { error: { name: 'InputError', message: errorMsg } as AuthError, session: null, user: null };
-     }
+  // Verify OTP
+  const verifyOtp = async (email: string, token: string) => {
+    if (!email || !token) {
+      const errorMsg = "Email and verification code are required.";
+      setAuthError(errorMsg);
+      return { error: { name: 'InputError', message: errorMsg } as AuthError };
+    }
     setLoading(true);
     setAuthError(null);
-    const { data, error } = await supabase.auth.signUp({ email, password });
-     if (error) {
-       setAuthError(error.message);
-     } else if (!data.session && data.user) {
-       // Handle email verification required scenario
-       setAuthError("Please check your email to verify your account.");
-     } else {
-        setAuthError(null); // Clear error on success
-     }
+    const { error } = await supabase.auth.verifyOtp({
+      email,
+      token,
+      type: 'magiclink'
+    });
+    if (error) setAuthError(error.message);
     setLoading(false);
-    return { error, session: data.session, user: data.user };
+    return { error };
+  };
+
+  // Sign Up (now also uses OTP)
+  const signUp = async (email: string) => {
+    if (!email) {
+      const errorMsg = "Email is required.";
+      setAuthError(errorMsg);
+      return { error: { name: 'InputError', message: errorMsg } as AuthError, session: null, user: null };
+    }
+    setLoading(true);
+    setAuthError(null);
+    
+    // For new users, we'll just send them an OTP directly
+    const { data, error } = await supabase.auth.signInWithOtp({ 
+      email,
+      options: {
+        emailRedirectTo: Linking.createURL('auth/callback')
+      }
+    });
+    
+    if (error) {
+      setAuthError(error.message);
+    } else {
+      setAuthError("Please check your email for the login link.");
+    }
+    setLoading(false);
+    return { error, session: data?.session, user: data?.user };
   };
 
   // --- Sign Out ---
@@ -283,8 +312,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         signIn,
         signUp,
         signOut,
-        // resetPassword,
         signInWithGoogle,
+        verifyOtp,
         user,
         session,
         loading,
@@ -306,21 +335,38 @@ export function useProtectedRoute() {
   const { session, loading } = useAuth();
 
   useEffect(() => {
-    // Ensure navigation is available and auth state is determined
-    if (loading) return;
-
+    const navigate = () => {
     const inAuthGroup = segments[0] === 'auth';
+    const isWebhookPath = segments.includes('webhook');
 
     console.log(`[useProtectedRoute] Loading: ${loading}, Session: ${!!session}, Segments: ${segments.join('/')}, InAuthGroup: ${inAuthGroup}`);
 
-    if (!session && !inAuthGroup) {
-      // Redirect to login if not logged in and not in the auth group.
-      console.log("[useProtectedRoute] No session, redirecting to /auth/login");
-      router.replace('/auth/login');
-    } else if (session && inAuthGroup) {
-      // Redirect away from auth screens if logged in.
-       console.log("[useProtectedRoute] Session exists, redirecting from auth group to /");
-      router.replace('/'); // Redirect to root, which will likely go to (tabs)
+    if (Platform.OS === 'web') {
+      // Web: Only protect webhook paths
+      if (!session && isWebhookPath && !inAuthGroup) {
+        console.log("[useProtectedRoute] Web: No session, webhook path, redirecting to login");
+        router.replace('/auth/login');
+      } else if (session && inAuthGroup) {
+        console.log("[useProtectedRoute] Web: Session exists, in auth group, redirecting to /");
+        router.replace('/');
+      }
+    } else {
+      // Mobile: Protect all routes
+      if (!session && !inAuthGroup) {
+        console.log("[useProtectedRoute] Mobile: No session, redirecting to login");
+        router.replace('/auth/login');
+      } else if (session && inAuthGroup) {
+        console.log("[useProtectedRoute] Mobile: Session exists, redirecting from auth group to /");
+          // Clear the navigation stack and replace with root
+          router.replace('/', { replace: true });
+      }
+      }
+    };
+
+    // Only navigate when loading is complete to prevent race conditions
+    if (!loading) {
+      // Use requestAnimationFrame to ensure navigation happens after current render
+      requestAnimationFrame(navigate);
     }
   }, [session, loading, segments, router]);
 }
