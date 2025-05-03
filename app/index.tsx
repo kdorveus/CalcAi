@@ -1811,8 +1811,8 @@ const MainScreen: React.FC = () => {
       <View style={{ 
         flex: 1, 
         minHeight: 200, 
-        marginBottom: isWebMobile ? 80 : 15, // Add more bottom margin for web mobile
-        maxHeight: showKeypad ? (isWebMobile ? '40%' : '50%') : '85%', // Adjust height based on keypad visibility and platform
+        marginBottom: isWebMobile && showKeypad ? 90 : 15, // Extra margin when keypad is shown on mobile web
+        maxHeight: showKeypad ? (isWebMobile ? '30%' : '50%') : '85%', // Reduced height for mobile web with keypad
         overflow: 'hidden', // Prevent content from overflowing
       }}> 
         <FlatList
@@ -1850,6 +1850,7 @@ const MainScreen: React.FC = () => {
               alignSelf: 'flex-end',
               padding: 10,
               marginRight: 20,
+              marginBottom: 0, // Consistent spacing
             }}
             onPress={() => onKeypadPress('⌫')}
             activeOpacity={0.7}
@@ -2479,7 +2480,14 @@ const styles = StyleSheet.create<ComponentStyles>({
     left: 0,
     right: 0,
     marginHorizontal: 15,
-    zIndex: 1000,
+    zIndex: 200, // Even higher z-index to ensure it stays on top
+    backgroundColor: 'rgba(28, 28, 30, 0.98)', // More opaque background
+    borderWidth: 1,
+    borderColor: '#333',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
   },
   micButtonWebMobile: {
     width: 80,
@@ -2492,17 +2500,22 @@ const styles = StyleSheet.create<ComponentStyles>({
     paddingTop: 10,
     borderTopWidth: 1,
     borderTopColor: '#333',
-    marginTop: 5,
-    paddingBottom: 80, // Add padding at bottom for the fixed bottom bar
+    marginTop: 5, 
+    paddingBottom: 20,
+    marginBottom: 70, // Space for the bottom bar
+    position: 'relative',
+    zIndex: 1,
   },
   keypadContainer: {
     width: '100%',
     alignItems: 'center',
+    paddingBottom: Platform.OS === 'web' ? 10 : 0, // Add padding for web to ensure space at bottom
   },
   keypadKeyWebMobile: {
     width: 50,
     height: 50,
     marginHorizontal: 2,
+    marginBottom: 2, // Small margin to prevent buttons being too close
   },
 });
 
