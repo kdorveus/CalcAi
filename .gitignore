@@ -15,6 +15,7 @@ dist/
 web-build/
 
 # Android
+/android
 /android/build/
 /android/app/build/
 /android/app/.cxx/
@@ -23,6 +24,7 @@ web-build/
 /android/app/src/main/assets/NOTICES
 
 # iOS
+/ios
 /ios/Pods/
 /ios/build/
 /ios/.xcode.env.local
