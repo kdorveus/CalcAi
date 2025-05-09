@@ -23,7 +23,7 @@ export default {
         "backgroundColor": "#ffffff"
       },
       "package": "com.calculator.calcai",
-      "versionCode": 1,
+      "versionCode": 2,
       "allowBackup": false,
       "permissions": [
         "RECORD_AUDIO",
