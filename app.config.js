@@ -15,7 +15,6 @@ export default {
     },
     "ios": {
       "supportsTablet": true,
-      "statusBarStyle": "light",
       "bundleIdentifier": "com.calculator.calcai"
     },
     "android": {
@@ -23,7 +22,13 @@ export default {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.calculator.calcai"
+      "package": "com.calculator.calcai",
+      "versionCode": 1,
+      "allowBackup": false,
+      "permissions": [
+        "RECORD_AUDIO",
+        "VIBRATE"
+      ]
     },
     "androidStatusBar": {
       "backgroundColor": "#121212",

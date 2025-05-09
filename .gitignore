@@ -6,16 +6,28 @@ node_modules/
 # Expo
 .expo/
 dist/
-web-build/
-expo-env.d.ts
-
-# Native
-*.orig.*
 *.jks
 *.p8
 *.p12
 *.key
 *.mobileprovision
+*.orig
+web-build/
+
+# Android
+/android/build/
+/android/app/build/
+/android/app/.cxx/
+/android/.gradle/
+/android/app/src/main/assets/app.manifest
+/android/app/src/main/assets/NOTICES
+
+# iOS
+/ios/Pods/
+/ios/build/
+/ios/.xcode.env.local
+/ios/DerivedData/
+*.hmap
 
 # Metro
 .metro-health-check*
@@ -44,3 +56,22 @@ pc-api-key.json
 
 # local env files
 android/app/release.keystore
+
+# Editor/IDE specific
+.idea/
+.vscode/
+*.iml
+
+# OS specific
+Thumbs.db
+
+# Build artifacts
+*.apk
+*.aab
+*.ipa
+*.ear
+*.war
+
+# Credentials (example, adjust as needed)
+# .env
+# secrets.js
