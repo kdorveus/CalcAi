@@ -13,7 +13,6 @@ import {
   Modal, 
   Switch, 
   TextInput, 
-  Button, 
   ViewStyle, 
   TextStyle, 
   ImageStyle,
@@ -22,8 +21,6 @@ import {
   Clipboard,
   ToastAndroid,
   Dimensions, // Add Dimensions import for responsive layout
-  AppState,
-  InteractionManager,
 } from 'react-native';
 import { Audio } from 'expo-av';
 import * as Speech from 'expo-speech';
@@ -35,9 +32,8 @@ import Settings from './components/Settings';
 import * as SpeechRecognition from 'expo-speech-recognition';
 import { 
   ExpoSpeechRecognitionModule,
-  useSpeechRecognitionEvent
+  // useSpeechRecognitionEvent // Removed
 } from 'expo-speech-recognition';
-import Animated from 'react-native-reanimated';
 
 // Preload Material Icons for web
 if (Platform.OS === 'web') {
@@ -60,41 +56,6 @@ if (Platform.OS === 'web') {
     }
   })();
 }
-
-// Optimized font loading detection
-// const useFontLoader = () => {
-//   const [fallbackNeeded, setFallbackNeeded] = useState(false);
-  
-//   useEffect(() => {
-//     if (Platform.OS !== 'web') return;
-    
-//     // Use immediate check on first render with requestAnimationFrame 
-//     // for higher priority than setTimeout
-//     requestAnimationFrame(() => {
-//       try {
-//         const testEl = document.createElement('i');
-//         testEl.className = 'material-icons';
-//         testEl.textContent = 'calculate';
-//         testEl.style.position = 'absolute';
-//         testEl.style.opacity = '0';
-//         document.body.appendChild(testEl);
-        
-//         const style = window.getComputedStyle(testEl);
-//         const fontFamily = style.fontFamily.toLowerCase();
-        
-//         if (!fontFamily.includes('material') || testEl.offsetWidth < 10) {
-//           setFallbackNeeded(true);
-//         }
-        
-//         document.body.removeChild(testEl);
-//       } catch (e) {
-//         setFallbackNeeded(true);
-//       }
-//     });
-//   }, []);
-
-//   return fallbackNeeded;
-// };
 
 // Preload app assets
 const usePreloadAssets = () => {
@@ -160,12 +121,12 @@ const MainScreen: React.FC = () => {
   // Refs
   const flatListRef = useRef<FlatList>(null);
   const keypadInputRef = useRef('');
-  const soundRef = useRef<Audio.Sound | null>(null);
+  // const soundRef = useRef<Audio.Sound | null>(null); // Removed
   
   // State variables
   const [bubbles, setBubbles] = useState<ChatBubble[]>([]);
   const [showKeypad, setShowKeypad] = useState(false);
-  const [recording, setRecording] = useState<Audio.Recording | null>(null);
+  // const [recording, setRecording] = useState<Audio.Recording | null>(null); // Removed Audio.Recording type usage here
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [keypadInput, setKeypadInput] = useState('');
@@ -187,7 +148,14 @@ const MainScreen: React.FC = () => {
   // Function to safely speak text when not muted
   const speakIfUnmuted = useCallback((text: string) => {
     if (!speechMutedRef.current) {
-      Speech.speak(text);
+      Speech.speak(text, {
+        language: 'en-US',
+        pitch: 1.0,
+        rate: 0.9,
+        onDone: () => {},
+        onStopped: () => {},
+        onError: () => {}
+      });
     }
   }, []);
   
@@ -366,14 +334,14 @@ const MainScreen: React.FC = () => {
   }, [normalizeSpokenMath]); // Dependencies: normalizeSpokenMath (stable)
 
   // Keypad buttons
-  const [advancedMode, setAdvancedMode] = useState(false);
+  // const [advancedMode, setAdvancedMode] = useState(false); // Removed
   const [vibrationEnabled, setVibrationEnabled] = useState(true); // Add vibration state
   const KEYPAD = [
-    ['↺', '%', '^', '÷'],
+    ['↺', '()', '%', '÷'],
     ['7', '8', '9', '×'],
     ['4', '5', '6', '-'],
     ['1', '2', '3', '+'],
-    ['()', '0', '.', 'CHECK_ICON']
+    ['^', '0', '.', 'CHECK_ICON']
   ];
   // Advanced row removed since we integrated it above
 
@@ -396,7 +364,7 @@ const MainScreen: React.FC = () => {
 
   const onKeypadPress = useCallback((key: string) => {
     if (vibrationEnabled) {
-      Vibration.vibrate(10); // Only vibrate if enabled
+      Vibration.vibrate(5); // Changed from 10 to 3 for less aggressive vibration
     }
     
     // Add reset handling
@@ -622,7 +590,7 @@ const MainScreen: React.FC = () => {
     
     // Always scroll to bottom after any key press
     setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 50);
-  }, [keypadInput, handleInput, setAdvancedMode, setKeypadInput, setBubbles, expectingFreshInput, vibrationEnabled]); // Dependencies: state and handlers
+  }, [keypadInput, handleInput, setKeypadInput, setBubbles, expectingFreshInput, vibrationEnabled]); // Dependencies: state and handlers
 
   // Web keyboard handler (numbers and math symbols)
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
@@ -1086,7 +1054,7 @@ const MainScreen: React.FC = () => {
       setBubbles((prev: ChatBubble[]) => [...prev, { 
         id: Date.now() + Math.random() + '', 
         type: 'error', 
-        content: 'Could not calculate' 
+        content: 'Sorry, please try again' // Changed from 'Could not calculate'
       }]);
       setKeypadInput('');
       setExpectingFreshInput(false);
@@ -1168,7 +1136,7 @@ const MainScreen: React.FC = () => {
         // --- Webhook: also send vocal result to webhook ---
         sendWebhookData(spokenEquation, result);
        } else {
-        setBubbles((prev: ChatBubble[]) => [...prev, { id: Date.now() + Math.random() + '', type: 'error', content: 'Could not calculate' }]);
+        setBubbles((prev: ChatBubble[]) => [...prev, { id: Date.now() + Math.random() + '', type: 'error', content: 'Sorry, please try again' }]); // Changed from 'Could not calculate'
         // No error speech
         setKeypadInput(''); // Clear input on error
         setExpectingFreshInput(false);
@@ -1811,9 +1779,9 @@ const MainScreen: React.FC = () => {
       <View style={{ 
         flex: 1, 
         minHeight: 200, 
-        marginBottom: isWebMobile && showKeypad ? 90 : 15, // Extra margin when keypad is shown on mobile web
-        maxHeight: showKeypad ? (isWebMobile ? '30%' : '50%') : '85%', // Reduced height for mobile web with keypad
-        overflow: 'hidden', // Prevent content from overflowing
+        marginBottom: isWebMobile && showKeypad ? (Platform.OS === 'web' ? 90 : 100) : 15,
+        maxHeight: showKeypad ? (isWebMobile ? (Platform.OS === 'web' ? '30%' : '35%') : '50%') : '85%',
+        overflow: 'hidden'
       }}> 
         <FlatList
           style={{ flex: 1 }}
@@ -2476,18 +2444,19 @@ const styles = StyleSheet.create<ComponentStyles>({
   },
   bottomBarWebMobile: {
     position: 'fixed',
-    bottom: 15,
+    bottom: Platform.OS === 'web' ? 15 : 0,
     left: 0,
     right: 0,
     marginHorizontal: 15,
-    zIndex: 200, // Even higher z-index to ensure it stays on top
-    backgroundColor: 'rgba(28, 28, 30, 0.98)', // More opaque background
+    zIndex: 200,
+    backgroundColor: 'rgba(28, 28, 30, 0.98)',
     borderWidth: 1,
     borderColor: '#333',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
+    paddingBottom: Platform.OS === 'web' ? 0 : 15, // Add padding for mobile safe area
   },
   micButtonWebMobile: {
     width: 80,
@@ -2500,22 +2469,22 @@ const styles = StyleSheet.create<ComponentStyles>({
     paddingTop: 10,
     borderTopWidth: 1,
     borderTopColor: '#333',
-    marginTop: 5, 
-    paddingBottom: 20,
-    marginBottom: 70, // Space for the bottom bar
+    marginTop: 5,
+    paddingBottom: Platform.OS === 'web' ? 20 : 35, // Increased padding for mobile
+    marginBottom: Platform.OS === 'web' ? 70 : 85, // Increased margin for mobile
     position: 'relative',
     zIndex: 1,
   },
   keypadContainer: {
     width: '100%',
     alignItems: 'center',
-    paddingBottom: Platform.OS === 'web' ? 10 : 0, // Add padding for web to ensure space at bottom
+    paddingBottom: Platform.OS === 'web' ? 10 : 15, // Increased padding for mobile
   },
   keypadKeyWebMobile: {
     width: 50,
     height: 50,
     marginHorizontal: 2,
-    marginBottom: 2, // Small margin to prevent buttons being too close
+    marginBottom: 2,
   },
 });
 

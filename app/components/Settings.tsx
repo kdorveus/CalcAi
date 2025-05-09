@@ -18,13 +18,14 @@ import {
   Settings,
   Image,
   Animated,
+  Linking,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import GoogleLogo from '../components/GoogleLogo';
-// import { router } from 'expo-router'; // Keep commented if not needed for direct nav
+import { router } from 'expo-router'; // Keep commented if not needed for direct nav
 
 interface BulkDataItem {
   id: string | number;
@@ -99,7 +100,7 @@ const WebhookSettings: React.FC<WebhookSettingsProps> = ({
   openInCalcMode = false,
   setOpenInCalcMode,
 }) => {
-  const { user, loading, signOut, authError, signIn, signInWithGoogle, verifyOtp } = useAuth();
+  const { user, loading, signOut, authError, signInWithGoogle } = useAuth();
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [lastAttemptedAction, setLastAttemptedAction] = useState<(() => void) | null>(null);
   const [localWebhookUrls, setLocalWebhookUrls] = useState<WebhookItem[]>(webhookUrls || []);
@@ -110,9 +111,6 @@ const WebhookSettings: React.FC<WebhookSettingsProps> = ({
   const [editingWebhookTitle, setEditingWebhookTitle] = useState<string>('');
   
   // Auth state
-  const [email, setEmail] = useState('');
-  const [otpSent, setOtpSent] = useState(false);
-  const [otp, setOtp] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   // Auth error display
@@ -240,7 +238,7 @@ const WebhookSettings: React.FC<WebhookSettingsProps> = ({
         // Add new webhook with active state set to true and include title if provided
         const newWebhook = { 
           url: validatedUrl, 
-          active: true,
+          active: false,
           title: sanitizedTitle || undefined // Only include title if it's not empty
         };
         
@@ -263,9 +261,6 @@ const WebhookSettings: React.FC<WebhookSettingsProps> = ({
         updateLocalWebhookUrl('');
         setLocalWebhookTitle('');
         updateLocalWebhookTitle('');
-        
-        // Close dropdown if it's open
-        setWebhookTitleOpen(false);
       } else if (urlExists) {
         Alert.alert("Duplicate", "This URL is already added.");
       }
@@ -293,38 +288,6 @@ const WebhookSettings: React.FC<WebhookSettingsProps> = ({
   };
 
   // Auth handlers
-  const handleEmailLogin = async () => {
-    if (!email) {
-      Alert.alert('Error', 'Please enter your email');
-      return;
-    }
-
-    if (otpSent && !otp) {
-      Alert.alert('Error', 'Please enter the verification code');
-      return;
-    }
-
-    setIsLoading(true);
-    
-    if (otpSent) {
-      const { error } = await verifyOtp(email, otp);
-      if (!error) {
-        setShowLoginModal(false);
-        if (lastAttemptedAction) {
-          lastAttemptedAction();
-          setLastAttemptedAction(null);
-        }
-      }
-    } else {
-      const { error } = await signIn(email);
-      if (!error) {
-        setOtpSent(true);
-      }
-    }
-    
-    setIsLoading(false);
-  };
-
   const handleGoogleLogin = async () => {
     setIsLoading(true);
     const { error } = await signInWithGoogle();
@@ -342,42 +305,7 @@ const WebhookSettings: React.FC<WebhookSettingsProps> = ({
 
   // Login Modal Component
   const LoginModal = () => {
-    const [email, setEmail] = useState('');
-    const [otpSent, setOtpSent] = useState(false);
-    const [otp, setOtp] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-
-    const handleEmailLogin = async () => {
-      if (!email) {
-        Alert.alert('Error', 'Please enter your email');
-        return;
-      }
-
-      if (otpSent && !otp) {
-        Alert.alert('Error', 'Please enter the verification code');
-        return;
-      }
-
-      setIsLoading(true);
-      
-      if (otpSent) {
-        const { error } = await verifyOtp(email, otp);
-        if (!error) {
-          setShowLoginModal(false);
-          if (lastAttemptedAction) {
-            lastAttemptedAction();
-            setLastAttemptedAction(null);
-          }
-        }
-      } else {
-        const { error } = await signIn(email);
-        if (!error) {
-          setOtpSent(true);
-        }
-      }
-      
-      setIsLoading(false);
-    };
 
     const handleGoogleLogin = async () => {
       setIsLoading(true);
@@ -433,49 +361,6 @@ const WebhookSettings: React.FC<WebhookSettingsProps> = ({
                     <GoogleLogo size={20} />
                     <Text style={styles.googleButtonText}>Continue with Google</Text>
                   </>
-                )}
-              </TouchableOpacity>
-
-              <View style={styles.loginSeparator}>
-                <View style={styles.loginSeparatorLine} />
-                <Text style={styles.loginSeparatorText}>or</Text>
-                <View style={styles.loginSeparatorLine} />
-              </View>
-
-              <TextInput
-                style={styles.loginInput}
-                placeholder="Enter your email"
-                placeholderTextColor="#666"
-                value={email}
-                onChangeText={setEmail}
-                autoCapitalize="none"
-                keyboardType="email-address"
-                editable={!otpSent}
-              />
-              {otpSent && (
-                <>
-                  <Text style={styles.otpMessage}>Check your email for the verification code</Text>
-                  <TextInput
-                    style={styles.loginInput}
-                    placeholder="Enter verification code"
-                    placeholderTextColor="#666"
-                    value={otp}
-                    onChangeText={setOtp}
-                    keyboardType="number-pad"
-                  />
-                </>
-              )}
-              <TouchableOpacity 
-                style={styles.loginButton}
-                onPress={handleEmailLogin}
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.loginButtonText}>
-                    {otpSent ? 'Verify Code' : 'Continue with Email'}
-                  </Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -778,40 +663,82 @@ ${failures > 0 ? `Failed to send to ${failures} endpoint${failures !== 1 ? 's' :
                     <View style={styles.webhookList}>
                       {localWebhookUrls.map((item) => (
                         <View key={item.url} style={[styles.webhookItem, styles.sectionPadding]}>
-                          <Text style={styles.webhookUrlText} numberOfLines={1} ellipsizeMode="middle">
-                            {item.title ? item.title : item.url}
-                          </Text>
-                          <View style={styles.webhookItemControls}>
-                            <Switch
-                              value={item.active}
-                              onValueChange={(value) => {
-                                handleToggleWebhookWrapped(item.url, value);
-                                const updated = localWebhookUrls.map(webhook => 
-                                  webhook.url === item.url ? { ...webhook, active: value } : webhook
-                                );
-                                setLocalWebhookUrls(updated);
-                              }}
-                              trackColor={{ false: "#333", true: "#0066cc" }}
-                              thumbColor={item.active ? "#0066cc" : "#f4f3f4"}
-                              style={styles.webhookSwitch}
-                            />
-                            <TouchableOpacity
-                              onPress={() => startEditingWebhook(item.url)}
-                              style={styles.editButton}
-                            >
-                              <MaterialIcons name="edit" size={20} color="#888888" />
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                              onPress={() => {
-                                handleDeleteWebhookWrapped(item.url);
-                                const updated = localWebhookUrls.filter(webhook => webhook.url !== item.url);
-                                setLocalWebhookUrls(updated);
-                              }}
-                              style={styles.deleteButton}
-                            >
-                              <MaterialIcons name="close" size={20} color="#888888" />
-                            </TouchableOpacity>
-                          </View>
+                          {editingWebhookUrl === item.url ? (
+                            // Editing UI
+                            <View style={styles.webhookEditRow}>
+                              <View style={styles.webhookEditInputsContainer}>
+                                <TextInput
+                                  style={styles.webhookInput}
+                                  placeholder="Webhook Title (optional)"
+                                  placeholderTextColor="#888"
+                                  value={editingWebhookTitle}
+                                  onChangeText={setEditingWebhookTitle}
+                                  autoCapitalize="sentences"
+                                />
+                                <TextInput
+                                  style={styles.webhookInput}
+                                  placeholder="Webhook URL"
+                                  placeholderTextColor="#888"
+                                  value={editingWebhookValue}
+                                  onChangeText={setEditingWebhookValue}
+                                  autoCapitalize="none"
+                                  keyboardType="url"
+                                />
+                              </View>
+                              <View style={styles.webhookEditControls}>
+                                <TouchableOpacity
+                                  style={[styles.editButton, styles.saveButton]}
+                                  onPress={() => saveEditedWebhook(item.url)}
+                                >
+                                  <MaterialIcons name="check" size={24} color="#fff" />
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                  style={[styles.editButton, styles.cancelButton]}
+                                  onPress={cancelEditingWebhook}
+                                >
+                                  <MaterialIcons name="close" size={24} color="#FF3B30" />
+                                </TouchableOpacity>
+                              </View>
+                            </View>
+                          ) : (
+                            // Display UI
+                            <>
+                              <Text style={styles.webhookUrlText} numberOfLines={1} ellipsizeMode="middle">
+                                {item.title ? item.title : item.url}
+                              </Text>
+                              <View style={styles.webhookItemControls}>
+                                <Switch
+                                  value={item.active}
+                                  onValueChange={(value) => {
+                                    handleToggleWebhookWrapped(item.url, value);
+                                    const updated = localWebhookUrls.map(webhook => 
+                                      webhook.url === item.url ? { ...webhook, active: value } : webhook
+                                    );
+                                    setLocalWebhookUrls(updated);
+                                  }}
+                                  trackColor={{ false: "#333", true: "#0066cc" }}
+                                  thumbColor={item.active ? "#0066cc" : "#f4f3f4"}
+                                  style={styles.webhookSwitch}
+                                />
+                                <TouchableOpacity
+                                  onPress={() => startEditingWebhook(item.url)}
+                                  style={styles.editButton}
+                                >
+                                  <MaterialIcons name="edit" size={20} color="#888888" />
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                  onPress={() => {
+                                    handleDeleteWebhookWrapped(item.url);
+                                    const updated = localWebhookUrls.filter(webhook => webhook.url !== item.url);
+                                    setLocalWebhookUrls(updated);
+                                  }}
+                                  style={styles.deleteButton}
+                                >
+                                  <MaterialIcons name="close" size={20} color="#888888" />
+                                </TouchableOpacity>
+                              </View>
+                            </>
+                          )}
                         </View>
                       ))}
                     </View>
@@ -997,7 +924,23 @@ ${failures > 0 ? `Failed to send to ${failures} endpoint${failures !== 1 ? 's' :
                         </View>
                         <Text style={styles.limitedTimeOffer}>First 100 Users Get Lifetime Access</Text>
                         <Text style={[styles.limitedTimeOffer, { color: '#e0e0e0' }]}>to Premium! - Sign up here </Text>
-                        <View style={styles.promoFeatures}>
+                        
+                        <TouchableOpacity 
+                          style={[styles.googleButton, { marginTop: 20 }]}
+                          onPress={handleGoogleLogin}
+                          disabled={isLoading}
+                        >
+                          {isLoading ? (
+                            <ActivityIndicator color="#0066cc" />
+                          ) : (
+                            <>
+                              <GoogleLogo size={20} />
+                              <Text style={styles.googleButtonText}>Continue with Google</Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
+
+                        <View style={[styles.promoFeatures, { marginTop: 30 }]}>
                           <Text style={styles.promoFeature}>
                             <MaterialIcons name="verified" size={16} color="#fff" /> Unlimited Calculations
                           </Text>
@@ -1010,85 +953,27 @@ ${failures > 0 ? `Failed to send to ${failures} endpoint${failures !== 1 ? 's' :
                           </Text>
                         </View>
                       </View>
-
-                      <TouchableOpacity 
-                        style={styles.googleButton}
-                        onPress={handleGoogleLogin}
-                        disabled={isLoading}
-                      >
-                        {isLoading ? (
-                          <ActivityIndicator color="#0066cc" />
-                        ) : (
-                          <>
-                            <GoogleLogo size={20} />
-                            <Text style={styles.googleButtonText}>Continue with Google</Text>
-                          </>
-                        )}
-                      </TouchableOpacity>
-
-                      <View style={styles.loginSeparator}>
-                        <View style={styles.loginSeparatorLine} />
-                        <Text style={styles.loginSeparatorText}>or</Text>
-                        <View style={styles.loginSeparatorLine} />
-                      </View>
-
-                      <TextInput
-                        style={styles.authInput}
-                        placeholder="Enter your email"
-                        placeholderTextColor="#666"
-                        value={email}
-                        onChangeText={setEmail}
-                        autoCapitalize="none"
-                        keyboardType="email-address"
-                        editable={!otpSent}
-                      />
-                      {otpSent && (
-                        <TextInput
-                          style={styles.authInput}
-                          placeholder="Enter verification code"
-                          placeholderTextColor="#666"
-                          value={otp}
-                          onChangeText={setOtp}
-                          keyboardType="number-pad"
-                        />
-                      )}
-                      <TouchableOpacity
-                        style={styles.authButton}
-                        onPress={handleEmailLogin}
-                        disabled={isLoading}
-                      >
-                        {isLoading ? (
-                          <ActivityIndicator color="#fff" />
-                        ) : (
-                          <Text style={styles.authButtonText}>
-                            {otpSent ? 'Verify Code' : 'Continue with Email'}
-                          </Text>
-                        )}
-                      </TouchableOpacity>
                     </View>
                   )}
                 </View>
               </View>
             )}
           </View>
+
+          {/* ADDED Privacy Policy Link back at the bottom of ScrollView */}
+          <TouchableOpacity 
+            style={styles.privacyPolicyLinkContainerInScroll}
+            onPress={() => {
+              onClose(); // Close modal on all platforms before navigating
+              router.push('/privacy');
+            }}
+          >
+            <Text style={styles.privacyPolicyLinkText}>Privacy Policy</Text>
+          </TouchableOpacity>
+
         </ScrollView>
   );
   
-  const [mounted, setMounted] = useState(false);
-  const [opacity] = useState(new Animated.Value(1));
-
-  useEffect(() => {
-    if (visible) {
-      setMounted(true);
-    } else {
-      setTimeout(() => setMounted(false), 200);
-    }
-  }, [visible]);
-
-  if (!mounted && !visible) {
-    return null;
-  }
-
   return (
     <>
       <Modal
@@ -1100,13 +985,19 @@ ${failures > 0 ? `Failed to send to ${failures} endpoint${failures !== 1 ? 's' :
         <StatusBar barStyle="light-content" backgroundColor="#000" />
         <SafeAreaView style={styles.modalContainer}>
           <View style={styles.header}>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <MaterialIcons name="webhook" size={24} color="#fff" style={{ marginRight: 8 }} />
+            {/* New Back Button on Left */}
+            <TouchableOpacity onPress={onClose} style={styles.headerBackButton}>
+              <MaterialIcons name={Platform.OS === 'ios' ? 'arrow-back-ios' : 'arrow-back'} size={24} color="#fff" />
+            </TouchableOpacity>
+            
+            {/* Title and Settings Icon (centered group) */}
+            <View style={styles.headerTitleGroup}>
+              <MaterialIcons name="settings" size={24} color="#fff" style={{ marginRight: 8 }} />
               <Text style={styles.modalTitle}>Settings</Text>
             </View>
-            <TouchableOpacity style={styles.closeIcon} onPress={onClose}>
-              <MaterialIcons name="close" size={24} color="#fff" />
-            </TouchableOpacity>
+            
+            {/* Placeholder for balance, making title group appear centered */}
+            <View style={styles.headerRightPlaceholder} />
           </View>
           
           {ScrollViewContent}
@@ -1151,17 +1042,17 @@ const styles = StyleSheet.create({
   },
   webhookEditRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    flex: 1,
-    gap: 10,
-    marginBottom: 8,
-    paddingHorizontal: 8,
+    alignItems: 'center',
+    width: '100%',
+    gap: 8,
   },
   webhookEditInputsContainer: {
     flex: 1,
-    flexDirection: 'column',
     gap: 8,
-    marginRight: 10,
+  },
+  webhookEditControls: {
+    flexDirection: 'row',
+    gap: 8,
   },
   modalContainer: {
     flex: 1,
@@ -1395,9 +1286,13 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     backgroundColor: '#0066cc',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
   },
   cancelButton: {
     backgroundColor: '#444',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
   },
   editButtonText: {
     color: '#fff',
@@ -1466,34 +1361,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     marginBottom: 15,
     textAlign: 'center',
-  },
-  authInput: {
-    backgroundColor: '#1C1C1E',
-    color: '#fff',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 10,
-    fontSize: 16,
-  },
-  authButton: {
-    backgroundColor: '#0066cc',
-    padding: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  authButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  switchAuthModeButton: {
-    alignItems: 'center',
-    marginTop: 10,
-  },
-  switchAuthModeText: {
-    color: '#0066cc',
-    fontSize: 14,
   },
   profileInfo: {
     flexDirection: 'row',
@@ -1582,42 +1449,9 @@ const styles = StyleSheet.create({
   loginInputContainer: {
     gap: 16,
   },
-  loginInput: {
-    backgroundColor: '#1e1e1e',
-    borderRadius: 8,
-    padding: 15,
-    color: '#fff',
-    fontSize: 16,
-  },
-  loginButton: {
-    backgroundColor: '#0066cc',
-    borderRadius: 8,
-    padding: 15,
-    alignItems: 'center',
-  },
-  loginButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  loginSeparator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 15,
-  },
-  loginSeparatorLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#333',
-  },
-  loginSeparatorText: {
-    color: '#888',
-    marginHorizontal: 10,
-    fontSize: 14,
-  },
   googleButton: {
     backgroundColor: '#fff',
-    borderRadius: 8,
+    borderRadius: 20,
     padding: 15,
     flexDirection: 'row',
     alignItems: 'center',
@@ -1629,32 +1463,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
   },
-  loginContainer: {
-    alignItems: 'center',
-    padding: 20,
-  },
-  loginPromptText: {
-    color: '#888',
-    fontSize: 16,
-    marginBottom: 16,
-  },
-  loginPromptButton: {
-    backgroundColor: '#0066cc',
-    borderRadius: 8,
-    padding: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
   loginPromptButtonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '500',
-  },
-  otpMessage: {
-    color: '#0066cc',
-    fontSize: 14,
-    textAlign: 'center',
-    marginBottom: 15,
   },
   limitedTimeOffer: {
     color: '#fff',
@@ -1673,10 +1485,10 @@ const styles = StyleSheet.create({
   promoContainer: {
     padding: 24,
     borderRadius: 16,
-    backgroundColor: '#1C1C1E',
+    backgroundColor: '#2C2C2E',
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: '#333',
+    borderColor: '#444',
     alignItems: 'center',
     ...Platform.select({
       ios: {
@@ -1750,7 +1562,7 @@ const styles = StyleSheet.create({
     gap: 20,
   },
   promoFeature: {
-    color: '#fff',
+    color: '#e0e0e0',
     fontSize: 14,
     fontWeight: '600',
     letterSpacing: 0.3,
@@ -1760,6 +1572,27 @@ const styles = StyleSheet.create({
     color: '#666',
     fontSize: 13,
     fontWeight: '500',
+  },
+  // ADDED Style for Privacy Policy Link within ScrollView
+  privacyPolicyLinkContainerInScroll: {
+    marginTop: 24,
+    marginBottom: 16, 
+    alignItems: 'center',
+  },
+  privacyPolicyLinkText: {
+    fontSize: 14,
+    color: '#AEAEB2',
+    textDecorationLine: 'underline',
+  },
+  headerBackButton: {
+    padding: 8, 
+  },
+  headerTitleGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  headerRightPlaceholder: {
+    width: 24 + 8 + 8,
   },
 });
 
