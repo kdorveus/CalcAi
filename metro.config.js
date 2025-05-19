@@ -1,4 +1,3 @@
-// Learn more https://docs.expo.io/guides/customizing-metro
 const { getDefaultConfig } = require('expo/metro-config');
 
 /** @type {import('expo/metro-config').MetroConfig} */
@@ -12,15 +11,13 @@ const { transformer, resolver } = config;
 
 config.transformer = {
   ...transformer,
-  babelTransformerPath: require.resolve('react-native-svg-transformer'),
-  unstable_allowRequireContext: true,
+  babelTransformerPath: require.resolve('react-native-svg-transformer')
 };
 
-// Add support for importing SVG files
-config.resolver.assetExts = resolver.assetExts.filter(ext => ext !== 'svg');
-config.resolver.sourceExts = [...resolver.sourceExts, 'svg'];
-
-// config.resolver.unstable_enablePackageExports = true; // Removed - potentially caused axios resolution issues
-// config.resolver.unstable_conditionNames = ['require', 'import', 'default']; // Removed - potentially caused axios resolution issues
+config.resolver = {
+  ...resolver,
+  assetExts: resolver.assetExts.filter(ext => ext !== 'svg'),
+  sourceExts: [...resolver.sourceExts, 'svg']
+};
 
 module.exports = config;
