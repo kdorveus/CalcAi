@@ -66,19 +66,48 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
         margin: 0;
         padding: 0;
         height: 100%;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
       }
       
-      /* Critical layout to avoid layout shifts */
       #root, #root > div, #root > div > div {
         height: 100%;
         display: flex;
         flex-direction: column;
       }
       
-      /* Force instant display without waiting for JS */
       .force-instant-display {
         opacity: 1 !important;
         visibility: visible !important;
+      }
+
+      /* Chat Area Placeholder */
+      .chat-area-placeholder {
+        flex: 1;
+        padding: 10px;
+        overflow-y: scroll; /* Allow scrolling if content overflows */
+      }
+
+      /* Input Bar Placeholder */
+      .input-bar-placeholder {
+        display: flex;
+        padding: 10px;
+        border-top: 1px solid #333;
+      }
+      .input-placeholder {
+        flex: 1;
+        background-color: #1e1e1e;
+        color: #fff;
+        border-radius: 20px;
+        padding: 10px 15px;
+        margin-right: 10px;
+      }
+      .send-button-placeholder {
+        background-color: #007AFF;
+        border-radius: 20px;
+        padding: 10px 15px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
       }
       
       /* Bottom bar specific styles for immediate render */
@@ -176,6 +205,44 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
     // Mark document as ready for render before JS is loaded
     document.documentElement.dataset.ready = "true";
     document.documentElement.classList.add('force-instant-display');
+
+    // Define type for preload assets
+    interface PreloadAsset {
+      href: string;
+      as: 'image' | 'script' | 'style' | 'font'; // Add other valid 'as' values if needed
+      type?: string; // type is optional
+    }
+
+    // Preload critical assets
+    const assetsToPreload: PreloadAsset[] = [
+      { href: require('../assets/images/LOGO.png').uri, as: 'image' },
+      // Example for SVG if needed:
+      // { href: require('../assets/icons/microphone.svg').uri, as: 'image', type: 'image/svg+xml' }, 
+    ];
+
+    assetsToPreload.forEach(asset => {
+      const link = document.createElement('link');
+      link.rel = 'preload';
+      link.href = asset.href;
+      link.as = asset.as;
+      if (asset.type) {
+        link.type = asset.type;
+      }
+      document.head.appendChild(link);
+    });
+
+    // Preload main JS bundle (heuristic)
+    // This path might need adjustment based on actual build output
+    const mainBundleLink = document.createElement('link');
+    mainBundleLink.rel = 'modulepreload';
+    // Adjust href if you know the exact main bundle name/path from your build output
+    // For Expo Web, it often includes content hashing, making this tricky without build info.
+    // A common pattern might be '/_expo/static/js/web/entry-<hash>.js'
+    // As a generic placeholder, we can try a common entry point name if known or defer this step.
+    // For now, let's assume a common pattern or skip if too uncertain.
+    // Example: mainBundleLink.href = '/path/to/main-bundle.js'; 
+    // document.head.appendChild(mainBundleLink); 
+    // --> Given the uncertainty of the bundle name, I will comment this out for now.
   })();
 }
 

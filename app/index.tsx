@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, Suspense } from 'react';
 import { Vibration } from 'react-native';
 import { 
   View, 
@@ -30,16 +30,15 @@ import { evaluate } from 'mathjs';
 import AppIcon from '../components/AppIcon';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
-import Settings from './components/Settings';
-import * as SpeechRecognition from 'expo-speech-recognition';
-import { 
-  ExpoSpeechRecognitionModule,
-  // useSpeechRecognitionEvent // Removed
-} from 'expo-speech-recognition';
+// import Settings from './components/Settings'; // Remove this line
 import { useAuth } from '../contexts/AuthContext';
 import { useCalculationHistory } from '../contexts/CalculationHistoryContext';
 import HistoryButton from '../components/HistoryButton';
-import HistoryModal from '../components/HistoryModal';
+// import HistoryModal from '../components/HistoryModal'; // Remove this line
+
+// Dynamically import components
+const Settings = React.lazy(() => import('./components/Settings'));
+const HistoryModal = React.lazy(() => import('../components/HistoryModal'));
 
 // Import SVG icons directly
 // This eliminates the need to load icons from Google Fonts
@@ -121,7 +120,7 @@ const MainScreen: React.FC = () => {
   // Refs
   const flatListRef = useRef<FlatList>(null);
   const keypadInputRef = useRef('');
-  // const soundRef = useRef<Audio.Sound | null>(null); // Removed
+  const speechModuleRef = useRef<any>(null); // Ref to store loaded speech module
   
   // State variables
   const [bubbles, setBubbles] = useState<ChatBubble[]>([]);
@@ -137,6 +136,7 @@ const MainScreen: React.FC = () => {
   const speechMutedRef = useRef(false); // Ref for actual mute control
   const [openInCalcMode, setOpenInCalcMode] = useState(false); // State for calculator mode
   const [showHistoryModal, setShowHistoryModal] = useState(false); // State for history modal
+  const [historyEnabled, setHistoryEnabled] = useState(true); // State for history toggle
   
   // State for tracking tooltip hover
   const [hoveredTooltip, setHoveredTooltip] = useState<string | null>(null);
@@ -563,7 +563,9 @@ const MainScreen: React.FC = () => {
         lastResultRef.current = result; // Set the ref here
         
         // Send data to webhook when OK/Enter is pressed
-        addCalculation(expressionToCalc, result);
+        if (historyEnabled) {
+          addCalculation(expressionToCalc, result);
+        }
         sendWebhookData(expressionToCalc, result);
         
         // Scroll to bottom after calculation
@@ -734,6 +736,11 @@ const MainScreen: React.FC = () => {
     
     // --- Native speech recognition (Android/iOS) ---
     try {
+      if (!speechModuleRef.current) {
+        speechModuleRef.current = await import('expo-speech-recognition');
+      }
+      const { ExpoSpeechRecognitionModule } = speechModuleRef.current;
+
       // Always make sure we start clean
       if (isRecording || isTranscribing) {
         // Already recording or processing, don't start again
@@ -959,6 +966,11 @@ const MainScreen: React.FC = () => {
     setIsTranscribing(false);
     
     try {
+      if (!speechModuleRef.current) {
+        // Should ideally be loaded by startRecording, but as a fallback:
+        speechModuleRef.current = await import('expo-speech-recognition');
+      }
+      const { ExpoSpeechRecognitionModule } = speechModuleRef.current;
       // Stop native speech recognition
       await ExpoSpeechRecognitionModule.stop();
       
@@ -1060,7 +1072,9 @@ const MainScreen: React.FC = () => {
       lastResultRef.current = result; // Set the ref here
       setExpectingFreshInput(true); // Next '=' or operation starts fresh
       // Send to webhook if configured
-      addCalculation(normalized, result);
+      if (historyEnabled) {
+        addCalculation(normalized, result);
+      }
       sendWebhookData(normalized, result);
     } else {
       setBubbles((prev: ChatBubble[]) => [...prev, { 
@@ -1146,7 +1160,9 @@ const MainScreen: React.FC = () => {
         lastResultRef.current = result; // Set the ref here
         setExpectingFreshInput(true); // Next '=' or operation starts fresh
         // --- Webhook: also send vocal result to webhook ---
-        addCalculation(spokenEquation, result);
+        if (historyEnabled) {
+          addCalculation(spokenEquation, result);
+        }
         sendWebhookData(spokenEquation, result);
        } else {
         setBubbles((prev: ChatBubble[]) => [...prev, { id: Date.now() + Math.random() + '', type: 'error', content: 'Sorry, please try again' }]); // Changed from 'Could not calculate'
@@ -1360,9 +1376,10 @@ const MainScreen: React.FC = () => {
   useEffect(() => {
     const loadSettings = async () => {
       try {
-        const [storedOpenInCalcMode, storedSpeechMuted] = await Promise.all([
+        const [storedOpenInCalcMode, storedSpeechMuted, storedHistoryEnabled] = await Promise.all([
           AsyncStorage.getItem('openInCalcMode'),
-          AsyncStorage.getItem('speechMuted')
+          AsyncStorage.getItem('speechMuted'),
+          AsyncStorage.getItem('historyEnabled')
         ]);
 
         // Initialize calculator mode
@@ -1380,6 +1397,12 @@ const MainScreen: React.FC = () => {
           setIsSpeechMuted(isMuted);
           speechMutedRef.current = isMuted;
         }
+        
+        // Initialize history enabled state
+        if (storedHistoryEnabled !== null) {
+          const isHistoryEnabled = JSON.parse(storedHistoryEnabled);
+          setHistoryEnabled(isHistoryEnabled);
+        }
       } catch (error) {
         console.error('Error loading settings:', error);
       }
@@ -1393,14 +1416,15 @@ const MainScreen: React.FC = () => {
       try {
         await Promise.all([
           AsyncStorage.setItem('openInCalcMode', JSON.stringify(openInCalcMode)),
-          AsyncStorage.setItem('speechMuted', JSON.stringify(isSpeechMuted))
+          AsyncStorage.setItem('speechMuted', JSON.stringify(isSpeechMuted)),
+          AsyncStorage.setItem('historyEnabled', JSON.stringify(historyEnabled))
         ]);
       } catch (error) {
         console.error('Error saving settings:', error);
       }
     };
     saveSettings();
-  }, [openInCalcMode, isSpeechMuted]);
+  }, [openInCalcMode, isSpeechMuted, historyEnabled]);
 
   // --- Component Lifecycle & Effects ---
   
@@ -1793,43 +1817,38 @@ const MainScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#121212" />
-      {renderHeaderControls()}
-      <View style={{ 
-        flex: 1, 
-        minHeight: 200, 
-        marginBottom: isWebMobile && showKeypad ? (Platform.OS === 'web' ? 90 : 100) : 15,
-        maxHeight: showKeypad ? (isWebMobile ? (Platform.OS === 'web' ? '30%' : '35%') : '50%') : '85%',
-        overflow: 'hidden'
-      }}> 
-        <FlatList
-          style={{ flex: 1 }}
-          ref={flatListRef}
-          data={
-            previewResult
-              ? [...bubbles, { id: 'preview', type: 'result', content: previewResult }]
-              : bubbles
-          }
-          renderItem={renderBubble}
-          keyExtractor={item => item.id}
-          contentContainerStyle={styles.chatArea}
-          ListEmptyComponent={
-            showKeypad ? null : (
-              Platform.OS === 'web' ? <WebEmptyState /> : <MobileEmptyState />
-            )
-          }
-          getItemLayout={(data, index) => ({
-            length: 60, // Average height of a bubble
-            offset: 60 * index,
-            index
-          })}
-          windowSize={5}
-          maxToRenderPerBatch={10}
-          removeClippedSubviews={Platform.OS !== 'web'}
-          initialNumToRender={15}
-        />
-      </View> 
+      <StatusBar barStyle="light-content" backgroundColor="#1A1A2E" />
       
+      {/* Render Header Controls */}
+      {renderHeaderControls()}
+
+      <FlatList
+        style={{ flex: 1 }}
+        ref={flatListRef}
+        data={
+          previewResult
+            ? [...bubbles, { id: 'preview', type: 'result', content: previewResult }]
+            : bubbles
+        }
+        renderItem={renderBubble}
+        keyExtractor={item => item.id}
+        contentContainerStyle={styles.chatArea}
+        ListEmptyComponent={
+          showKeypad ? null : (
+            Platform.OS === 'web' ? <WebEmptyState /> : <MobileEmptyState />
+          )
+        }
+        getItemLayout={(data, index) => ({
+          length: 60, // Average height of a bubble
+          offset: 60 * index,
+          index
+        })}
+        windowSize={5}
+        maxToRenderPerBatch={10}
+        removeClippedSubviews={Platform.OS !== 'web'}
+        initialNumToRender={15}
+      />
+
       {showKeypad && (
         <View style={isWebMobile ? styles.calculatorAreaMobileWeb : styles.calculatorArea}>
           <TouchableOpacity
@@ -1882,46 +1901,66 @@ const MainScreen: React.FC = () => {
         </View>
       )}
       
-      <Settings 
-        visible={isSettingsModalVisible}
-        onClose={() => setIsSettingsModalVisible(false)}
-        webhookUrls={webhookUrls}
-        newWebhookUrl={newWebhookUrl}
-        setNewWebhookUrl={setNewWebhookUrl}
-        newWebhookTitle={newWebhookTitle}
-        setNewWebhookTitle={setNewWebhookTitle}
-        handleAddWebhook={handleAddWebhook}
-        handleDeleteWebhook={handleDeleteWebhook}
-        handleToggleWebhook={handleToggleWebhook}
-        sendEquation={sendEquation}
-        setSendEquation={setSendEquation}
-        streamResults={streamResults}
-        setStreamResults={setStreamResults}
-        bulkData={bulkData}
-        setBulkData={setBulkData}
-        isSendingBulk={isSendingBulk}
-        clearBulkData={() => {
-          setBulkData([]); 
-        }} 
-        enterKeyNewLine={enterKeyNewLine}
-        setEnterKeyNewLine={setEnterKeyNewLine}
-        isSpeechMuted={isSpeechMuted}
-        toggleSpeechMute={toggleSpeechMute}
-        setWebhookUrls={setWebhookUrls}
-        handleSendBulkData={handleSendBulkData}
-        vibrationEnabled={vibrationEnabled}
-        setVibrationEnabled={setVibrationEnabled}
-        openInCalcMode={openInCalcMode}
-        setOpenInCalcMode={setOpenInCalcMode}
-      />
-      
+      {/* Settings Modal */}
+      <Suspense fallback={null}>
+        <Settings 
+          visible={isSettingsModalVisible}
+          onClose={() => setIsSettingsModalVisible(false)}
+          webhookUrls={webhookUrls}
+          newWebhookUrl={newWebhookUrl}
+          setNewWebhookUrl={setNewWebhookUrl}
+          newWebhookTitle={newWebhookTitle}
+          setNewWebhookTitle={setNewWebhookTitle}
+          handleAddWebhook={handleAddWebhook}
+          handleDeleteWebhook={handleDeleteWebhook}
+          handleToggleWebhook={handleToggleWebhook}
+          sendEquation={sendEquation}
+          setSendEquation={setSendEquation}
+          streamResults={streamResults}
+          setStreamResults={setStreamResults}
+          bulkData={bulkData}
+          setBulkData={setBulkData}
+          isSendingBulk={isSendingBulk}
+          clearBulkData={() => {
+            setBulkData([]); 
+          }} 
+          enterKeyNewLine={enterKeyNewLine}
+          setEnterKeyNewLine={setEnterKeyNewLine}
+          isSpeechMuted={isSpeechMuted}
+          toggleSpeechMute={toggleSpeechMute}
+          setWebhookUrls={setWebhookUrls}
+          handleSendBulkData={handleSendBulkData}
+          vibrationEnabled={vibrationEnabled}
+          setVibrationEnabled={setVibrationEnabled}
+          openInCalcMode={openInCalcMode}
+          setOpenInCalcMode={setOpenInCalcMode}
+          historyEnabled={historyEnabled}
+          setHistoryEnabled={setHistoryEnabled} // Add this line
+        />
+      </Suspense>
+
       {/* History Modal */}
-      <HistoryModal
-        visible={showHistoryModal}
-        onClose={() => setShowHistoryModal(false)}
-        onSendToWebhook={sendWebhookData}
-      />
-      
+      <Suspense fallback={null}>
+        <HistoryModal
+          visible={showHistoryModal}
+          onClose={() => setShowHistoryModal(false)}
+          history={history}
+          onDelete={deleteCalculation}
+          onClearAll={clearAllCalculations}
+          onSelect={(item) => {
+            // Handle selecting a history item, e.g., fill input or display
+            if (item.result) {
+              setKeypadInput(item.result); // Or append to current input
+              setShowHistoryModal(false); // Close modal after selection
+              if (Platform.OS === 'android') {
+                ToastAndroid.show(`Selected: ${item.result}`, ToastAndroid.SHORT);
+              }
+            }
+          }}
+          isLoading={loading}
+        />
+      </Suspense>
+
       {/* Bottom bar with proper spacing and button sizes */}
       <View style={[
         styles.bottomBar,

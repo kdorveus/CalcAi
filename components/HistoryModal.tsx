@@ -20,15 +20,21 @@ import PremiumPaymentModal from './PremiumPaymentModal';
 interface HistoryModalProps {
   visible: boolean;
   onClose: () => void;
-  onSendToWebhook: (expression: string, result: string) => void;
+  history: CalculationHistoryItem[];
+  onDelete: (expression: string, result: string, created_at: string) => Promise<void>;
+  onClearAll: () => Promise<void>;
+  onSelect: (item: CalculationHistoryItem) => void;
+  isLoading: boolean;
+  onSendToWebhook?: (expression: string, result: string) => void;
 }
 
 const HistoryModal: React.FC<HistoryModalProps> = ({
   visible,
   onClose,
+  onSelect,
   onSendToWebhook,
 }) => {
-  const { history, deleteCalculation, clearAllCalculations, loading } = useCalculationHistory();
+  const { history: contextHistory, deleteCalculation, clearAllCalculations, loading } = useCalculationHistory();
   const { isPremium, checkPremiumStatus } = usePremium();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [webhookModalVisible, setWebhookModalVisible] = useState(false);
@@ -37,7 +43,6 @@ const HistoryModal: React.FC<HistoryModalProps> = ({
   // Handle refreshing the history
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    // Just set isRefreshing to false since refreshHistory was removed
     setTimeout(() => setIsRefreshing(false), 500);
   };
 
@@ -47,10 +52,7 @@ const HistoryModal: React.FC<HistoryModalProps> = ({
       "Delete Calculation",
       "Are you sure you want to delete this calculation?",
       [
-        {
-          text: "Cancel",
-          style: "cancel"
-        },
+        { text: "Cancel", style: "cancel" },
         { 
           text: "Delete", 
           onPress: () => deleteCalculation(expression, result, created_at),
@@ -66,10 +68,7 @@ const HistoryModal: React.FC<HistoryModalProps> = ({
       "Clear All Calculations",
       "Are you sure you want to delete all calculations? This cannot be undone.",
       [
-        {
-          text: "Cancel",
-          style: "cancel"
-        },
+        { text: "Cancel", style: "cancel" },
         { 
           text: "Clear All", 
           onPress: () => clearAllCalculations(),
@@ -81,24 +80,23 @@ const HistoryModal: React.FC<HistoryModalProps> = ({
 
   // Handle sending a calculation to webhook
   const handleSendToWebhook = async (item: CalculationHistoryItem) => {
-    // Check if user has premium before allowing webhook send
     const hasPremium = await checkPremiumStatus();
     if (!hasPremium) {
-      // Show premium modal instead of alert
       setSelectedItem(item);
       setWebhookModalVisible(true);
       return;
     }
-    
-    // If user has premium, send directly
-    onSendToWebhook(item.expression, item.result);
+    if (onSendToWebhook) {
+      onSendToWebhook(item.expression, item.result);
+    }
   };
   
   // Handle webhook purchase success
   const handleWebhookSuccess = () => {
     if (selectedItem) {
-      // After purchase, send the calculation
-      onSendToWebhook(selectedItem.expression, selectedItem.result);
+      if (onSendToWebhook) {
+        onSendToWebhook(selectedItem.expression, selectedItem.result);
+      }
       setWebhookModalVisible(false);
       setSelectedItem(null);
     }
@@ -175,7 +173,7 @@ const HistoryModal: React.FC<HistoryModalProps> = ({
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Calculation History</Text>
             <View style={styles.headerButtons}>
-              {history.length > 0 && (
+              {contextHistory.length > 0 && (
                 <TouchableOpacity 
                   style={styles.clearButton}
                   onPress={handleClearAll}
@@ -199,7 +197,7 @@ const HistoryModal: React.FC<HistoryModalProps> = ({
             </View>
           ) : (
             <FlatList
-              data={history}
+              data={contextHistory}
               renderItem={renderItem}
               keyExtractor={(item, index) => `${item.expression}-${item.result}-${index}`}
               contentContainerStyle={styles.historyList}

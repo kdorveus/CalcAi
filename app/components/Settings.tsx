@@ -72,6 +72,8 @@ interface WebhookSettingsProps {
   setVibrationEnabled?: (value: boolean) => void;
   openInCalcMode?: boolean;
   setOpenInCalcMode?: (value: boolean) => void;
+  historyEnabled?: boolean;
+  setHistoryEnabled?: (value: boolean) => void;
 }
 
 export const WebhookSettings: React.FC<WebhookSettingsProps> = ({
@@ -103,6 +105,8 @@ export const WebhookSettings: React.FC<WebhookSettingsProps> = ({
   setVibrationEnabled,
   openInCalcMode = false,
   setOpenInCalcMode,
+  historyEnabled = true,
+  setHistoryEnabled,
 }) => {
   const { user, loading, signOut, authError, signInWithGoogle } = useAuth();
   const { isPremium, checkPremiumStatus, premiumLoading } = usePremium();
