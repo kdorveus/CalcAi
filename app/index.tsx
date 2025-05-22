@@ -1817,7 +1817,7 @@ const MainScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#1A1A2E" />
+      <StatusBar barStyle="light-content" backgroundColor="#121212" />
       
       {/* Render Header Controls */}
       {renderHeaderControls()}
@@ -1869,13 +1869,31 @@ const MainScreen: React.FC = () => {
               <View key={i} style={styles.keypadRow}>
                 {row.map((key) => {
                   // Determine the button style
-                  let buttonStyle = Platform.OS === 'web' 
-                    ? styles.keypadKeyWeb
-                    : (key === 'CHECK_ICON' 
-                      ? styles.keypadKeyEnter
-                      : ['+', '-', '×', '÷'].includes(key) 
-                        ? styles.keypadKeyOperator
-                        : styles.keypadKeyMobile);
+                  let buttonStyle;
+                  if (Platform.OS === 'web') {
+                    if (isWebMobile) {
+                      // WEB MOBILE: Apply native mobile styles directly
+                      if (key === 'CHECK_ICON') {
+                        buttonStyle = styles.keypadKeyEnter;
+                      } else if (['+', '-', '×', '÷', '()', '%', '^'].includes(key)) { // Comprehensive operator list
+                        buttonStyle = styles.keypadKeyOperator;
+                      } else {
+                        buttonStyle = styles.keypadKeyMobile;
+                      }
+                    } else {
+                      // DESKTOP WEB: Use transparent web style
+                      buttonStyle = styles.keypadKeyWeb;
+                    }
+                  } else {
+                    // NATIVE MOBILE: Existing logic (unchanged)
+                    if (key === 'CHECK_ICON') {
+                      buttonStyle = styles.keypadKeyEnter;
+                    } else if (['+', '-', '×', '÷'].includes(key)) { // Original, less comprehensive operator list for native
+                      buttonStyle = styles.keypadKeyOperator;
+                    } else {
+                      buttonStyle = styles.keypadKeyMobile;
+                    }
+                  }
                   
                   return (
                     <TouchableOpacity
@@ -2535,8 +2553,8 @@ const styles = StyleSheet.create<ComponentStyles>({
     borderTopWidth: 1,
     borderTopColor: '#333',
     marginTop: 5,
-    paddingBottom: Platform.OS === 'web' ? 20 : 35, // Increased padding for mobile
-    marginBottom: Platform.OS === 'web' ? 70 : 85, // Increased margin for mobile
+    paddingBottom: Platform.OS === 'web' ? 20 : 35,
+    marginBottom: Platform.OS === 'web' ? '25%' : 85,
     position: 'relative',
     zIndex: 1,
   },
@@ -2546,10 +2564,10 @@ const styles = StyleSheet.create<ComponentStyles>({
     paddingBottom: Platform.OS === 'web' ? 10 : 15, // Increased padding for mobile
   },
   keypadKeyWebMobile: {
-    width: 50,
-    height: 50,
-    marginHorizontal: 2,
-    marginBottom: 2,
+    width: 70, // Match native key width
+    height: 70, // Match native key height
+    marginHorizontal: 6, // Match native key margin
+    // Removed marginBottom: 2, as it's not in native key styles and keypadRow handles vertical spacing
   },
 });
 
