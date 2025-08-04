@@ -30,6 +30,8 @@ import { usePremium } from '../../contexts/PremiumContext';
 import GoogleLogo from '../components/GoogleLogo';
 import PremiumPaymentModal from '../../components/PremiumPaymentModal';
 import { router } from 'expo-router'; // Keep commented if not needed for direct nav
+import { useTranslation } from '../../hooks/useTranslation';
+import { SUPPORTED_LANGUAGES } from '../../constants/Languages';
 
 interface BulkDataItem {
   id: string | number;
@@ -110,6 +112,7 @@ export const WebhookSettings: React.FC<WebhookSettingsProps> = ({
 }) => {
   const { user, loading, signOut, authError, signInWithGoogle } = useAuth();
   const { isPremium, checkPremiumStatus, premiumLoading } = usePremium();
+  const { t, language, setLanguage } = useTranslation();
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [lastAttemptedAction, setLastAttemptedAction] = useState<(() => void) | null>(null);
@@ -126,7 +129,7 @@ export const WebhookSettings: React.FC<WebhookSettingsProps> = ({
   // Auth error display
   useEffect(() => {
     if (authError) {
-      Alert.alert('Auth Error', authError);
+      Alert.alert(t('settings.auth.authError'), authError);
     }
   }, [authError]);
   
@@ -140,6 +143,7 @@ export const WebhookSettings: React.FC<WebhookSettingsProps> = ({
   const [editingItemValue, setEditingItemValue] = useState('');
   const [sendingItemId, setSendingItemId] = useState<string | number | null>(null);
   const [optionsOpen, setOptionsOpen] = useState<boolean>(false);
+  const [languageSectionOpen, setLanguageSectionOpen] = useState<boolean>(false);
   const [webhookTitleOpen, setWebhookTitleOpen] = useState<boolean>(false);
   const [authSectionOpen, setAuthSectionOpen] = useState<boolean>(!user); // Only open for non-logged in users
   
@@ -159,7 +163,7 @@ export const WebhookSettings: React.FC<WebhookSettingsProps> = ({
       onClose(); // Close the modal first
       // No need to redirect here, _layout protection will handle it
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to sign out');
+      Alert.alert(t('settings.auth.error'), error.message || t('settings.auth.failedToSignOut'));
     }
   };
   
@@ -259,7 +263,7 @@ export const WebhookSettings: React.FC<WebhookSettingsProps> = ({
       const validatedUrl = validateWebhookUrl(localWebhookUrl);
       
       if (!validatedUrl) {
-        Alert.alert("Invalid URL", "Webhook URL must be a valid URL starting with http:// or https://");
+        Alert.alert(t('settings.webhooks.invalidUrl'), t('settings.webhooks.invalidUrlMessage'));
         return;
       }
       
@@ -293,7 +297,7 @@ export const WebhookSettings: React.FC<WebhookSettingsProps> = ({
         setLocalWebhookTitle('');
         updateLocalWebhookTitle('');
       } else if (urlExists) {
-        Alert.alert("Duplicate", "This URL is already added.");
+        Alert.alert(t('settings.common.duplicate'), t('settings.common.urlAlreadyAdded'));
       }
     });
   };
@@ -318,6 +322,11 @@ export const WebhookSettings: React.FC<WebhookSettingsProps> = ({
     requirePremium(() => clearBulkData());
   };
 
+  // Language selection handler
+  const handleLanguageSelect = (languageCode: string) => {
+    setLanguage(languageCode);
+  };
+
   // Auth handlers
   const handleGoogleLogin = async () => {
     setIsLoading(true);
@@ -330,7 +339,7 @@ export const WebhookSettings: React.FC<WebhookSettingsProps> = ({
         setLastAttemptedAction(null);
       }
     } else {
-      Alert.alert('Error', error.message);
+      Alert.alert(t('settings.auth.error'), error.message);
     }
   };
 
@@ -349,7 +358,7 @@ export const WebhookSettings: React.FC<WebhookSettingsProps> = ({
           setLastAttemptedAction(null);
         }
       } else {
-        Alert.alert('Error', error.message);
+        Alert.alert(t('settings.auth.error'), error.message);
       }
     };
 
@@ -368,9 +377,9 @@ export const WebhookSettings: React.FC<WebhookSettingsProps> = ({
                   source={require('../../assets/images/LOGO.png')} 
                   style={{ width: 180, height: 72, marginBottom: 20, resizeMode: 'contain' }} 
                 />
-                <Text style={styles.betaText}>BETA</Text>
+                <Text style={styles.betaText}>{t('settings.common.beta')}</Text>
               </View>
-              <Text style={styles.loginModalTitle}>Sign in to continue</Text>
+              <Text style={styles.loginModalTitle}>{t('settings.auth.signInToContinue')}</Text>
               <TouchableOpacity 
                 style={styles.loginModalClose}
                 onPress={() => setShowLoginModal(false)}
@@ -390,7 +399,7 @@ export const WebhookSettings: React.FC<WebhookSettingsProps> = ({
                 ) : (
                   <>
                     <GoogleLogo size={20} />
-                    <Text style={styles.googleButtonText}>Continue with Google</Text>
+                    <Text style={styles.googleButtonText}>{t('settings.auth.continueWithGoogle')}</Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -419,7 +428,7 @@ export const WebhookSettings: React.FC<WebhookSettingsProps> = ({
     const validatedUrl = validateWebhookUrl(editingWebhookValue);
     
     if (!validatedUrl) {
-      Alert.alert('Invalid URL', 'Please enter a valid URL that starts with http:// or https://');
+      Alert.alert(t('settings.webhooks.invalidUrl'), t('settings.webhooks.invalidUrlMessage'));
       return;
     }
     
@@ -428,7 +437,7 @@ export const WebhookSettings: React.FC<WebhookSettingsProps> = ({
         (w) => w.url === validatedUrl && w.url !== oldUrl
       )
     ) {
-      Alert.alert('Duplicate URL', 'This webhook URL already exists.');
+      Alert.alert(t('settings.webhooks.duplicateUrl'), t('settings.webhooks.duplicateUrlMessage'));
       return;
     }
     
@@ -456,9 +465,9 @@ export const WebhookSettings: React.FC<WebhookSettingsProps> = ({
       setEditingWebhookValue('');
       setEditingWebhookTitle('');
       
-      Alert.alert('Success', 'Webhook updated successfully!');
+      Alert.alert(t('settings.webhooks.success'), t('settings.webhooks.webhookUpdated'));
     } catch (e) {
-      Alert.alert('Save Error', 'Could not save the webhook URL.');
+      Alert.alert(t('settings.webhooks.saveError'), t('settings.webhooks.couldNotSave'));
     }
   };
 
@@ -467,7 +476,7 @@ export const WebhookSettings: React.FC<WebhookSettingsProps> = ({
     const activeWebhooks = webhookUrls.filter(webhook => webhook.active);
     
     if (activeWebhooks.length === 0) {
-      Alert.alert("No Active URLs", "Please activate at least one webhook URL.");
+      Alert.alert(t('settings.bulkData.noActiveUrls'), t('settings.bulkData.activateMessage'));
       return;
     }
     
@@ -491,13 +500,13 @@ export const WebhookSettings: React.FC<WebhookSettingsProps> = ({
       
       // Show result to user
       Alert.alert(
-        "Send Complete",
-        `Successfully sent to ${successes} endpoint${successes !== 1 ? 's' : ''}.
-${failures > 0 ? `Failed to send to ${failures} endpoint${failures !== 1 ? 's' : ''}.` : ''}`
+        t('settings.bulkData.sendComplete'),
+        `${t('settings.bulkData.successfullySentTo')} ${successes} ${successes !== 1 ? t('settings.bulkData.endpoints') : t('settings.bulkData.endpoint')}.
+${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failures !== 1 ? t('settings.bulkData.endpoints') : t('settings.bulkData.endpoint')}.` : ''}`
       );
       
     } catch (error: unknown) {
-      Alert.alert("Send Error", "An error occurred while sending the data.");
+      Alert.alert(t('settings.bulkData.sendError'), t('settings.bulkData.errorSending'));
     } finally {
       setSendingItemId(null);
     }
@@ -522,7 +531,7 @@ ${failures > 0 ? `Failed to send to ${failures} endpoint${failures !== 1 ? 's' :
         setBulkData(updatedBulkData);
       })
       .catch(() => {
-        Alert.alert("Save Error", "An error occurred while saving the edited data.");
+        Alert.alert(t('settings.webhooks.saveError'), t('settings.bulkData.saveErrorMessage'));
       });
   };
   
@@ -535,7 +544,7 @@ ${failures > 0 ? `Failed to send to ${failures} endpoint${failures !== 1 ? 's' :
         setBulkData(updatedBulkData);
       })
       .catch(() => {
-        Alert.alert("Delete Error", "An error occurred while deleting the item.");
+        Alert.alert(t('settings.bulkData.deleteError'), t('settings.bulkData.deleteErrorMessage'));
       });
   };
   
@@ -556,7 +565,7 @@ ${failures > 0 ? `Failed to send to ${failures} endpoint${failures !== 1 ? 's' :
             >
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <AppIcon name="cog" size={20} color="#888" style={{ marginRight: 8 }} />
-                <Text style={styles.subHeader}>General</Text>
+                <Text style={styles.subHeader}>{t('settings.general.title')}</Text>
               </View>
               <View style={{ flex: 1 }} />
               <AppIcon
@@ -569,9 +578,9 @@ ${failures > 0 ? `Failed to send to ${failures} endpoint${failures !== 1 ? 's' :
             {optionsOpen && (
               <View>
                 <View style={styles.optionsDropdownMenu}>
-                  <Text style={[styles.settingLabel, { color: '#888', fontSize: 14, marginBottom: 8 }]}>Input Behavior</Text>
+                  <Text style={[styles.settingLabel, { color: '#888', fontSize: 14, marginBottom: 8 }]}>{t('settings.general.inputBehavior')}</Text>
                   <View style={styles.settingRowCompact}>
-                    <Text style={styles.settingLabel}>Mute Voice Output (M)</Text>
+                    <Text style={styles.settingLabel}>{t('settings.general.muteVoiceOutput')}</Text>
                     <Switch
                       value={isSpeechMuted}
                       onValueChange={() => requireAuth(() => toggleSpeechMute?.())}
@@ -580,7 +589,7 @@ ${failures > 0 ? `Failed to send to ${failures} endpoint${failures !== 1 ? 's' :
                     />
                   </View>
                   <View style={styles.settingRowCompact}>
-                    <Text style={styles.settingLabel}>New Line on Send</Text>
+                    <Text style={styles.settingLabel}>{t('settings.general.newLineOnSend')}</Text>
                     <Switch
                       value={enterKeyNewLine}
                       onValueChange={v => requireAuth(() => setEnterKeyNewLine?.(v))}
@@ -590,7 +599,7 @@ ${failures > 0 ? `Failed to send to ${failures} endpoint${failures !== 1 ? 's' :
                   </View>
                   {Platform.OS !== 'web' && (
                     <View style={styles.settingRowCompact}>
-                      <Text style={styles.settingLabel}>Enable Vibration</Text>
+                      <Text style={styles.settingLabel}>{t('settings.general.enableVibration')}</Text>
                       <Switch
                         value={vibrationEnabled}
                         onValueChange={v => requireAuth(() => setVibrationEnabled?.(v))}
@@ -601,7 +610,7 @@ ${failures > 0 ? `Failed to send to ${failures} endpoint${failures !== 1 ? 's' :
                   )}
                   {Platform.OS !== 'web' && (
                     <View style={styles.settingRowCompact}>
-                      <Text style={styles.settingLabel}>Open in Calculator Mode</Text>
+                      <Text style={styles.settingLabel}>{t('settings.general.openInCalcMode')}</Text>
                       <Switch
                         value={openInCalcMode}
                         onValueChange={v => requireAuth(() => setOpenInCalcMode?.(v))}
@@ -611,10 +620,10 @@ ${failures > 0 ? `Failed to send to ${failures} endpoint${failures !== 1 ? 's' :
                     </View>
                   )}
                   <View style={{ marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: '#333' }}>
-                    <Text style={[styles.settingLabel, { color: '#888', fontSize: 14, marginBottom: 8 }]}>Webhooks</Text>
+                    <Text style={[styles.settingLabel, { color: '#888', fontSize: 14, marginBottom: 8 }]}>{t('settings.general.webhooksSection')}</Text>
                   </View>
                   <View style={styles.settingRowCompact}>
-                    <Text style={styles.settingLabel}>Send Answer Without Equation</Text>
+                    <Text style={styles.settingLabel}>{t('settings.general.sendAnswerWithoutEquation')}</Text>
                     <Switch
                       value={!sendEquation}
                       onValueChange={v => requirePremium(() => setSendEquation(!v))}
@@ -623,7 +632,7 @@ ${failures > 0 ? `Failed to send to ${failures} endpoint${failures !== 1 ? 's' :
                     />
                   </View>
                   <View style={styles.settingRowCompact}>
-                    <Text style={styles.settingLabel}>Queue Results for Manual Sending</Text>
+                    <Text style={styles.settingLabel}>{t('settings.general.queueResultsForManualSending')}</Text>
                     <Switch
                       value={!streamResults}
                       onValueChange={v => requirePremium(() => setStreamResults(!v))}
@@ -631,6 +640,53 @@ ${failures > 0 ? `Failed to send to ${failures} endpoint${failures !== 1 ? 's' :
                       thumbColor={!streamResults ? "#0066cc" : "#f4f3f4"}
                     />
                   </View>
+                </View>
+              </View>
+            )}
+          </View>
+
+          {/* Language Section */}
+          <View style={styles.sectionCard}>
+            <TouchableOpacity
+              style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 4 }}
+              onPress={() => setLanguageSectionOpen((prev) => !prev)}
+              activeOpacity={0.7}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <AppIcon name="web" size={20} color="#888" style={{ marginRight: 8 }} />
+                <Text style={styles.subHeader}>{t('settings.language.title')}</Text>
+              </View>
+              <View style={{ flex: 1 }} />
+              <AppIcon
+                name={languageSectionOpen ? 'chevron-up' : 'chevron-down'}
+                size={24}
+                color="#fff"
+                style={{ marginLeft: 8 }}
+              />
+            </TouchableOpacity>
+            {languageSectionOpen && (
+              <View>
+                <View style={styles.optionsDropdownMenu}>
+                  <Text style={[styles.settingLabel, { color: '#888', fontSize: 14, marginBottom: 8 }]}>
+                    {t('settings.language.selectLanguage')}
+                  </Text>
+                  {SUPPORTED_LANGUAGES.map((lang) => (
+                    <TouchableOpacity
+                      key={lang.code}
+                      style={styles.languageOption}
+                      onPress={() => handleLanguageSelect(lang.code)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.languageOptionContent}>
+                        <Text style={styles.languageFlag}>{lang.flag}</Text>
+                        <Text style={styles.languageName}>{lang.nativeName}</Text>
+                        <Text style={styles.languageEnglishName}>({lang.name})</Text>
+                      </View>
+                      {language === lang.code && (
+                        <AppIcon name="check" size={20} color="#0066cc" />
+                      )}
+                    </TouchableOpacity>
+                  ))}
                 </View>
               </View>
             )}
@@ -645,7 +701,7 @@ ${failures > 0 ? `Failed to send to ${failures} endpoint${failures !== 1 ? 's' :
             >
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <AppIcon name="webhook" size={20} color="#888" style={{ marginRight: 8 }} />
-                <Text style={styles.subHeader}>Webhooks</Text>
+                <Text style={styles.subHeader}>{t('settings.webhooks.title')}</Text>
               </View>
               <View style={{ flex: 1 }} />
               <AppIcon
@@ -659,7 +715,7 @@ ${failures > 0 ? `Failed to send to ${failures} endpoint${failures !== 1 ? 's' :
             {webhookTitleOpen && (
               <View>
                 <View>
-                  <Text style={styles.sectionSubtitle}>Create a new webhook</Text>
+                  <Text style={styles.sectionSubtitle}>{t('settings.webhooks.createNew')}</Text>
                   <View style={[styles.addWebhookContainer, styles.sectionPadding]}>
                     <TouchableOpacity
                       activeOpacity={0.8}
@@ -673,7 +729,7 @@ ${failures > 0 ? `Failed to send to ${failures} endpoint${failures !== 1 ? 's' :
                     >
                       <View style={[styles.webhookInput, !isPremium && { opacity: 0.6 }]}>
                         <Text style={{ color: isPremium ? '#fff' : '#888' }}>
-                          {localWebhookTitle || "Enter webhook title (optional)"}
+                          {localWebhookTitle || t('settings.webhooks.enterTitle')}
                         </Text>
                       </View>
                     </TouchableOpacity>
@@ -689,7 +745,7 @@ ${failures > 0 ? `Failed to send to ${failures} endpoint${failures !== 1 ? 's' :
                     >
                       <View style={[styles.webhookInput, !isPremium && { opacity: 0.6 }]}>
                         <Text style={{ color: isPremium ? '#fff' : '#888' }}>
-                          {localWebhookUrl || "Enter webhook URL (http:// or https://)..."}
+                          {localWebhookUrl || t('settings.webhooks.enterUrl')}
                         </Text>
                       </View>
                     </TouchableOpacity>
@@ -698,13 +754,13 @@ ${failures > 0 ? `Failed to send to ${failures} endpoint${failures !== 1 ? 's' :
                       onPress={handleAddWebhookLocal}
                       disabled={!/^https?:\/\//.test(localWebhookUrl.trim())}
                     >
-                      <Text style={styles.addButtonText}>Add</Text>
+                      <Text style={styles.addButtonText}>{t('settings.webhooks.add')}</Text>
                     </TouchableOpacity>
                   </View>
                   
                   <View style={styles.sectionDivider} />
                   
-                  <Text style={[styles.sectionSubtitle, styles.sectionTopMargin]}>My webhooks</Text>
+                  <Text style={[styles.sectionSubtitle, styles.sectionTopMargin]}>{t('settings.webhooks.myWebhooks')}</Text>
                   {localWebhookUrls.length > 0 ? (
                     <View style={styles.webhookList}>
                       {localWebhookUrls.map((item) => (
@@ -715,7 +771,7 @@ ${failures > 0 ? `Failed to send to ${failures} endpoint${failures !== 1 ? 's' :
                               <View style={styles.webhookEditInputsContainer}>
                                 <TextInput
                                   style={styles.webhookInput}
-                                  placeholder="Webhook Title (optional)"
+                                  placeholder={t('settings.webhooks.webhookTitle')}
                                   placeholderTextColor="#888"
                                   value={editingWebhookTitle}
                                   onChangeText={setEditingWebhookTitle}
@@ -723,7 +779,7 @@ ${failures > 0 ? `Failed to send to ${failures} endpoint${failures !== 1 ? 's' :
                                 />
                                 <TextInput
                                   style={styles.webhookInput}
-                                  placeholder="Webhook URL"
+                                  placeholder={t('settings.webhooks.webhookUrl')}
                                   placeholderTextColor="#888"
                                   value={editingWebhookValue}
                                   onChangeText={setEditingWebhookValue}
@@ -791,7 +847,7 @@ ${failures > 0 ? `Failed to send to ${failures} endpoint${failures !== 1 ? 's' :
                       ))}
                     </View>
                   ) : (
-                    <Text style={styles.emptyListText}>No webhooks added yet</Text>
+                    <Text style={styles.emptyListText}>{t('settings.webhooks.noWebhooksYet')}</Text>
                   )}
                 </View>
               </View>
@@ -802,13 +858,13 @@ ${failures > 0 ? `Failed to send to ${failures} endpoint${failures !== 1 ? 's' :
           {bulkData.length > 0 && (
             <View style={styles.sectionCard}>
               <View style={styles.bulkHeaderContainer}>
-                <Text style={styles.subHeader}>Bulk Data ({bulkData.length} items)</Text>
+                <Text style={styles.subHeader}>{t('settings.bulkData.title')} ({bulkData.length} {t('settings.bulkData.items')})</Text>
                 <TouchableOpacity 
                   onPress={clearBulkDataWrapped} 
                   style={styles.deleteAllButton} 
                   disabled={isSendingBulk} 
                 >
-                  <Text style={[styles.deleteAllButtonText, isSendingBulk && styles.disabledText]}>Delete All</Text> 
+                  <Text style={[styles.deleteAllButtonText, isSendingBulk && styles.disabledText]}>{t('settings.bulkData.deleteAll')}</Text> 
                 </TouchableOpacity>
               </View>
               
@@ -896,12 +952,12 @@ ${failures > 0 ? `Failed to send to ${failures} endpoint${failures !== 1 ? 's' :
               >
                 <AppIcon name="send" size={20} color="#fff" style={{ marginRight: 8 }} />
                 <Text style={styles.bulkSendText}>
-                  {isSendingBulk ? "Sending..." : `Send ${bulkData.length} Item${bulkData.length !== 1 ? 's' : ''}`}
+                  {isSendingBulk ? t('settings.bulkData.sending') : `${t('settings.bulkData.send')} ${bulkData.length} ${bulkData.length !== 1 ? t('settings.bulkData.items') : t('settings.bulkData.item')}`}
                 </Text>
                 {isSendingBulk && <ActivityIndicator size="small" color="#fff" style={{ marginLeft: 10 }} />}
               </TouchableOpacity>
               {localWebhookUrls.filter(webhook => webhook.active).length === 0 && bulkData.length > 0 && !isSendingBulk && (
-                <Text style={styles.warningText}>Activate at least one webhook to enable sending</Text>
+                <Text style={styles.warningText}>{t('settings.bulkData.activateWebhook')}</Text>
               )}
             </View>
           )}
@@ -931,10 +987,10 @@ ${failures > 0 ? `Failed to send to ${failures} endpoint${failures !== 1 ? 's' :
                 )}
                 <View>
                   <Text style={[styles.subHeader, { fontSize: 18, marginBottom: 2, fontWeight: 'bold', color: '#fff' }]}>
-                    {user ? (user.user_metadata?.full_name || 'User') : 'Anonymous Cat'}
+                    {user ? (user.user_metadata?.full_name || 'User') : t('settings.auth.anonymousCat')}
                   </Text>
                   <Text style={[styles.userSubtitle, { fontSize: 14, color: '#888' }]}>
-                    {user ? user.email : 'Guest User'}
+                    {user ? user.email : t('settings.auth.guestUser')}
                   </Text>
                 </View>
               </View>
@@ -957,7 +1013,7 @@ ${failures > 0 ? `Failed to send to ${failures} endpoint${failures !== 1 ? 's' :
                         onPress={handleSignOut}
                       >
                         <AppIcon name="logout" size={18} color="#FF3B30" style={{ marginRight: 8 }} />
-                        <Text style={styles.signOutButtonText}>Sign Out</Text>
+                        <Text style={styles.signOutButtonText}>{t('settings.auth.signOut')}</Text>
                       </TouchableOpacity>
                     </View>
                   ) : (
@@ -968,10 +1024,10 @@ ${failures > 0 ? `Failed to send to ${failures} endpoint${failures !== 1 ? 's' :
                             source={require('../../assets/images/LOGO.png')} 
                             style={{ width: 180, height: 72, marginBottom: 20, resizeMode: 'contain' }} 
                           />
-                          <Text style={styles.betaText}>BETA</Text>
+                          <Text style={styles.betaText}>{t('settings.common.beta')}</Text>
                         </View>
-                        <Text style={styles.limitedTimeOffer}>First 100 Users Get Lifetime Access</Text>
-                        <Text style={[styles.limitedTimeOffer, { color: '#e0e0e0' }]}>to Premium! - Sign up here </Text>
+                        <Text style={styles.limitedTimeOffer}>{t('settings.auth.firstUsersLifetime')}</Text>
+                        <Text style={[styles.limitedTimeOffer, { color: '#e0e0e0' }]}>{t('settings.auth.toPremium')}</Text>
                         
                         <TouchableOpacity 
                           style={[styles.googleButton, { marginTop: 20 }]}
@@ -983,21 +1039,21 @@ ${failures > 0 ? `Failed to send to ${failures} endpoint${failures !== 1 ? 's' :
                           ) : (
                             <>
                               <GoogleLogo size={20} />
-                              <Text style={styles.googleButtonText}>Continue with Google</Text>
+                              <Text style={styles.googleButtonText}>{t('settings.auth.continueWithGoogle')}</Text>
                             </>
                           )}
                         </TouchableOpacity>
 
                         <View style={[styles.promoFeatures, { marginTop: 30 }]}>
                           <Text style={styles.promoFeature}>
-                            <AppIcon name="check-decagram" size={16} color="#fff" /> Unlimited Calculations
+                            <AppIcon name="check-decagram" size={16} color="#fff" /> {t('settings.auth.unlimitedCalculations')}
                           </Text>
                           <Text style={styles.promoFeature}>
-                            <AppIcon name="webhook" size={16} color="#fff" /> Webhook Integration
+                            <AppIcon name="webhook" size={16} color="#fff" /> {t('settings.auth.webhookIntegration')}
                           </Text>
                           <Text style={styles.promoFeature}>
-                            <AppIcon name="history" size={16} color="#fff" /> History & Sync
-                            <Text style={styles.comingSoon}> (soon)</Text>
+                            <AppIcon name="history" size={16} color="#fff" /> {t('settings.auth.historySync')}
+                            <Text style={styles.comingSoon}> {t('settings.auth.comingSoon')}</Text>
                           </Text>
                         </View>
                       </View>
@@ -1016,7 +1072,7 @@ ${failures > 0 ? `Failed to send to ${failures} endpoint${failures !== 1 ? 's' :
               router.push('/privacy');
             }}
           >
-            <Text style={styles.privacyPolicyLinkText}>Privacy Policy</Text>
+            <Text style={styles.privacyPolicyLinkText}>{t('settings.common.privacyPolicy')}</Text>
           </TouchableOpacity>
 
         </ScrollView>
@@ -1041,7 +1097,7 @@ ${failures > 0 ? `Failed to send to ${failures} endpoint${failures !== 1 ? 's' :
             {/* Title and Settings Icon (centered group) */}
             <View style={styles.headerTitleGroup}>
               <AppIcon name="cog" size={24} color="#fff" style={{ marginRight: 8 }} />
-              <Text style={styles.modalTitle}>Settings</Text>
+              <Text style={styles.modalTitle}>{t('settings.title')}</Text>
             </View>
             
             {/* Premium Button - only shown for non-premium users */}
@@ -1052,7 +1108,7 @@ ${failures > 0 ? `Failed to send to ${failures} endpoint${failures !== 1 ? 's' :
                 activeOpacity={0.7}
               >
                 <AppIcon name="crown-outline" size={22} color="#ff9500" />
-                <Text style={{ color: '#ff9500', fontWeight: 'bold', fontSize: 14, marginLeft: 4 }}>PRO</Text>
+                <Text style={{ color: '#ff9500', fontWeight: 'bold', fontSize: 14, marginLeft: 4 }}>{t('settings.common.pro')}</Text>
               </TouchableOpacity>
             ) : (
               <View style={styles.headerRightPlaceholder} />
@@ -1680,6 +1736,35 @@ const styles = StyleSheet.create({
   },
   headerRightPlaceholder: {
     width: 24 + 8 + 8,
+  },
+  // Language section styles
+  languageOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    marginBottom: 4,
+  },
+  languageOptionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  languageFlag: {
+    fontSize: 20,
+    marginRight: 12,
+  },
+  languageName: {
+    fontSize: 16,
+    color: '#fff',
+    fontWeight: '500',
+    marginRight: 8,
+  },
+  languageEnglishName: {
+    fontSize: 14,
+    color: '#888',
   },
 });
 
