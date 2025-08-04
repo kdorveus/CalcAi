@@ -21,7 +21,7 @@ interface HistoryModalProps {
   visible: boolean;
   onClose: () => void;
   history: CalculationHistoryItem[];
-  onDelete: (expression: string, result: string, created_at: string) => Promise<void>;
+  onDelete: (created_at: string) => Promise<void>;
   onClearAll: () => Promise<void>;
   onSelect: (item: CalculationHistoryItem) => void;
   isLoading: boolean;
@@ -31,10 +31,13 @@ interface HistoryModalProps {
 const HistoryModal: React.FC<HistoryModalProps> = ({
   visible,
   onClose,
+  history,
+  onDelete,
+  onClearAll,
   onSelect,
+  isLoading,
   onSendToWebhook,
 }) => {
-  const { history: contextHistory, deleteCalculation, clearAllCalculations, loading } = useCalculationHistory();
   const { isPremium, checkPremiumStatus } = usePremium();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [webhookModalVisible, setWebhookModalVisible] = useState(false);
@@ -47,19 +50,8 @@ const HistoryModal: React.FC<HistoryModalProps> = ({
   };
 
   // Handle deleting a calculation
-  const handleDelete = (expression: string, result: string, created_at: string) => {
-    Alert.alert(
-      "Delete Calculation",
-      "Are you sure you want to delete this calculation?",
-      [
-        { text: "Cancel", style: "cancel" },
-        { 
-          text: "Delete", 
-          onPress: () => deleteCalculation(expression, result, created_at),
-          style: "destructive"
-        }
-      ]
-    );
+  const handleDelete = (created_at: string) => {
+    onDelete(created_at);
   };
 
   // Handle clearing all calculations
@@ -71,7 +63,7 @@ const HistoryModal: React.FC<HistoryModalProps> = ({
         { text: "Cancel", style: "cancel" },
         { 
           text: "Clear All", 
-          onPress: () => clearAllCalculations(),
+          onPress: onClearAll,
           style: "destructive"
         }
       ]
@@ -143,8 +135,8 @@ const HistoryModal: React.FC<HistoryModalProps> = ({
           <AppIcon name="send" size={20} color="#0066cc" />
         </TouchableOpacity>
         <TouchableOpacity 
+          onPress={() => handleDelete(item.created_at)} 
           style={styles.actionButton}
-          onPress={() => handleDelete(item.expression, item.result, item.created_at)}
         >
           <AppIcon name="delete" size={20} color="#888" />
         </TouchableOpacity>
@@ -173,7 +165,7 @@ const HistoryModal: React.FC<HistoryModalProps> = ({
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Calculation History</Text>
             <View style={styles.headerButtons}>
-              {contextHistory.length > 0 && (
+              {history.length > 0 && (
                 <TouchableOpacity 
                   style={styles.clearButton}
                   onPress={handleClearAll}
@@ -190,14 +182,14 @@ const HistoryModal: React.FC<HistoryModalProps> = ({
             </View>
           </View>
 
-          {loading && !isRefreshing ? (
+          {isLoading && !isRefreshing ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color="#0066cc" />
               <Text style={styles.loadingText}>Loading history...</Text>
             </View>
           ) : (
             <FlatList
-              data={contextHistory}
+              data={history}
               renderItem={renderItem}
               keyExtractor={(item, index) => `${item.expression}-${item.result}-${index}`}
               contentContainerStyle={styles.historyList}

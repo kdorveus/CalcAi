@@ -1921,7 +1921,7 @@ const MainScreen: React.FC = () => {
       
       {/* Settings Modal */}
       <Suspense fallback={null}>
-        <Settings 
+        <Settings
           visible={isSettingsModalVisible}
           onClose={() => setIsSettingsModalVisible(false)}
           webhookUrls={webhookUrls}
@@ -1940,8 +1940,8 @@ const MainScreen: React.FC = () => {
           setBulkData={setBulkData}
           isSendingBulk={isSendingBulk}
           clearBulkData={() => {
-            setBulkData([]); 
-          }} 
+            setBulkData([]);
+          }}
           enterKeyNewLine={enterKeyNewLine}
           setEnterKeyNewLine={setEnterKeyNewLine}
           isSpeechMuted={isSpeechMuted}
@@ -1953,23 +1953,22 @@ const MainScreen: React.FC = () => {
           openInCalcMode={openInCalcMode}
           setOpenInCalcMode={setOpenInCalcMode}
           historyEnabled={historyEnabled}
-          setHistoryEnabled={setHistoryEnabled} // Add this line
+          setHistoryEnabled={setHistoryEnabled}
         />
       </Suspense>
 
       {/* History Modal */}
-      <Suspense fallback={null}>
-        <HistoryModal
+      <Suspense fallback={<View />}>
+        <HistoryModal 
           visible={showHistoryModal}
           onClose={() => setShowHistoryModal(false)}
           history={history}
-          onDelete={deleteCalculation}
-          onClearAll={clearAllCalculations}
+          onDelete={deleteCalculation} // FIX: Pass the actual delete function
+          onClearAll={clearAllCalculations} // FIX: Pass the actual clear all function
           onSelect={(item) => {
-            // Handle selecting a history item, e.g., fill input or display
             if (item.result) {
-              setKeypadInput(item.result); // Or append to current input
-              setShowHistoryModal(false); // Close modal after selection
+              setKeypadInput(item.result);
+              setShowHistoryModal(false);
               if (Platform.OS === 'android') {
                 ToastAndroid.show(`Selected: ${item.result}`, ToastAndroid.SHORT);
               }

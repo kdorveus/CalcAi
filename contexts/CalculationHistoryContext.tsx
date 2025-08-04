@@ -13,7 +13,7 @@ export interface CalculationHistoryItem {
 type CalculationHistoryContextType = {
   history: CalculationHistoryItem[];
   addCalculation: (expression: string, result: string) => Promise<void>;
-  deleteCalculation: (expression: string, result: string, created_at: string) => Promise<void>;
+  deleteCalculation: (created_at: string) => Promise<void>;
   clearAllCalculations: () => Promise<void>;
   loading: boolean;
 };
@@ -88,15 +88,10 @@ export const CalculationHistoryProvider: React.FC<CalculationHistoryProviderProp
     }
   };
 
-  // Delete a calculation from history
-  const deleteCalculation = async (expression: string, result: string, created_at: string) => {
+  // Delete a calculation from history - KISS approach
+  const deleteCalculation = async (created_at: string) => {
     try {
-      // Find the item to delete
-      const itemToDelete = history.find(item => item.expression === expression && item.result === result && item.created_at === created_at);
-      if (!itemToDelete) return;
-
-      // Update local storage and state
-      const updatedHistory = history.filter(item => !(item.expression === expression && item.result === result && item.created_at === created_at));
+      const updatedHistory = history.filter(item => item.created_at !== created_at);
       setHistory(updatedHistory);
       await saveHistory(updatedHistory);
     } catch (error) {
@@ -104,7 +99,7 @@ export const CalculationHistoryProvider: React.FC<CalculationHistoryProviderProp
     }
   };
 
-  // Clear all calculations
+  // Clear all calculations - KISS approach
   const clearAllCalculations = async () => {
     try {
       setHistory([]);
