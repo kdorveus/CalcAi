@@ -34,6 +34,7 @@ import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { useCalculationHistory } from '../contexts/CalculationHistoryContext';
 import HistoryButton from '../components/HistoryButton';
+import { useTranslation } from '../hooks/useTranslation';
 // import HistoryModal from '../components/HistoryModal'; // Remove this line
 
 // Dynamically import components
@@ -87,9 +88,66 @@ interface AxiosFailurePayload {
   error: any;
 }
 
+// Define type for math patterns
+interface LanguagePatterns {
+  numbers: { [key: string]: string };
+  operations: {
+    addition: string[];
+    subtraction: string[];
+    multiplication: string[];
+    division: string[];
+    percentage: string[];
+    percentOf: string[];
+    power: string[];
+    sqrt: string[];
+    parentheses: {
+      open: string[];
+      close: string[];
+    };
+    decimal: string[];
+  };
+  specificPhrases: {
+    addTo: string;
+    subtractFrom: string;
+    multiplyBy: string;
+    divideBy: string;
+  };
+  fillerWords: string[];
+}
+
 const MainScreen: React.FC = () => {
+  const { t, language } = useTranslation();
   const { user } = useAuth();
   const { history, addCalculation, deleteCalculation, clearAllCalculations, loading } = useCalculationHistory();
+
+  // Number formatting function for locale-aware display
+  const formatNumber = useCallback((num: number, lang: string): string => {
+    // Map language codes to locales
+    const localeMap: { [key: string]: string } = {
+      'en': 'en-US',
+      'es': 'es-ES', 
+      'fr': 'fr-FR',
+      'de': 'de-DE',
+      'pt': 'pt-BR',
+      'it': 'it-IT'
+    };
+    
+    const locale = localeMap[lang] || 'en-US';
+    return num.toLocaleString(locale);
+  }, []);
+
+  // Language mapping for speech recognition
+  const getSpeechRecognitionLanguage = (lang: string): string => {
+    const langMap: { [key: string]: string } = {
+      'en': 'en-US',
+      'es': 'es-ES',
+      'fr': 'fr-FR',
+      'de': 'de-DE',
+      'pt': 'pt-BR',
+      'it': 'it-IT'
+    };
+    return langMap[lang] || 'en-US'; // Fallback to English if unsupported
+  };
 
   // Setup animation values for swipe effects
   // const translateX = useSharedValue(0);
@@ -150,7 +208,7 @@ const MainScreen: React.FC = () => {
   const speakIfUnmuted = useCallback((text: string) => {
     if (!speechMutedRef.current) {
       Speech.speak(text, {
-        language: 'en-US',
+        language: getSpeechRecognitionLanguage(language),
         pitch: 1.0,
         rate: 0.9,
         onDone: () => {},
@@ -231,55 +289,316 @@ const MainScreen: React.FC = () => {
   const [previewResult, setPreviewResult] = useState<string | null>(null);
   const [expectingFreshInput, setExpectingFreshInput] = useState(false);
 
+  // Internal error constant for programming logic (never shown to user)
+  const MATH_ERROR = 'MATH_ERROR_INTERNAL';
+
+  // Get language-specific math patterns
+  const getMathPatterns = useCallback((lang: string): LanguagePatterns => {
+    const patterns: { [key: string]: LanguagePatterns } = {
+      en: {
+        numbers: {
+          'zero': '0', 'one': '1', 'two': '2', 'three': '3', 'four': '4', 'five': '5',
+          'six': '6', 'seven': '7', 'eight': '8', 'nine': '9', 'ten': '10',
+          'eleven': '11', 'twelve': '12', 'thirteen': '13', 'fourteen': '14', 'fifteen': '15',
+          'sixteen': '16', 'seventeen': '17', 'eighteen': '18', 'nineteen': '19', 'twenty': '20',
+          'thirty': '30', 'forty': '40', 'fifty': '50', 'sixty': '60', 'seventy': '70',
+          'eighty': '80', 'ninety': '90', 'hundred': '100'
+        },
+        operations: {
+          addition: ['plus', 'add', 'and'],
+          subtraction: ['minus', 'subtract', 'less', 'take away'],
+          multiplication: ['times', 'multiplied by', 'x', 'multiply'],
+          division: ['divided by', 'divide', 'over'],
+          percentage: ['percent', 'percentage'],
+          percentOf: ['percent of'],
+          power: ['power', 'raised to', 'to the power of', 'squared', 'cubed'],
+          sqrt: ['square root of', 'root of', 'square root'],
+          parentheses: {
+            open: ['open parenthesis', 'left parenthesis', 'open bracket'],
+            close: ['close parenthesis', 'right parenthesis', 'close bracket']
+          },
+          decimal: ['point', 'dot', 'decimal']
+        },
+        specificPhrases: {
+          addTo: 'add (\\d+(?:\\.\\d+)?) to (\\d+(?:\\.\\d+)?)',
+          subtractFrom: 'subtract (\\d+(?:\\.\\d+)?) from (\\d+(?:\\.\\d+)?)',
+          multiplyBy: '(multiply|multiplied) (\\d+(?:\\.\\d+)?) by (\\d+(?:\\.\\d+)?)',
+          divideBy: '(divide|divided) (\\d+(?:\\.\\d+)?) by (\\d+(?:\\.\\d+)?)'
+        },
+        fillerWords: ['do', 'hours', 'hour', 'box', 'and', 'the', 'a', 'an', 'equals', 'is', 'calculate', 'result', 'please', 'for', 'of']
+      },
+      es: {
+        numbers: {
+          'cero': '0', 'uno': '1', 'dos': '2', 'tres': '3', 'cuatro': '4', 'cinco': '5',
+          'seis': '6', 'siete': '7', 'ocho': '8', 'nueve': '9', 'diez': '10',
+          'once': '11', 'doce': '12', 'trece': '13', 'catorce': '14', 'quince': '15',
+          'dieciséis': '16', 'diecisiete': '17', 'dieciocho': '18', 'diecinueve': '19', 'veinte': '20',
+          'treinta': '30', 'cuarenta': '40', 'cincuenta': '50', 'sesenta': '60', 'setenta': '70',
+          'ochenta': '80', 'noventa': '90', 'cien': '100'
+        },
+        operations: {
+          addition: ['más', 'sumar', 'y', 'suma'],
+          subtraction: ['menos', 'restar', 'quitar'],
+          multiplication: ['por', 'multiplicado por', 'veces', 'multiplicar', 'x'],
+          division: ['dividido por', 'dividir', 'sobre'],
+          percentage: ['por ciento', 'porciento'],
+          percentOf: ['por ciento de'],
+          power: ['elevado a', 'a la potencia de', 'al cuadrado', 'al cubo', 'potencia'],
+          sqrt: ['raíz cuadrada de', 'raíz de', 'raíz cuadrada'],
+          parentheses: {
+            open: ['abrir paréntesis', 'paréntesis izquierdo', 'abrir corchete'],
+            close: ['cerrar paréntesis', 'paréntesis derecho', 'cerrar corchete']
+          },
+          decimal: ['punto', 'coma', 'decimal']
+        },
+        specificPhrases: {
+          addTo: 'sumar (\\d+(?:\\.\\d+)?) a (\\d+(?:\\.\\d+)?)',
+          subtractFrom: 'restar (\\d+(?:\\.\\d+)?) de (\\d+(?:\\.\\d+)?)',
+          multiplyBy: '(multiplicar|multiplicado) (\\d+(?:\\.\\d+)?) por (\\d+(?:\\.\\d+)?)',
+          divideBy: '(dividir|dividido) (\\d+(?:\\.\\d+)?) por (\\d+(?:\\.\\d+)?)'
+        },
+        fillerWords: ['hacer', 'horas', 'hora', 'caja', 'y', 'el', 'la', 'un', 'una', 'igual', 'es', 'calcular', 'resultado', 'por favor', 'para', 'de']
+      },
+      fr: {
+        numbers: {
+          'zéro': '0', 'un': '1', 'deux': '2', 'trois': '3', 'quatre': '4', 'cinq': '5',
+          'six': '6', 'sept': '7', 'huit': '8', 'neuf': '9', 'dix': '10',
+          'onze': '11', 'douze': '12', 'treize': '13', 'quatorze': '14', 'quinze': '15',
+          'seize': '16', 'dix-sept': '17', 'dix-huit': '18', 'dix-neuf': '19', 'vingt': '20',
+          'trente': '30', 'quarante': '40', 'cinquante': '50', 'soixante': '60', 'soixante-dix': '70',
+          'quatre-vingts': '80', 'quatre-vingt-dix': '90', 'cent': '100'
+        },
+        operations: {
+          addition: ['plus', 'ajouter', 'et', 'additionner'],
+          subtraction: ['moins', 'soustraire', 'retirer'],
+          multiplication: ['fois', 'multiplié par', 'x', 'multiplier'],
+          division: ['divisé par', 'diviser', 'sur'],
+          percentage: ['pour cent', 'pourcent'],
+          percentOf: ['pour cent de'],
+          power: ['puissance', 'élevé à', 'à la puissance de', 'au carré', 'au cube'],
+          sqrt: ['racine carrée de', 'racine de', 'racine carrée'],
+          parentheses: {
+            open: ['ouvrir parenthèse', 'parenthèse gauche', 'ouvrir crochet'],
+            close: ['fermer parenthèse', 'parenthèse droite', 'fermer crochet']
+          },
+          decimal: ['virgule', 'point', 'décimal']
+        },
+        specificPhrases: {
+          addTo: 'ajouter (\\d+(?:\\.\\d+)?) à (\\d+(?:\\.\\d+)?)',
+          subtractFrom: 'soustraire (\\d+(?:\\.\\d+)?) de (\\d+(?:\\.\\d+)?)',
+          multiplyBy: '(multiplier|multiplié) (\\d+(?:\\.\\d+)?) par (\\d+(?:\\.\\d+)?)',
+          divideBy: '(diviser|divisé) (\\d+(?:\\.\\d+)?) par (\\d+(?:\\.\\d+)?)'
+        },
+        fillerWords: ['faire', 'heures', 'heure', 'boîte', 'et', 'le', 'la', 'un', 'une', 'égal', 'est', 'calculer', 'résultat', 's\'il vous plaît', 'pour', 'de']
+      },
+      de: {
+        numbers: {
+          'null': '0', 'eins': '1', 'zwei': '2', 'drei': '3', 'vier': '4', 'fünf': '5',
+          'sechs': '6', 'sieben': '7', 'acht': '8', 'neun': '9', 'zehn': '10',
+          'elf': '11', 'zwölf': '12', 'dreizehn': '13', 'vierzehn': '14', 'fünfzehn': '15',
+          'sechzehn': '16', 'siebzehn': '17', 'achtzehn': '18', 'neunzehn': '19', 'zwanzig': '20',
+          'dreißig': '30', 'vierzig': '40', 'fünfzig': '50', 'sechzig': '60', 'siebzig': '70',
+          'achtzig': '80', 'neunzig': '90', 'hundert': '100'
+        },
+        operations: {
+          addition: ['plus', 'addieren', 'und', 'hinzufügen'],
+          subtraction: ['minus', 'subtrahieren', 'weniger', 'abziehen'],
+          multiplication: ['mal', 'multipliziert mit', 'x', 'multiplizieren'],
+          division: ['geteilt durch', 'dividiert durch', 'teilen', 'über'],
+          percentage: ['prozent', 'vom hundert'],
+          percentOf: ['prozent von'],
+          power: ['hoch', 'zur potenz', 'quadrat', 'kubik', 'potenz'],
+          sqrt: ['quadratwurzel von', 'wurzel von', 'quadratwurzel'],
+          parentheses: {
+            open: ['klammer auf', 'linke klammer', 'öffnende klammer'],
+            close: ['klammer zu', 'rechte klammer', 'schließende klammer']
+          },
+          decimal: ['komma', 'punkt', 'dezimal']
+        },
+        specificPhrases: {
+          addTo: 'addiere (\\d+(?:\\.\\d+)?) zu (\\d+(?:\\.\\d+)?)',
+          subtractFrom: 'subtrahiere (\\d+(?:\\.\\d+)?) von (\\d+(?:\\.\\d+)?)',
+          multiplyBy: '(multipliziere|multipliziert) (\\d+(?:\\.\\d+)?) mit (\\d+(?:\\.\\d+)?)',
+          divideBy: '(teile|geteilt) (\\d+(?:\\.\\d+)?) durch (\\d+(?:\\.\\d+)?)'
+        },
+        fillerWords: ['machen', 'stunden', 'stunde', 'kasten', 'und', 'der', 'die', 'das', 'ein', 'eine', 'gleich', 'ist', 'berechnen', 'ergebnis', 'bitte', 'für', 'von']
+      },
+      pt: {
+        numbers: {
+          'zero': '0', 'um': '1', 'dois': '2', 'três': '3', 'quatro': '4', 'cinco': '5',
+          'seis': '6', 'sete': '7', 'oito': '8', 'nove': '9', 'dez': '10',
+          'onze': '11', 'doze': '12', 'treze': '13', 'quatorze': '14', 'quinze': '15',
+          'dezesseis': '16', 'dezessete': '17', 'dezoito': '18', 'dezenove': '19', 'vinte': '20',
+          'trinta': '30', 'quarenta': '40', 'cinquenta': '50', 'sessenta': '60', 'setenta': '70',
+          'oitenta': '80', 'noventa': '90', 'cem': '100'
+        },
+        operations: {
+          addition: ['mais', 'somar', 'e', 'adicionar'],
+          subtraction: ['menos', 'subtrair', 'tirar'],
+          multiplication: ['vezes', 'multiplicado por', 'x', 'multiplicar'],
+          division: ['dividido por', 'dividir', 'sobre'],
+          percentage: ['por cento', 'porcento'],
+          percentOf: ['por cento de'],
+          power: ['elevado a', 'à potência de', 'ao quadrado', 'ao cubo', 'potência'],
+          sqrt: ['raiz quadrada de', 'raiz de', 'raiz quadrada'],
+          parentheses: {
+            open: ['abrir parênteses', 'parênteses esquerdo', 'abrir colchetes'],
+            close: ['fechar parênteses', 'parênteses direito', 'fechar colchetes']
+          },
+          decimal: ['vírgula', 'ponto', 'decimal']
+        },
+        specificPhrases: {
+          addTo: 'somar (\\d+(?:\\.\\d+)?) a (\\d+(?:\\.\\d+)?)',
+          subtractFrom: 'subtrair (\\d+(?:\\.\\d+)?) de (\\d+(?:\\.\\d+)?)',
+          multiplyBy: '(multiplicar|multiplicado) (\\d+(?:\\.\\d+)?) por (\\d+(?:\\.\\d+)?)',
+          divideBy: '(dividir|dividido) (\\d+(?:\\.\\d+)?) por (\\d+(?:\\.\\d+)?)'
+        },
+        fillerWords: ['fazer', 'horas', 'hora', 'caixa', 'e', 'o', 'a', 'um', 'uma', 'igual', 'é', 'calcular', 'resultado', 'por favor', 'para', 'de']
+      },
+      it: {
+        numbers: {
+          'zero': '0', 'uno': '1', 'due': '2', 'tre': '3', 'quattro': '4', 'cinque': '5',
+          'sei': '6', 'sette': '7', 'otto': '8', 'nove': '9', 'dieci': '10',
+          'undici': '11', 'dodici': '12', 'tredici': '13', 'quattordici': '14', 'quindici': '15',
+          'sedici': '16', 'diciassette': '17', 'diciotto': '18', 'diciannove': '19', 'venti': '20',
+          'trenta': '30', 'quaranta': '40', 'cinquanta': '50', 'sessanta': '60', 'settanta': '70',
+          'ottanta': '80', 'novanta': '90', 'cento': '100'
+        },
+        operations: {
+          addition: ['più', 'sommare', 'e', 'aggiungere'],
+          subtraction: ['meno', 'sottrarre', 'togliere'],
+          multiplication: ['per', 'moltiplicato per', 'x', 'moltiplicare'],
+          division: ['diviso per', 'dividere', 'sopra'],
+          percentage: ['per cento', 'percento'],
+          percentOf: ['per cento di'],
+          power: ['elevato a', 'alla potenza di', 'al quadrato', 'al cubo', 'potenza'],
+          sqrt: ['radice quadrata di', 'radice di', 'radice quadrata'],
+          parentheses: {
+            open: ['apri parentesi', 'parentesi sinistra', 'apri quadre'],
+            close: ['chiudi parentesi', 'parentesi destra', 'chiudi quadre']
+          },
+          decimal: ['virgola', 'punto', 'decimale']
+        },
+        specificPhrases: {
+          addTo: 'sommare (\\d+(?:\\.\\d+)?) a (\\d+(?:\\.\\d+)?)',
+          subtractFrom: 'sottrarre (\\d+(?:\\.\\d+)?) da (\\d+(?:\\.\\d+)?)',
+          multiplyBy: '(moltiplicare|moltiplicato) (\\d+(?:\\.\\d+)?) per (\\d+(?:\\.\\d+)?)',
+          divideBy: '(dividere|diviso) (\\d+(?:\\.\\d+)?) per (\\d+(?:\\.\\d+)?)'
+        },
+        fillerWords: ['fare', 'ore', 'ora', 'scatola', 'e', 'il', 'la', 'un', 'una', 'uguale', 'è', 'calcolare', 'risultato', 'per favore', 'per', 'di']
+      }
+    };
+
+    // Return the patterns for the requested language, fallback to English if not found
+    return patterns[lang] ?? patterns['en'];
+  }, []); // Dependencies: none
+
   // Normalize spoken math expressions
   const normalizeSpokenMath = useCallback((text: string): string => {
     let normalized = text.toLowerCase();
 
-    // Convert spelled-out numbers (basic cases) FIRST
-    const numWords: { [key: string]: string } = {
-        'zero': '0', 'one': '1', 'two': '2', 'three': '3', 'four': '4', 'five': '5',
-        'six': '6', 'seven': '7', 'eight': '8', 'nine': '9', 'ten': '10'
-    };
-    normalized = normalized.replace(/\b(zero|one|two|three|four|five|six|seven|eight|nine|ten)\b/g, (match) => numWords[match]);
+    // Get language-specific patterns
+    const patterns = getMathPatterns(language);
+    
+    // Convert spelled-out numbers FIRST
+    const numWords = patterns.numbers;
+    const numWordsKeys = Object.keys(numWords).join('|');
+    if (numWordsKeys) {
+      normalized = normalized.replace(new RegExp(`\\b(${numWordsKeys})\\b`, 'g'), (match) => numWords[match]);
+    }
 
     // IMPORTANT: Handle specific phrases BEFORE general replacements
     // Match numbers (integer or decimal)
     const numRegex = "\\d+(?:\\.\\d+)?"; 
     
-    // "add [num1] to [num2]" -> "[num1] + [num2]"
-    normalized = normalized.replace(new RegExp(`add (${numRegex}) to (${numRegex})`, 'g'), '$1 + $2');
-    
-    // "subtract [num1] from [num2]" -> "[num2] - [num1]"
-    normalized = normalized.replace(new RegExp(`subtract (${numRegex}) from (${numRegex})`, 'g'), '$2 - $1');
-
-    // "multiply/multiplied [num1] by [num2]" -> "[num1] * [num2]"
-    normalized = normalized.replace(new RegExp(`(multiply|multiplied) (${numRegex}) by (${numRegex})`, 'g'), '$2 * $3');
-
-    // "divide/divided [num1] by [num2]" -> "[num1] / [num2]"
-    normalized = normalized.replace(new RegExp(`(divide|divided) (${numRegex}) by (${numRegex})`, 'g'), '$2 / $3');
+    // Handle language-specific phrase patterns
+    if (patterns.specificPhrases.addTo) {
+      normalized = normalized.replace(new RegExp(patterns.specificPhrases.addTo, 'g'), '$1 + $2');
+    }
+    if (patterns.specificPhrases.subtractFrom) {
+      normalized = normalized.replace(new RegExp(patterns.specificPhrases.subtractFrom, 'g'), '$2 - $1');
+    }
+    if (patterns.specificPhrases.multiplyBy) {
+      normalized = normalized.replace(new RegExp(patterns.specificPhrases.multiplyBy, 'g'), '$2 * $3');
+    }
+    if (patterns.specificPhrases.divideBy) {
+      normalized = normalized.replace(new RegExp(patterns.specificPhrases.divideBy, 'g'), '$2 / $3');
+    }
 
     // --- General Replacements (Now run AFTER specific phrases) ---
     // Common operator words to symbols - Use word boundaries for robustness
-    normalized = normalized.replace(/\b(plus|add)\b/g, ' + ');
-    normalized = normalized.replace(/\b(minus|subtract|less)\b/g, ' - ');
-    normalized = normalized.replace(/\b(times|multiplied by|x)\b/g, ' * '); // Match 'x' as a whole word
-    normalized = normalized.replace(/\b(divided by|divide|over)\b/g, ' / ');
-    normalized = normalized.replace(/\b(percent of)\b/g, ' * 0.01 * ');
-    normalized = normalized.replace(/\b(percent|percentage)\b/g, ' % '); // Separate rule for just '%' 
-    normalized = normalized.replace(/\b(power|raised to|to the power of)\b/g, ' ^ ');
-    normalized = normalized.replace(/\b(square root of|root of)\b/g, ' sqrt ');
-    normalized = normalized.replace(/\b(open parenthesis|left parenthesis)\b/g, ' ( ');
-    normalized = normalized.replace(/\b(close parenthesis|right parenthesis)\b/g, ' ) ');
+    
+    // Addition
+    if (patterns.operations.addition.length > 0) {
+      const additionPattern = patterns.operations.addition.map(term => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+      normalized = normalized.replace(new RegExp(`\\b(${additionPattern})\\b`, 'g'), ' + ');
+    }
+    
+    // Subtraction
+    if (patterns.operations.subtraction.length > 0) {
+      const subtractionPattern = patterns.operations.subtraction.map(term => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+      normalized = normalized.replace(new RegExp(`\\b(${subtractionPattern})\\b`, 'g'), ' - ');
+    }
+    
+    // Multiplication
+    if (patterns.operations.multiplication.length > 0) {
+      const multiplicationPattern = patterns.operations.multiplication.map(term => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+      normalized = normalized.replace(new RegExp(`\\b(${multiplicationPattern})\\b`, 'g'), ' * ');
+    }
+    
+    // Division
+    if (patterns.operations.division.length > 0) {
+      const divisionPattern = patterns.operations.division.map(term => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+      normalized = normalized.replace(new RegExp(`\\b(${divisionPattern})\\b`, 'g'), ' / ');
+    }
+    
+    // Percentage "of"
+    if (patterns.operations.percentOf.length > 0) {
+      const percentOfPattern = patterns.operations.percentOf.map(term => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+      normalized = normalized.replace(new RegExp(`\\b(${percentOfPattern})\\b`, 'g'), ' * 0.01 * ');
+    }
+    
+    // Percentage
+    if (patterns.operations.percentage.length > 0) {
+      const percentagePattern = patterns.operations.percentage.map(term => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+      normalized = normalized.replace(new RegExp(`\\b(${percentagePattern})\\b`, 'g'), ' % ');
+    }
+    
+    // Power
+    if (patterns.operations.power.length > 0) {
+      const powerPattern = patterns.operations.power.map(term => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+      normalized = normalized.replace(new RegExp(`\\b(${powerPattern})\\b`, 'g'), ' ^ ');
+    }
+    
+    // Square root
+    if (patterns.operations.sqrt.length > 0) {
+      const sqrtPattern = patterns.operations.sqrt.map(term => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+      normalized = normalized.replace(new RegExp(`\\b(${sqrtPattern})\\b`, 'g'), ' sqrt ');
+    }
+    
+    // Open parentheses
+    if (patterns.operations.parentheses.open.length > 0) {
+      const openParenPattern = patterns.operations.parentheses.open.map(term => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+      normalized = normalized.replace(new RegExp(`\\b(${openParenPattern})\\b`, 'g'), ' ( ');
+    }
+    
+    // Close parentheses
+    if (patterns.operations.parentheses.close.length > 0) {
+      const closeParenPattern = patterns.operations.parentheses.close.map(term => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+      normalized = normalized.replace(new RegExp(`\\b(${closeParenPattern})\\b`, 'g'), ' ) ');
+    }
 
     // Handle decimal points explicitly
-    normalized = normalized.replace(/\b(point|dot)\b/g, '.');
+    if (patterns.operations.decimal.length > 0) {
+      const decimalPattern = patterns.operations.decimal.map(term => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+      normalized = normalized.replace(new RegExp(`\\b(${decimalPattern})\\b`, 'g'), '.');
+    }
 
     // Remove only true non-math filler words (do NOT remove operator keywords)
-    const fillerWords = [
-      'do', 'hours', 'hour', 'box', 'and', 'the', 'a', 'an', 'equals', 'is', 'calculate', 'result', 'please', 'for', 'of'
-    ];
+    const fillerWords = patterns.fillerWords;
     fillerWords.forEach(word => {
-      normalized = normalized.replace(new RegExp(`\\b${word}\\b`, 'g'), '');
+      const escapedWord = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      normalized = normalized.replace(new RegExp(`\\b${escapedWord}\\b`, 'g'), '');
     });
 
     // Final cleanup: Remove characters not part of a valid expression
@@ -292,11 +611,11 @@ const MainScreen: React.FC = () => {
     normalized = normalized.trim();
 
     return normalized;
-  }, []); // No dependencies, purely functional
+  }, [language, getMathPatterns]); // Dependencies: language and getMathPatterns
 
   // Handle input and calculation (used by keypad and speech)
   const handleInput = useCallback((val: string, type: 'user' | 'keypad' | 'speech'): string => {
-    if (!val.trim()) return 'Error';
+    if (!val.trim()) return MATH_ERROR;
 
     let expression = val;
     if (type === 'speech') {
@@ -319,20 +638,26 @@ const MainScreen: React.FC = () => {
     if (!allowedChars.test(expression)) {
       // console.error('Invalid characters detected in expression:', expression);
       // Optionally show an error message to the user
-      return 'Error';
+      return MATH_ERROR;
     }
 
-    let result = 'Error'; // Default to Error
+    let result = MATH_ERROR; // Default to internal error constant
 
     try {
       // Use math.evaluate for robust calculation
-      result = evaluate(expression).toString();
+      const evaluatedResult = evaluate(expression);
+      // Format the result according to user's locale
+      if (typeof evaluatedResult === 'number') {
+        result = formatNumber(evaluatedResult, language);
+      } else {
+        result = evaluatedResult.toString();
+      }
     } catch (error) {
       // console.error('Calculation Error:', error);
-      result = 'Error';
+      result = MATH_ERROR;
     }
-    return result; // Return the calculated result or 'Error'
-  }, [normalizeSpokenMath]); // Dependencies: normalizeSpokenMath (stable)
+    return result; // Return the calculated result or internal error constant
+  }, [normalizeSpokenMath, formatNumber, language]); // Dependencies: normalizeSpokenMath (stable), formatNumber, language
 
   // Keypad buttons
   // const [advancedMode, setAdvancedMode] = useState(false); // Removed
@@ -390,7 +715,7 @@ const MainScreen: React.FC = () => {
         setBubbles(prev => [...prev, { 
           id: Date.now() + Math.random() + '', 
           type: 'error', 
-          content: 'Maximum digit limit reached (100 digits)' 
+          content: t('mainApp.mathErrors.invalidExpression') 
         }]);
         return;
       }
@@ -517,7 +842,7 @@ const MainScreen: React.FC = () => {
       const result = handleInput(expressionToCalc, 'keypad'); 
 
       // Create bubbles based on the calculation
-      if (result !== 'Error') {
+      if (result !== MATH_ERROR) {
         // Create a bubble showing the equation with equals sign
         const equationBubble: ChatBubble = { id: Date.now() + '-equation', type: 'user', content: `${expressionToCalc} = ${result}` };
         // Create the result bubble to show just the result
@@ -571,7 +896,7 @@ const MainScreen: React.FC = () => {
         // Scroll to bottom after calculation
         setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 50);
       } else {
-        const errorBubble: ChatBubble = { id: Date.now() + '-error', type: 'error', content: 'Error' }; // Or use a specific error message
+        const errorBubble: ChatBubble = { id: Date.now() + '-error', type: 'error', content: t('mainApp.mathErrors.error') }; // Or use a specific error message
         setBubbles(prev => [...prev, errorBubble]); // Add only error bubble
         setKeypadInput(''); // Clear input on error
         setPreviewResult(null);
@@ -688,10 +1013,11 @@ const MainScreen: React.FC = () => {
       const result = evaluate(expression);
       // Avoid showing preview if result is complex or an object/function
       if (typeof result === 'number' || (typeof result === 'string' && !isNaN(parseFloat(result)))) {
-        if (keypadInput.trim() === result.toString()) {
+        const formattedResult = typeof result === 'number' ? formatNumber(result, language) : result.toString();
+        if (keypadInput.trim() === formattedResult) {
           setPreviewResult(null);
         } else {
-          setPreviewResult(result.toString());
+          setPreviewResult(formattedResult);
         }
       } else {
         setPreviewResult(null)
@@ -700,7 +1026,7 @@ const MainScreen: React.FC = () => {
       // Ignore errors during preview, just don't show a result
       setPreviewResult(null);
     }
-  }, [keypadInput, handleInput]);
+  }, [keypadInput, handleInput, formatNumber, language]);
 
   // Audio recording logic for speech-to-text
   // Platform-specific speech-to-text
@@ -708,12 +1034,12 @@ const MainScreen: React.FC = () => {
     if (Platform.OS === 'web') {
       // Web Speech API
       if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-        Alert.alert('Speech recognition not supported in this browser.');
+        Alert.alert(t('mainApp.speechNotSupported'));
         return;
       }
       const WebSpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       const recognition = new WebSpeechRecognition();
-      recognition.lang = 'en-US';
+      recognition.lang = getSpeechRecognitionLanguage(language);
       recognition.interimResults = false;
       recognition.maxAlternatives = 1;
       setIsRecording(true);
@@ -763,7 +1089,7 @@ const MainScreen: React.FC = () => {
       // Check permissions for audio recording first
       const { granted } = await Audio.requestPermissionsAsync();
       if (!granted) {
-        Alert.alert('Permission required', 'Microphone permission is required.');
+        Alert.alert(t('mainApp.permissionRequired'), t('mainApp.microphonePermissionRequired'));
         setIsRecording(false);
         setIsTranscribing(false);
         return;
@@ -813,7 +1139,7 @@ const MainScreen: React.FC = () => {
               { 
                 id: Date.now() + '-empty', 
                 type: 'calc', 
-                content: 'Try speaking again' 
+                content: t('mainApp.speechErrors.recognitionFailed') 
               },
               ...prev
             ]);
@@ -851,14 +1177,14 @@ const MainScreen: React.FC = () => {
         setIsTranscribing(false);
         
         if (Platform.OS === 'android') {
-          ToastAndroid.show('Try speaking again', ToastAndroid.SHORT);
+          ToastAndroid.show(t('mainApp.speechErrors.recognitionFailed'), ToastAndroid.SHORT);
         } else {
           // For iOS, use a subtle bubble that auto-dismisses
           setBubbles(prev => [
             { 
               id: Date.now() + '-empty', 
               type: 'calc', 
-              content: 'Try speaking again' 
+              content: t('mainApp.speechErrors.recognitionFailed') 
             },
             ...prev
           ]);
@@ -881,7 +1207,7 @@ const MainScreen: React.FC = () => {
           setBubbles(prev => [...prev, { 
             id: Date.now() + Math.random() + '', 
             type: 'error', 
-            content: 'Recording stopped: Maximum time limit reached (10 seconds)' 
+            content: t('mainApp.speechErrors.recognitionFailed') 
           }]);
         }
       }, 10000);
@@ -904,7 +1230,7 @@ const MainScreen: React.FC = () => {
               setBubbles(prev => [...prev, { 
                 id: Date.now() + Math.random() + '', 
                 type: 'calc', 
-                content: 'Recording stopped: Silence detected' 
+                content: t('mainApp.speechErrors.noSpeechDetected') 
               }]);
               clearInterval(silenceTimeout);
             }
@@ -918,7 +1244,7 @@ const MainScreen: React.FC = () => {
       // Start speech recognition
       await ExpoSpeechRecognitionModule.requestPermissionsAsync();
       await ExpoSpeechRecognitionModule.start({
-        lang: 'en-US',
+        lang: getSpeechRecognitionLanguage(language),
         continuous: false,
         interimResults: false  // Changed to false - we only want final results
       });
@@ -939,14 +1265,14 @@ const MainScreen: React.FC = () => {
       }
       
       if (Platform.OS === 'android') {
-        ToastAndroid.show('Try speaking again', ToastAndroid.SHORT);
+        ToastAndroid.show(t('mainApp.speechErrors.recognitionFailed'), ToastAndroid.SHORT);
       } else {
         // For iOS, use a subtle bubble that auto-dismisses
         setBubbles(prev => [
           { 
             id: Date.now() + '-empty', 
             type: 'calc', 
-            content: 'Try speaking again' 
+            content: t('mainApp.speechErrors.recognitionFailed') 
           },
           ...prev
         ]);
@@ -995,7 +1321,7 @@ const MainScreen: React.FC = () => {
       setBubbles(prev => [...prev, { 
         id: Date.now() + Math.random() + '', 
         type: 'error', 
-        content: 'Empty transcript received.' 
+        content: t('mainApp.speechErrors.noSpeechDetected') 
       }]);
       return;
     }
@@ -1022,7 +1348,7 @@ const MainScreen: React.FC = () => {
     // Calculate the result from the normalized transcript
     const result = handleInput(normalized, 'speech');
     
-    if (result !== 'Error') {
+    if (result !== MATH_ERROR) {
       // Create a bubble showing the equation with equals sign
       const equationBubble: ChatBubble = { id: Date.now() + '-equation', type: 'user', content: `${normalized} = ${result}` };
       // Create the result bubble to show just the result
@@ -1080,7 +1406,7 @@ const MainScreen: React.FC = () => {
       setBubbles((prev: ChatBubble[]) => [...prev, { 
         id: Date.now() + Math.random() + '', 
         type: 'error', 
-        content: 'Sorry, please try again' // Changed from 'Could not calculate'
+        content: t('mainApp.mathErrors.sorryTryAgain') // Changed from 'Could not calculate'
       }]);
       setKeypadInput('');
       setExpectingFreshInput(false);
@@ -1110,7 +1436,7 @@ const MainScreen: React.FC = () => {
       // Calculate the result using the (potentially modified) equation
       const result = handleInput(spokenEquation, 'speech');
       
-      if (result !== 'Error') {
+      if (result !== MATH_ERROR) {
         // Create a bubble showing the equation with equals sign
         const equationBubble: ChatBubble = { id: Date.now() + '-equation', type: 'user', content: `${spokenEquation} = ${result}` };
         // Create the result bubble to show just the result
@@ -1165,13 +1491,13 @@ const MainScreen: React.FC = () => {
         }
         sendWebhookData(spokenEquation, result);
        } else {
-        setBubbles((prev: ChatBubble[]) => [...prev, { id: Date.now() + Math.random() + '', type: 'error', content: 'Sorry, please try again' }]); // Changed from 'Could not calculate'
+        setBubbles((prev: ChatBubble[]) => [...prev, { id: Date.now() + Math.random() + '', type: 'error', content: t('mainApp.mathErrors.sorryTryAgain') }]); // Changed from 'Could not calculate'
         // No error speech
         setKeypadInput(''); // Clear input on error
         setExpectingFreshInput(false);
       }
     } else {
-      setBubbles(prev => [...prev, { id: Date.now() + Math.random() + '', type: 'error', content: 'No transcript received.' }]);
+      setBubbles(prev => [...prev, { id: Date.now() + Math.random() + '', type: 'error', content: t('mainApp.speechErrors.noSpeechDetected') }]);
     }
 
     setIsRecording(false); // Ensure recording stops
@@ -1474,12 +1800,12 @@ const MainScreen: React.FC = () => {
          setNewWebhookUrl(''); // Clear URL input
          setNewWebhookTitle(''); // Clear title input
       } else {
-        Alert.alert("Invalid URL", "Webhook URL must start with http:// or https://");
+        Alert.alert(t('mainApp.invalidUrl'), t('mainApp.invalidUrlMessage'));
       }
     } else if (urlExists) {
-      Alert.alert("Duplicate", "This URL is already added.");
+      Alert.alert(t('mainApp.duplicate'), t('mainApp.duplicateUrlMessage'));
     } else {
-      Alert.alert("Invalid URL", "Please enter a valid URL.");
+      Alert.alert(t('mainApp.invalidUrl'), t('mainApp.invalidUrlMessage'));
     }
   };
 
@@ -1503,12 +1829,12 @@ const MainScreen: React.FC = () => {
   // Implement handleSendBulkData to send bulk data to active webhooks
   const handleSendBulkData = async () => {
     if (bulkData.length === 0) {
-      Alert.alert("No Data", "There is no stored data to send.");
+      Alert.alert(t('mainApp.noData'), t('mainApp.noDataMessage'));
       return;
     }
     const activeWebhooks = webhookUrls.filter(webhook => webhook.active);
     if (activeWebhooks.length === 0) {
-      Alert.alert("No Active URLs", "Please activate at least one webhook URL in settings.");
+      Alert.alert(t('mainApp.noActiveUrls'), t('mainApp.noActiveUrlsMessage'));
       return;
     }
 
@@ -1604,7 +1930,7 @@ const MainScreen: React.FC = () => {
 
     } catch (error) {
       console.error("Error during bulk send process:", error);
-      Alert.alert("Bulk Send Error", "An unexpected error occurred during the bulk send process.");
+      Alert.alert(t('mainApp.bulkSendError'), t('mainApp.bulkSendErrorMessage'));
       // Decide if bulkData should be cleared even on catastrophic failure
       // setBulkData([]);
     } finally {
@@ -1732,19 +2058,19 @@ const MainScreen: React.FC = () => {
             // Use default loading priority
             defaultSource={require('../assets/images/LOGO.png')}
           />
-          <Text style={styles.betaText}>BETA</Text>
+          <Text style={styles.betaText}>{t('common.beta')}</Text>
         </View>
         <View style={styles.emptyStateItem}>
           <AppIcon name="keyboard-space" size={24} color="#ffffff" />
-          <Text style={styles.emptyStateText}>Press <Text style={styles.emptyStateHighlight}>Space</Text> to start recording</Text>
+          <Text style={styles.emptyStateText}>{t('mainApp.pressSpaceToRecord')}</Text>
         </View>
         <View style={styles.emptyStateItem}>
           <AppIcon name="send" size={24} color="#ffffff" />
-          <Text style={styles.emptyStateText}>Press <Text style={styles.emptyStateHighlight}>Send</Text> to confirm calculation</Text>
+          <Text style={styles.emptyStateText}>{t('mainApp.pressSendToConfirm')}</Text>
         </View>
         <View style={styles.emptyStateItem}>
           <AppIcon name="webhook" size={24} color="#ffffff" />
-          <Text style={styles.emptyStateText}>Use <Text style={styles.emptyStateHighlight}>Webhook</Text> to send results to Google Sheets</Text>
+          <Text style={styles.emptyStateText}>{t('mainApp.useWebhookForSheets')}</Text>
         </View>
       </View>
     );
@@ -1762,19 +2088,19 @@ const MainScreen: React.FC = () => {
             // Use default loading priority
             defaultSource={require('../assets/images/LOGO.png')}
           />
-          <Text style={styles.betaText}>BETA</Text>
+          <Text style={styles.betaText}>{t('common.beta')}</Text>
         </View>
         <View style={styles.emptyStateItem}>
           <AppIcon name="microphone" size={24} color="#ffffff" />
-          <Text style={styles.emptyStateText}>Press <Text style={styles.emptyStateHighlight}>Record icon</Text> to start recording</Text>
+          <Text style={styles.emptyStateText}>{t('mainApp.pressRecordIcon')}</Text>
         </View>
         <View style={styles.emptyStateItem}>
           <AppIcon name="send" size={24} color="#ffffff" />
-          <Text style={styles.emptyStateText}>Press <Text style={styles.emptyStateHighlight}>Send</Text> to confirm calculation</Text>
+          <Text style={styles.emptyStateText}>{t('mainApp.pressSendToConfirm')}</Text>
         </View>
         <View style={styles.emptyStateItem}>
           <AppIcon name="webhook" size={24} color="#ffffff" />
-          <Text style={styles.emptyStateText}>Use <Text style={styles.emptyStateHighlight}>Webhook</Text> to send results</Text>
+          <Text style={styles.emptyStateText}>{t('mainApp.useWebhookToSend')}</Text>
         </View>
       </View>
     );
@@ -1802,7 +2128,7 @@ const MainScreen: React.FC = () => {
             </Pressable>
             {hoveredTooltip === 'reset' && Platform.OS === 'web' && (
               <View style={styles.tooltip}>
-                <Text style={styles.tooltipText}>Reset (Ctrl+Backspace)</Text>
+                <Text style={styles.tooltipText}>{t('mainApp.resetCtrlBackspace')}</Text>
               </View>
             )}
           </View>
@@ -2027,7 +2353,7 @@ const MainScreen: React.FC = () => {
                 <View style={{ marginBottom: 10 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
                     <AppIcon name="webhook" size={16} color="#888" style={{ marginRight: 5 }} />
-                    <Text style={[styles.tooltipText, { fontWeight: 'bold', fontSize: 16, color: '#888' }]}>ACTIVE WEBHOOKS</Text>
+                    <Text style={[styles.tooltipText, { fontWeight: 'bold', fontSize: 16, color: '#888' }]}>{t('mainApp.activeWebhooks')}</Text>
                   </View>
                   {webhookUrls.filter(webhook => webhook.active).map((webhook, index) => (
                     <View key={index} style={styles.webhookTooltipItem}>
@@ -2041,16 +2367,16 @@ const MainScreen: React.FC = () => {
                 <View style={{ marginBottom: 10 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
                     <AppIcon name="webhook" size={16} color="#888" style={{ marginRight: 5 }} />
-                    <Text style={[styles.tooltipText, { fontWeight: 'bold', fontSize: 16, color: '#888' }]}>ACTIVE WEBHOOKS</Text>
+                    <Text style={[styles.tooltipText, { fontWeight: 'bold', fontSize: 16, color: '#888' }]}>{t('mainApp.activeWebhooks')}</Text>
                   </View>
-                  <Text style={[styles.tooltipText, { fontSize: 13 }]}>None</Text>
+                  <Text style={[styles.tooltipText, { fontSize: 13 }]}>{t('mainApp.none')}</Text>
                 </View>
               )}
               
               {/* Bulk data info */}
               {!streamResults && bulkData.length > 0 && (
                 <View>
-                  <Text style={[styles.tooltipText, { fontWeight: 'bold', fontSize: 16, color: '#888', marginBottom: 8 }]}>DATA QUEUE</Text>
+                  <Text style={[styles.tooltipText, { fontWeight: 'bold', fontSize: 16, color: '#888', marginBottom: 8 }]}>{t('mainApp.dataQueue')}</Text>
                   {bulkData.map((item, index) => (
                     <Text 
                       key={index} 
