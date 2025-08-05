@@ -16,6 +16,7 @@ import AppIcon from './AppIcon';
 import { useCalculationHistory, CalculationHistoryItem } from '../contexts/CalculationHistoryContext';
 import { usePremium } from '../contexts/PremiumContext';
 import PremiumPaymentModal from './PremiumPaymentModal';
+import { useTranslation } from '../hooks/useTranslation';
 
 interface HistoryModalProps {
   visible: boolean;
@@ -39,6 +40,7 @@ const HistoryModal: React.FC<HistoryModalProps> = ({
   onSendToWebhook,
 }) => {
   const { isPremium, checkPremiumStatus } = usePremium();
+  const { t } = useTranslation();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [webhookModalVisible, setWebhookModalVisible] = useState(false);
   const [selectedItem, setSelectedItem] = useState<CalculationHistoryItem | null>(null);
@@ -56,18 +58,8 @@ const HistoryModal: React.FC<HistoryModalProps> = ({
 
   // Handle clearing all calculations
   const handleClearAll = () => {
-    Alert.alert(
-      "Clear All Calculations",
-      "Are you sure you want to delete all calculations? This cannot be undone.",
-      [
-        { text: "Cancel", style: "cancel" },
-        { 
-          text: "Clear All", 
-          onPress: onClearAll,
-          style: "destructive"
-        }
-      ]
-    );
+    onClearAll();
+    onClose();
   };
 
   // Handle sending a calculation to webhook
@@ -98,8 +90,8 @@ const HistoryModal: React.FC<HistoryModalProps> = ({
   const formatDate = (dateString: string) => {
     try {
       const date = new Date(dateString);
-      const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-      const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+      const days = t('history.dayNames');
+      const months = t('history.monthNames');
       
       // Format: Day, Month DD, YYYY at HH:MM AM/PM
       const dayName = days[date.getDay()];
@@ -115,7 +107,7 @@ const HistoryModal: React.FC<HistoryModalProps> = ({
       
       return `${dayName}, ${monthName} ${day}, ${year} at ${hours}:${minutes} ${ampm}`;
     } catch (error) {
-      return 'Unknown date';
+      return t('history.unknownDate');
     }
   };
 
@@ -148,8 +140,8 @@ const HistoryModal: React.FC<HistoryModalProps> = ({
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
       <AppIcon name="history" size={48} color="#666" />
-      <Text style={styles.emptyStateText}>No calculation history yet</Text>
-      <Text style={styles.emptyStateSubtext}>Your calculations will appear here</Text>
+      <Text style={styles.emptyStateText}>{t('history.noHistoryYet')}</Text>
+      <Text style={styles.emptyStateSubtext}>{t('history.historySubtext')}</Text>
     </View>
   );
 
@@ -163,14 +155,14 @@ const HistoryModal: React.FC<HistoryModalProps> = ({
       >
         <SafeAreaView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Calculation History</Text>
+            <Text style={styles.modalTitle}>{t('history.calculationHistory')}</Text>
             <View style={styles.headerButtons}>
               {history.length > 0 && (
                 <TouchableOpacity 
                   style={styles.clearButton}
                   onPress={handleClearAll}
                 >
-                  <Text style={styles.clearButtonText}>Clear All</Text>
+                  <Text style={styles.clearButtonText}>{t('history.clearAll')}</Text>
                 </TouchableOpacity>
               )}
               <TouchableOpacity 
@@ -185,7 +177,7 @@ const HistoryModal: React.FC<HistoryModalProps> = ({
           {isLoading && !isRefreshing ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color="#0066cc" />
-              <Text style={styles.loadingText}>Loading history...</Text>
+              <Text style={styles.loadingText}>{t('history.loadingHistory')}</Text>
             </View>
           ) : (
             <FlatList

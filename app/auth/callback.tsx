@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { View, Text, ActivityIndicator, Platform, Alert } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useTranslation } from '../../hooks/useTranslation';
 // import { supabase } from '@/utils/supabase'; // No longer needed here
 // import { useAuth } from '@/contexts/AuthContext'; // No longer needed here
 
@@ -13,6 +14,7 @@ export default function AuthCallbackScreen() {
   const params = useLocalSearchParams();
   const errorParam = params.error as string;
   const errorDescription = params.error_description as string;
+  const { t } = useTranslation();
 
   useEffect(() => {
     console.log("[AuthCallback] Mounted. Params:", params);
@@ -21,7 +23,7 @@ export default function AuthCallbackScreen() {
     if (errorParam) {
       console.error(`[AuthCallback] Error from URL: ${errorParam} - ${errorDescription}`);
       // Show alert and redirect to login, don't wait for context update.
-      Alert.alert('Authentication Error', errorDescription || errorParam);
+      Alert.alert(t('auth.authError'), errorDescription || errorParam);
       router.replace('/auth/login');
       return; // Stop further execution in this effect
     }
@@ -38,7 +40,7 @@ export default function AuthCallbackScreen() {
     <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000000' }}>
       <ActivityIndicator size="large" color="#1E90FF" />
       <Text style={{ color: 'white', marginTop: 20 }}>
-        Finalizing authentication...
+        {t('auth.signInToContinue')}...
       </Text>
     </View>
   );

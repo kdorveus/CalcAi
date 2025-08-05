@@ -12,15 +12,17 @@ import {
   Linking,
 } from 'react-native';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTranslation } from '../../hooks/useTranslation';
 import GoogleLogo from '../components/GoogleLogo';
 
 export default function LoginScreen() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const { signInWithGoogle, authError } = useAuth();
+  const { t } = useTranslation();
 
   useEffect(() => {
     if (authError) {
-      Alert.alert('Error', authError);
+      Alert.alert(t('auth.error'), authError);
     }
   }, [authError]);
 
@@ -43,11 +45,11 @@ export default function LoginScreen() {
             source={require('../../assets/images/LOGO.png')} 
             style={styles.logo}
           />
-          <Text style={styles.betaText}>BETA</Text>
+          <Text style={styles.betaText}>{t('common.beta')}</Text>
         </View>
 
         <View style={styles.headerContainer}>
-          <Text style={styles.subtitle}>Sign in to experience the future of calculation</Text>
+          <Text style={styles.subtitle}>{t('auth.signInSubtitle')}</Text>
         </View>
 
         <TouchableOpacity
@@ -64,7 +66,7 @@ export default function LoginScreen() {
                 <GoogleLogo size={20} />
               </View>
             )}
-            <Text style={styles.googleButtonContents}>Sign in with Google</Text>
+            <Text style={styles.googleButtonContents}>{t('auth.continueWithGoogle')}</Text>
           </View>
         </TouchableOpacity>
 
@@ -72,7 +74,7 @@ export default function LoginScreen() {
           style={styles.privacyPolicyContainer}
           onPress={() => Linking.openURL('https://example.com/privacy')}
         >
-          <Text style={styles.privacyPolicyText}>Privacy Policy</Text>
+          <Text style={styles.privacyPolicyText}>{t('common.privacyPolicy')}</Text>
         </TouchableOpacity>
 
       </View>

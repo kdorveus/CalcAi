@@ -11,6 +11,7 @@ import {
   Platform,
 } from 'react-native';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTranslation } from '../../hooks/useTranslation';
 import { router } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 
@@ -20,46 +21,47 @@ export default function SignUpScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [localLoading, setLocalLoading] = useState(false);
   const { signUp, authError } = useAuth();
+  const { t } = useTranslation();
 
   useEffect(() => {
     if (authError && authError !== "Please check your email to verify your account.") {
-        Alert.alert('Error', authError);
+        Alert.alert(t('auth.error'), authError);
     }
   }, [authError]);
 
   const handleSignUp = async () => {
     if (!email || !password || !confirmPassword) {
-      Alert.alert('Error', 'Please fill in all fields');
+      Alert.alert(t('auth.error'), t('auth.fillAllFields'));
       return;
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      Alert.alert('Error', 'Please enter a valid email address');
+      Alert.alert(t('auth.error'), t('auth.validEmailRequired'));
       return;
     }
 
     if (password !== confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
+      Alert.alert(t('auth.error'), t('auth.passwordsDoNotMatch'));
       return;
     }
 
     if (password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters long');
+      Alert.alert(t('auth.error'), t('auth.passwordMinLength'));
       return;
     }
 
     setLocalLoading(true);
     console.log("Attempting sign up...");
-    const { error, session, user } = await signUp(email, password);
+    const { error, session, user } = await signUp(email);
     setLocalLoading(false);
 
     if (error) {
       console.error("Sign up failed:", error.message);
     } else if (!session && user) {
        Alert.alert(
-         'Sign Up Pending',
-         'Please check your email and click the verification link to complete registration.',
+         t('auth.signUpPending'),
+         t('auth.checkEmailVerification'),
          [{ text: 'OK', onPress: () => router.replace('/auth/login') }]
        );
     } else if (session) {
@@ -79,14 +81,14 @@ export default function SignUpScreen() {
       <View style={styles.formContainer}>
         <View style={styles.headerContainer}>
           <MaterialIcons name="calculate" size={60} color="#fff" />
-          <Text style={styles.title}>Calculator App</Text>
-          <Text style={styles.subtitle}>Create a new account</Text>
+          <Text style={styles.title}>{t('auth.calculatorApp')}</Text>
+          <Text style={styles.subtitle}>{t('auth.createNewAccount')}</Text>
         </View>
 
         <View style={styles.inputContainer}>
           <TextInput
             style={styles.input}
-            placeholder="Email"
+            placeholder={t('forms.email')}
             placeholderTextColor="#666"
             value={email}
             onChangeText={setEmail}
@@ -95,7 +97,7 @@ export default function SignUpScreen() {
           />
           <TextInput
             style={styles.input}
-            placeholder="Password (min. 6 characters)"
+            placeholder={t('forms.passwordMinChars')}
             placeholderTextColor="#666"
             value={password}
             onChangeText={setPassword}
@@ -103,7 +105,7 @@ export default function SignUpScreen() {
           />
           <TextInput
             style={styles.input}
-            placeholder="Confirm Password"
+            placeholder={t('forms.confirmPassword')}
             placeholderTextColor="#666"
             value={confirmPassword}
             onChangeText={setConfirmPassword}
@@ -119,14 +121,13 @@ export default function SignUpScreen() {
           {localLoading ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.buttonText}>Create Account</Text>
+            <Text style={styles.buttonText}>{t('auth.signUp')}</Text>
           )}
         </TouchableOpacity>
 
         <View style={styles.footerContainer}>
-          <Text style={styles.footerText}>Already have an account?</Text>
           <TouchableOpacity onPress={navigateToLogin}>
-            <Text style={styles.loginText}>Sign In</Text>
+            <Text style={styles.loginText}>{t('auth.alreadyHaveAccount')}</Text>
           </TouchableOpacity>
         </View>
       </View>

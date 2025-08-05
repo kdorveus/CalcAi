@@ -12,6 +12,7 @@ import {
 // Using our bundled AppIcon component instead of MaterialCommunityIcons
 import AppIcon from './AppIcon';
 import { usePremium } from '../contexts/PremiumContext';
+import { useTranslation } from '../hooks/useTranslation';
 
 interface PremiumPaymentModalProps {
   visible: boolean;
@@ -25,6 +26,7 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
   onSuccess,
 }) => {
   const { showPremiumPayment, premiumLoading, productInfo } = usePremium();
+  const { t } = useTranslation();
   const [isLoading, setIsLoading] = useState(false);
 
   const handlePayment = async () => {
@@ -51,7 +53,7 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
       <View style={styles.modalOverlay}>
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Unlock Premium Features</Text>
+            <Text style={styles.modalTitle}>{t('premium.unlockPremiumFeatures')}</Text>
             <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
               <AppIcon name="close" size={24} color="#fff" />
             </TouchableOpacity>
@@ -64,26 +66,26 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
               fadeDuration={0}
               defaultSource={require('../assets/images/LOGO.png')}
             />
-            <Text style={styles.premiumText}>PREMIUM</Text>
+            <Text style={styles.premiumText}>{t('premium.premium')}</Text>
           </View>
 
           <View style={styles.contentContainer}>
             <Text style={styles.description}>
-              Upgrade to Lifetime Premium Access to unlock webhook functionality and more premium features.
+              {t('premium.upgradeDescription')}
             </Text>
             
             <View style={styles.featuresContainer}>
               <View style={styles.featureItem}>
                 <AppIcon name="check-circle" size={24} color="#4CAF50" />
-                <Text style={styles.featureText}>Send webhooks to any endpoint</Text>
+                <Text style={styles.featureText}>{t('premium.features.sendWebhooks')}</Text>
               </View>
               <View style={styles.featureItem}>
                 <AppIcon name="check-circle" size={24} color="#4CAF50" />
-                <Text style={styles.featureText}>Unlimited calculation history</Text>
+                <Text style={styles.featureText}>{t('premium.features.unlimitedHistory')}</Text>
               </View>
               <View style={styles.featureItem}>
                 <AppIcon name="check-circle" size={24} color="#4CAF50" />
-                <Text style={styles.featureText}>One-time payment, lifetime access</Text>
+                <Text style={styles.featureText}>{t('premium.features.lifetimeAccess')}</Text>
               </View>
             </View>
 
@@ -91,7 +93,7 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
               <Text style={styles.priceText}>
                 {Platform.OS !== 'web' && productInfo ? productInfo.price : '$4.99'}
               </Text>
-              <Text style={styles.oneTimeText}>one-time payment</Text>
+              <Text style={styles.oneTimeText}>{t('premium.oneTimePayment')}</Text>
             </View>
 
             <TouchableOpacity 
@@ -104,7 +106,7 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
               ) : (
                 <>
                   <AppIcon name="lock-open" size={20} color="#fff" />
-                  <Text style={styles.paymentButtonText}>Get Lifetime Premium Access</Text>
+                  <Text style={styles.paymentButtonText}>{t('premium.getLifetimeAccess')}</Text>
                 </>
               )}
             </TouchableOpacity>

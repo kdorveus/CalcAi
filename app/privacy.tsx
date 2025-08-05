@@ -2,8 +2,11 @@ import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, SafeAreaView, StatusBar } from 'react-native';
 import { router } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
+import { useTranslation } from '../hooks/useTranslation';
 
 const PrivacyPolicyScreen = () => {
+  const { t } = useTranslation();
+  
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="light-content" backgroundColor="#000" />
@@ -11,11 +14,11 @@ const PrivacyPolicyScreen = () => {
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <MaterialIcons name={Platform.OS === 'ios' ? 'arrow-back-ios' : 'arrow-back'} size={24} color="#fff" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Privacy Policy</Text>
+        <Text style={styles.headerTitle}>{t('common.privacyPolicy')}</Text>
         <View style={styles.headerRightPlaceholder} />{/* To balance the back button */}
       </View>
       <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-        <Text style={styles.lastUpdated}>Last Updated: May 9, 2025</Text>
+        <Text style={styles.lastUpdated}>{t('common.lastUpdated')}</Text>
 
         <Text style={styles.heading}>1. Introduction</Text>
         <Text style={styles.paragraph}>

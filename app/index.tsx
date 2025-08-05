@@ -122,7 +122,7 @@ const MainScreen: React.FC = () => {
 
   // Number formatting function for locale-aware display
   const formatNumber = useCallback((num: number, lang: string): string => {
-    // Map language codes to locales
+    // Map language codes to locales with proper formatting options
     const localeMap: { [key: string]: string } = {
       'en': 'en-US',
       'es': 'es-ES', 
@@ -133,7 +133,14 @@ const MainScreen: React.FC = () => {
     };
     
     const locale = localeMap[lang] || 'en-US';
-    return num.toLocaleString(locale);
+    
+    // Use Intl.NumberFormat for more reliable formatting
+    const formatter = new Intl.NumberFormat(locale, {
+      maximumFractionDigits: 10,
+      minimumFractionDigits: 0
+    });
+    
+    return formatter.format(num);
   }, []);
 
   // Language mapping for speech recognition
@@ -179,6 +186,8 @@ const MainScreen: React.FC = () => {
   const flatListRef = useRef<FlatList>(null);
   const keypadInputRef = useRef('');
   const speechModuleRef = useRef<any>(null); // Ref to store loaded speech module
+  const speechInitializedRef = useRef(false); // Track if speech is ready
+  const permissionsGrantedRef = useRef(false); // Track permissions status
   
   // State variables
   const [bubbles, setBubbles] = useState<ChatBubble[]>([]);
@@ -207,16 +216,22 @@ const MainScreen: React.FC = () => {
   // Function to safely speak text when not muted
   const speakIfUnmuted = useCallback((text: string) => {
     if (!speechMutedRef.current) {
-      Speech.speak(text, {
-        language: getSpeechRecognitionLanguage(language),
-        pitch: 1.0,
-        rate: 0.9,
-        onDone: () => {},
-        onStopped: () => {},
-        onError: () => {}
-      });
+      // Stop any existing speech first to avoid conflicts
+      Speech.stop();
+      
+      // Small delay to ensure stop command completes before starting new speech
+      setTimeout(() => {
+        Speech.speak(text, {
+          language: getSpeechRecognitionLanguage(language),
+          pitch: 1.0,
+          rate: 0.8,
+          onDone: () => {},
+          onStopped: () => {},
+          onError: () => {}
+        });
+      }, 100);
     }
-  }, []);
+  }, [language]);
   
   // Function to stop all speech and update mute state
   const toggleSpeechMute = useCallback(() => {
@@ -225,7 +240,7 @@ const MainScreen: React.FC = () => {
     setIsSpeechMuted(newMuteState); // Update state for UI
     
     if (Platform.OS === 'android') {
-      ToastAndroid.show(newMuteState ? 'Voice muted' : 'Voice unmuted', ToastAndroid.SHORT);
+      ToastAndroid.show(newMuteState ? t('mainApp.voiceMuted') : t('mainApp.voiceUnmuted'), ToastAndroid.SHORT);
     }
     
     // Stop any ongoing speech when muted
@@ -285,6 +300,39 @@ const MainScreen: React.FC = () => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isRecording, isTranscribing]);
+
+  // Background initialization for speech recognition - runs immediately after app loads
+  useEffect(() => {
+    const initializeSpeech = async () => {
+      if (Platform.OS === 'web') {
+        // Web doesn't need pre-initialization
+        speechInitializedRef.current = true;
+        return;
+      }
+
+      try {
+        // 1. Pre-load speech module
+        if (!speechModuleRef.current) {
+          speechModuleRef.current = await import('expo-speech-recognition');
+        }
+
+        // 2. Request permissions immediately
+        const { granted: audioGranted } = await Audio.requestPermissionsAsync();
+        const { ExpoSpeechRecognitionModule } = speechModuleRef.current;
+        await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+        
+        permissionsGrantedRef.current = audioGranted;
+        speechInitializedRef.current = true;
+      } catch (error) {
+        // Silent error handling - will fall back to old behavior
+        speechInitializedRef.current = false;
+        permissionsGrantedRef.current = false;
+      }
+    };
+
+    // Start initialization immediately after component mounts
+    initializeSpeech();
+  }, []);
 
   const [previewResult, setPreviewResult] = useState<string | null>(null);
   const [expectingFreshInput, setExpectingFreshInput] = useState(false);
@@ -1062,9 +1110,21 @@ const MainScreen: React.FC = () => {
     
     // --- Native speech recognition (Android/iOS) ---
     try {
-      if (!speechModuleRef.current) {
-        speechModuleRef.current = await import('expo-speech-recognition');
+      // Use pre-initialized module and permissions
+      if (!speechInitializedRef.current || !speechModuleRef.current) {
+        // Fallback to old behavior if initialization failed
+        if (!speechModuleRef.current) {
+          speechModuleRef.current = await import('expo-speech-recognition');
+        }
+        const { granted } = await Audio.requestPermissionsAsync();
+        if (!granted) {
+          Alert.alert(t('mainApp.permissionRequired'), t('mainApp.microphonePermissionRequired'));
+          return;
+        }
+        const { ExpoSpeechRecognitionModule } = speechModuleRef.current;
+        await ExpoSpeechRecognitionModule.requestPermissionsAsync();
       }
+
       const { ExpoSpeechRecognitionModule } = speechModuleRef.current;
 
       // Always make sure we start clean
@@ -1085,15 +1145,6 @@ const MainScreen: React.FC = () => {
       
       setIsRecording(true);
       setIsTranscribing(true);
-      
-      // Check permissions for audio recording first
-      const { granted } = await Audio.requestPermissionsAsync();
-      if (!granted) {
-        Alert.alert(t('mainApp.permissionRequired'), t('mainApp.microphonePermissionRequired'));
-        setIsRecording(false);
-        setIsTranscribing(false);
-        return;
-      }
       
       // Important: Use a single-result approach
       // Create a processing function that will only be called once
@@ -1132,7 +1183,7 @@ const MainScreen: React.FC = () => {
           }, 10);
         } else {
           if (Platform.OS === 'android') {
-            ToastAndroid.show('No speech detected', ToastAndroid.SHORT);
+            ToastAndroid.show(t('mainApp.speechErrors.noSpeechDetected'), ToastAndroid.SHORT);
           } else {
             // For iOS, use a subtle bubble that auto-dismisses
             setBubbles(prev => [
@@ -1241,8 +1292,7 @@ const MainScreen: React.FC = () => {
         });
       }, 500); // Check every 500ms
       
-      // Start speech recognition
-      await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+      // Start speech recognition (permissions already requested in background)
       await ExpoSpeechRecognitionModule.start({
         lang: getSpeechRecognitionLanguage(language),
         continuous: false,
@@ -1559,7 +1609,7 @@ const MainScreen: React.FC = () => {
       } catch (error) {
         // Silent error handling for production
         if (Platform.OS === 'android') {
-          ToastAndroid.show('Could not send data', ToastAndroid.SHORT);
+          ToastAndroid.show(t('mainApp.couldNotSendData'), ToastAndroid.SHORT);
         }
       }
     } else {
@@ -1693,7 +1743,7 @@ const MainScreen: React.FC = () => {
     } catch (error) {
       // Silent error handling
       if (Platform.OS === 'android') {
-        ToastAndroid.show('Could not save settings', ToastAndroid.SHORT);
+        ToastAndroid.show(t('mainApp.couldNotSaveSettings'), ToastAndroid.SHORT);
       }
     }
   }, [webhookUrls, sendEquation, streamResults]);
@@ -1924,7 +1974,7 @@ const MainScreen: React.FC = () => {
 
       // Provide summary feedback
       Alert.alert(
-        "Bulk Send Complete",
+        t('mainApp.bulkSendComplete'),
         `Successfully sent data to ${successCount} endpoints.\nFailed to send data to ${failureCount} endpoints.`
       );
 
@@ -1962,7 +2012,7 @@ const MainScreen: React.FC = () => {
           { 
             id: Date.now() + '-copy', 
             type: 'calc', 
-            content: 'Answer copied to clipboard' 
+            content: t('mainApp.answerCopiedToClipboard') 
           },
           ...prev
         ]);
@@ -2135,7 +2185,18 @@ const MainScreen: React.FC = () => {
         )}
         {/* History Button: always show */}
         <View style={styles.tooltipContainer}>
-          <HistoryButton onPress={() => setShowHistoryModal(true)} />
+          <Pressable 
+            onPress={() => setShowHistoryModal(true)}
+            onHoverIn={() => Platform.OS === 'web' && toggleTooltip('history')}
+            onHoverOut={() => Platform.OS === 'web' && toggleTooltip(null)}
+          >
+            <HistoryButton onPress={() => setShowHistoryModal(true)} />
+          </Pressable>
+          {hoveredTooltip === 'history' && Platform.OS === 'web' && (
+            <View style={styles.tooltip}>
+              <Text style={styles.tooltipText}>{t('history.calculationHistory')}</Text>
+            </View>
+          )}
         </View>
       </View>
     );
@@ -2729,15 +2790,20 @@ const styles = StyleSheet.create<ComponentStyles>({
   },
   tooltip: {
     position: 'absolute',
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    padding: 5,
-    borderRadius: 4,
-    bottom: -30, // Position below the icon
-    left: -20, // Center it better
-    width: 80,
+    backgroundColor: '#2A2A2A',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    bottom: -55,
+    right: 0,
+    minWidth: 120,
     alignItems: 'center',
-    opacity: 0.9,
-    zIndex: 1000, // Ensure tooltip is above other elements
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+    zIndex: 1000,
   },
   webhookTooltip: {
     position: 'absolute',
@@ -2758,8 +2824,10 @@ const styles = StyleSheet.create<ComponentStyles>({
     borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
   tooltipText: {
-    color: '#fff',
-    fontSize: 12,
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '500',
+    textAlign: 'center',
   },
   webhookTooltipText: {
     color: '#fff',

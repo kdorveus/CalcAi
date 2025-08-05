@@ -129,7 +129,7 @@ export const WebhookSettings: React.FC<WebhookSettingsProps> = ({
   // Auth error display
   useEffect(() => {
     if (authError) {
-      Alert.alert(t('settings.auth.authError'), authError);
+      Alert.alert(t('auth.authError'), authError);
     }
   }, [authError]);
   
@@ -163,7 +163,7 @@ export const WebhookSettings: React.FC<WebhookSettingsProps> = ({
       onClose(); // Close the modal first
       // No need to redirect here, _layout protection will handle it
     } catch (error: any) {
-      Alert.alert(t('settings.auth.error'), error.message || t('settings.auth.failedToSignOut'));
+      Alert.alert(t('auth.error'), error.message || t('auth.failedToSignOut'));
     }
   };
   
@@ -297,7 +297,7 @@ export const WebhookSettings: React.FC<WebhookSettingsProps> = ({
         setLocalWebhookTitle('');
         updateLocalWebhookTitle('');
       } else if (urlExists) {
-        Alert.alert(t('settings.common.duplicate'), t('settings.common.urlAlreadyAdded'));
+        Alert.alert(t('common.duplicate'), t('common.urlAlreadyAdded'));
       }
     });
   };
@@ -339,7 +339,7 @@ export const WebhookSettings: React.FC<WebhookSettingsProps> = ({
         setLastAttemptedAction(null);
       }
     } else {
-      Alert.alert(t('settings.auth.error'), error.message);
+      Alert.alert(t('auth.error'), error.message);
     }
   };
 
@@ -358,7 +358,7 @@ export const WebhookSettings: React.FC<WebhookSettingsProps> = ({
           setLastAttemptedAction(null);
         }
       } else {
-        Alert.alert(t('settings.auth.error'), error.message);
+        Alert.alert(t('auth.error'), error.message);
       }
     };
 
@@ -377,9 +377,9 @@ export const WebhookSettings: React.FC<WebhookSettingsProps> = ({
                   source={require('../../assets/images/LOGO.png')} 
                   style={{ width: 180, height: 72, marginBottom: 20, resizeMode: 'contain' }} 
                 />
-                <Text style={styles.betaText}>{t('settings.common.beta')}</Text>
+                <Text style={styles.betaText}>{t('common.beta')}</Text>
               </View>
-              <Text style={styles.loginModalTitle}>{t('settings.auth.signInToContinue')}</Text>
+              <Text style={styles.loginModalTitle}>{t('auth.signInToContinue')}</Text>
               <TouchableOpacity 
                 style={styles.loginModalClose}
                 onPress={() => setShowLoginModal(false)}
@@ -399,7 +399,7 @@ export const WebhookSettings: React.FC<WebhookSettingsProps> = ({
                 ) : (
                   <>
                     <GoogleLogo size={20} />
-                    <Text style={styles.googleButtonText}>{t('settings.auth.continueWithGoogle')}</Text>
+                    <Text style={styles.googleButtonText}>{t('auth.continueWithGoogle')}</Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -987,10 +987,10 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
                 )}
                 <View>
                   <Text style={[styles.subHeader, { fontSize: 18, marginBottom: 2, fontWeight: 'bold', color: '#fff' }]}>
-                    {user ? (user.user_metadata?.full_name || 'User') : t('settings.auth.anonymousCat')}
+                    {user ? (user.user_metadata?.full_name || 'User') : t('auth.anonymousCat')}
                   </Text>
                   <Text style={[styles.userSubtitle, { fontSize: 14, color: '#888' }]}>
-                    {user ? user.email : t('settings.auth.guestUser')}
+                    {user ? user.email : t('auth.guestUser')}
                   </Text>
                 </View>
               </View>
@@ -1013,7 +1013,7 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
                         onPress={handleSignOut}
                       >
                         <AppIcon name="logout" size={18} color="#FF3B30" style={{ marginRight: 8 }} />
-                        <Text style={styles.signOutButtonText}>{t('settings.auth.signOut')}</Text>
+                        <Text style={styles.signOutButtonText}>{t('auth.signOut')}</Text>
                       </TouchableOpacity>
                     </View>
                   ) : (
@@ -1024,10 +1024,10 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
                             source={require('../../assets/images/LOGO.png')} 
                             style={{ width: 180, height: 72, marginBottom: 20, resizeMode: 'contain' }} 
                           />
-                          <Text style={styles.betaText}>{t('settings.common.beta')}</Text>
+                          <Text style={styles.betaText}>{t('common.beta')}</Text>
                         </View>
-                        <Text style={styles.limitedTimeOffer}>{t('settings.auth.firstUsersLifetime')}</Text>
-                        <Text style={[styles.limitedTimeOffer, { color: '#e0e0e0' }]}>{t('settings.auth.toPremium')}</Text>
+                        <Text style={styles.limitedTimeOffer}>{t('premium.firstUsersLifetime')}</Text>
+                        <Text style={[styles.limitedTimeOffer, { color: '#e0e0e0' }]}>{t('premium.toPremium')}</Text>
                         
                         <TouchableOpacity 
                           style={[styles.googleButton, { marginTop: 20 }]}
@@ -1039,21 +1039,21 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
                           ) : (
                             <>
                               <GoogleLogo size={20} />
-                              <Text style={styles.googleButtonText}>{t('settings.auth.continueWithGoogle')}</Text>
+                              <Text style={styles.googleButtonText}>{t('auth.continueWithGoogle')}</Text>
                             </>
                           )}
                         </TouchableOpacity>
 
                         <View style={[styles.promoFeatures, { marginTop: 30 }]}>
                           <Text style={styles.promoFeature}>
-                            <AppIcon name="check-decagram" size={16} color="#fff" /> {t('settings.auth.unlimitedCalculations')}
+                            <AppIcon name="check-decagram" size={16} color="#fff" /> {t('premium.unlimitedCalculations')}
                           </Text>
                           <Text style={styles.promoFeature}>
-                            <AppIcon name="webhook" size={16} color="#fff" /> {t('settings.auth.webhookIntegration')}
+                            <AppIcon name="webhook" size={16} color="#fff" /> {t('premium.webhookIntegration')}
                           </Text>
                           <Text style={styles.promoFeature}>
-                            <AppIcon name="history" size={16} color="#fff" /> {t('settings.auth.historySync')}
-                            <Text style={styles.comingSoon}> {t('settings.auth.comingSoon')}</Text>
+                            <AppIcon name="history" size={16} color="#fff" /> {t('premium.historySync')}
+                            <Text style={styles.comingSoon}> {t('common.comingSoon')}</Text>
                           </Text>
                         </View>
                       </View>
@@ -1072,7 +1072,7 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
               router.push('/privacy');
             }}
           >
-            <Text style={styles.privacyPolicyLinkText}>{t('settings.common.privacyPolicy')}</Text>
+            <Text style={styles.privacyPolicyLinkText}>{t('common.privacyPolicy')}</Text>
           </TouchableOpacity>
 
         </ScrollView>
@@ -1108,7 +1108,7 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
                 activeOpacity={0.7}
               >
                 <AppIcon name="crown-outline" size={22} color="#ff9500" />
-                <Text style={{ color: '#ff9500', fontWeight: 'bold', fontSize: 14, marginLeft: 4 }}>{t('settings.common.pro')}</Text>
+                <Text style={{ color: '#ff9500', fontWeight: 'bold', fontSize: 14, marginLeft: 4 }}>{t('common.pro')}</Text>
               </TouchableOpacity>
             ) : (
               <View style={styles.headerRightPlaceholder} />
