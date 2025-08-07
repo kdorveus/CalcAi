@@ -88,7 +88,7 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({ children }) 
   const t = (key: string): string => {
     try {
       const keys = key.split('.');
-      let translation: string | Translations = TRANSLATIONS[language];
+      let translation: string | string[] | Translations = TRANSLATIONS[language];
       
       if (!translation) {
         // Fallback to default language if current language not found
@@ -96,13 +96,13 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({ children }) 
       }
       
       for (const k of keys) {
-        if (typeof translation === 'object' && translation[k] !== undefined) {
+        if (typeof translation === 'object' && !Array.isArray(translation) && translation[k] !== undefined) {
           translation = translation[k];
         } else {
           // If key not found, try default language
-          let fallbackTranslation: string | Translations = TRANSLATIONS[DEFAULT_LANGUAGE];
+          let fallbackTranslation: string | string[] | Translations = TRANSLATIONS[DEFAULT_LANGUAGE];
           for (const fallbackKey of keys) {
-            if (typeof fallbackTranslation === 'object' && fallbackTranslation[fallbackKey] !== undefined) {
+            if (typeof fallbackTranslation === 'object' && !Array.isArray(fallbackTranslation) && fallbackTranslation[fallbackKey] !== undefined) {
               fallbackTranslation = fallbackTranslation[fallbackKey];
             } else {
               // If still not found, return the key itself

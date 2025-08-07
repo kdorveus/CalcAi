@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback, Suspense } from 'react';
+import React, { useEffect, useRef, useState, useCallback, Suspense, useMemo } from 'react';
 import { Vibration } from 'react-native';
 import { 
   View, 
@@ -18,11 +18,11 @@ import {
   ImageStyle,
   Pressable,
   Image,
-  Clipboard,
   ToastAndroid,
   Dimensions, // Add Dimensions import for responsive layout
   StatusBar,
 } from 'react-native';
+import * as ExpoClipboard from 'expo-clipboard';
 import { Audio } from 'expo-av';
 import * as Speech from 'expo-speech';
 import { evaluate } from 'mathjs';
@@ -64,6 +64,35 @@ const usePreloadAssets = () => {
     }
   }, []);
 };
+
+// --- Module-level constants and caches (hoisted to avoid re-creation) ---
+const LOCALE_MAP: { [key: string]: string } = {
+  en: 'en-US',
+  es: 'es-ES',
+  fr: 'fr-FR',
+  de: 'de-DE',
+  pt: 'pt-BR',
+  it: 'it-IT',
+};
+
+const SPEECH_RECOGNITION_LANG_MAP: { [key: string]: string } = {
+  en: 'en-US',
+  es: 'es-ES',
+  fr: 'fr-FR',
+  de: 'de-DE',
+  pt: 'pt-BR',
+  it: 'it-IT',
+};
+
+const KEYPAD_LAYOUT: string[][] = [
+  ['↺', '()', '%', '÷'],
+  ['7', '8', '9', '×'],
+  ['4', '5', '6', '-'],
+  ['1', '2', '3', '+'],
+  ['^', '0', '.', 'CHECK_ICON'],
+];
+
+const numberFormattersByLocale = new Map<string, Intl.NumberFormat>();
 
 // Types
 interface ChatBubble {
@@ -120,40 +149,23 @@ const MainScreen: React.FC = () => {
   const { user } = useAuth();
   const { history, addCalculation, deleteCalculation, clearAllCalculations, loading } = useCalculationHistory();
 
-  // Number formatting function for locale-aware display
+  // Number formatting function with per-locale cache
   const formatNumber = useCallback((num: number, lang: string): string => {
-    // Map language codes to locales with proper formatting options
-    const localeMap: { [key: string]: string } = {
-      'en': 'en-US',
-      'es': 'es-ES', 
-      'fr': 'fr-FR',
-      'de': 'de-DE',
-      'pt': 'pt-BR',
-      'it': 'it-IT'
-    };
-    
-    const locale = localeMap[lang] || 'en-US';
-    
-    // Use Intl.NumberFormat for more reliable formatting
-    const formatter = new Intl.NumberFormat(locale, {
+    const locale = LOCALE_MAP[lang] || 'en-US';
+    let formatter = numberFormattersByLocale.get(locale);
+    if (!formatter) {
+      formatter = new Intl.NumberFormat(locale, {
       maximumFractionDigits: 10,
-      minimumFractionDigits: 0
+        minimumFractionDigits: 0,
     });
-    
+      numberFormattersByLocale.set(locale, formatter);
+    }
     return formatter.format(num);
   }, []);
 
   // Language mapping for speech recognition
   const getSpeechRecognitionLanguage = (lang: string): string => {
-    const langMap: { [key: string]: string } = {
-      'en': 'en-US',
-      'es': 'es-ES',
-      'fr': 'fr-FR',
-      'de': 'de-DE',
-      'pt': 'pt-BR',
-      'it': 'it-IT'
-    };
-    return langMap[lang] || 'en-US'; // Fallback to English if unsupported
+    return SPEECH_RECOGNITION_LANG_MAP[lang] || 'en-US';
   };
 
   // Setup animation values for swipe effects
@@ -284,22 +296,7 @@ const MainScreen: React.FC = () => {
   const speechListenerRef = useRef<any>(null); // Ref for speech recognition listener
   const errorListenerRef = useRef<any>(null); // Ref for error listener
 
-  // Toggle mic on web with spacebar
-  useEffect(() => {
-    if (Platform.OS !== 'web') return;
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.code === 'Space' && !isTranscribing) {
-        event.preventDefault();
-        if (!isRecording) {
-          startRecording();
-        } else {
-          setIsRecording(false); // This will trigger recognition.onend and stop
-        }
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isRecording, isTranscribing]);
+  // Consolidated keyboard handling is defined after onKeypadPress
 
   // Background initialization for speech recognition - runs immediately after app loads
   useEffect(() => {
@@ -710,13 +707,7 @@ const MainScreen: React.FC = () => {
   // Keypad buttons
   // const [advancedMode, setAdvancedMode] = useState(false); // Removed
   const [vibrationEnabled, setVibrationEnabled] = useState(true); // Add vibration state
-  const KEYPAD = [
-    ['↺', '()', '%', '÷'],
-    ['7', '8', '9', '×'],
-    ['4', '5', '6', '-'],
-    ['1', '2', '3', '+'],
-    ['^', '0', '.', 'CHECK_ICON']
-  ];
+  const KEYPAD = KEYPAD_LAYOUT;
   // Advanced row removed since we integrated it above
 
   // Define a function to determine button style
@@ -969,13 +960,23 @@ const MainScreen: React.FC = () => {
     setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 50);
   }, [keypadInput, handleInput, setKeypadInput, setBubbles, expectingFreshInput, vibrationEnabled]); // Dependencies: state and handlers
 
-  // Web keyboard handler (numbers and math symbols)
-  const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    // Handle paste (Ctrl+V)
+  // Consolidated web keyboard handling (space to record, paste, keypad, mute, reset)
+  const handleGlobalKeyDown = useCallback((e: KeyboardEvent) => {
+    // Spacebar toggles recording when not transcribing
+    if (e.code === 'Space' && !isTranscribing) {
+      e.preventDefault();
+      if (!isRecording) {
+        startRecording();
+      } else {
+        setIsRecording(false);
+      }
+      return;
+    }
+
+    // Paste support
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
       e.preventDefault();
       navigator.clipboard.readText().then(text => {
-        // Filter only numbers and allowed operators
         const filtered = text.replace(/[^0-9+\-*/.()%^]/g, '');
         if (filtered) {
           filtered.split('').forEach(char => onKeypadPress(char));
@@ -984,97 +985,84 @@ const MainScreen: React.FC = () => {
       return;
     }
 
-    // Use mapped symbols ('×', '÷') in allowed list
+    // Mute toggle
+    if (e.key.toLowerCase() === 'm') {
+      toggleSpeechMute();
+      return;
+    }
+
+    // Ctrl+Backspace reset
+    if (e.key === 'Backspace' && e.ctrlKey) {
+      setBubbles([]);
+      setKeypadInput('');
+      setPreviewResult(null);
+      e.preventDefault();
+      return;
+    }
+
+    // Calculator keypad mapping
     const allowed = ['0','1','2','3','4','5','6','7','8','9','+','-','×','÷','.','(',')','%','^','√'];
     let key = e.key;
     if (key === '*') key = '×';
     if (key.toLowerCase() === 'x') key = '×';
     if (key === '/') key = '÷';
-    
-    // Handle special keyboard shortcuts
-    if (key.toLowerCase() === 'r') {
-      // Reset shortcut
-      setBubbles([]);
-      setKeypadInput('');
-      setPreviewResult(null);
-      setTimeout(() => { flatListRef.current?.scrollToEnd({ animated: true }); }, 100);
-      return;
-    }
-    
-    if (key.toLowerCase() === 'm') {
-      // Mute shortcut
-      toggleSpeechMute();
-      return;
-    }
-    
-    // Re-enable Enter key mapping
     if (allowed.includes(key) || key === 'Backspace' || key === 'Enter') {
       if (key === 'Backspace') {
         onKeypadPress('⌫');
       } else if (key === 'Enter') {
-        onKeypadPress('='); // Map Enter to equals
+        onKeypadPress('=');
       } else {
         onKeypadPress(key);
       }
       e.preventDefault();
     }
-  }, [onKeypadPress]); // Dependency: Ensure listener uses latest handler
+  }, [isTranscribing, isRecording, onKeypadPress, toggleSpeechMute]);
 
   useEffect(() => {
     if (Platform.OS !== 'web') return;
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleKeyDown]); // Dependency: Ensure listener uses latest handler
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [handleGlobalKeyDown]);
 
-  // Scroll to bottom on any bubble change (legacy, non-animated)
-  useEffect(() => {
-    flatListRef.current?.scrollToEnd({ animated: false });
-  }, [bubbles]);
+  // Removed in favor of consolidated handleGlobalKeyDown
 
-  // Scroll to bottom with animation when a new result appears
-  useEffect(() => {
-    if (bubbles.length > 0 && bubbles[bubbles.length - 1].type === 'result') {
-      setTimeout(() => {
-        flatListRef.current?.scrollToEnd({ animated: true });
-      }, 100); // allow render
-    }
-  }, [bubbles]);
+  // Scroll management moved to FlatList onContentSizeChange to avoid timers
 
-  // Live result preview effect
+  // Live result preview effect with debounce to limit evaluate churn
   useEffect(() => {
-    if (!keypadInput.trim()) {
+    const input = keypadInput;
+    if (!input.trim()) {
       setPreviewResult(null);
       return;
     }
-
+    const timeout = setTimeout(() => {
     try {
-      let expression = keypadInput.replace(/×/g, '*').replace(/÷/g, '/');
+        let expression = input.replace(/×/g, '*').replace(/÷/g, '/');
       expression = expression.replace(/(\d+)%/g, '($1 / 100)');
       expression = expression.replace(/%/g, '/100'); // Trailing %
 
-      // Basic check to avoid errors on partial input (e.g., "5+")
       const lastChar = expression.trim().slice(-1);
       if (['+','-','*','/','^','('].includes(lastChar)) {
-        return // Still return to avoid evaluation error, but keep existing preview
+          return;
       }
 
       const result = evaluate(expression);
-      // Avoid showing preview if result is complex or an object/function
       if (typeof result === 'number' || (typeof result === 'string' && !isNaN(parseFloat(result)))) {
         const formattedResult = typeof result === 'number' ? formatNumber(result, language) : result.toString();
-        if (keypadInput.trim() === formattedResult) {
+          if (input.trim() === formattedResult) {
           setPreviewResult(null);
         } else {
           setPreviewResult(formattedResult);
         }
       } else {
-        setPreviewResult(null)
+          setPreviewResult(null);
       }
     } catch (error) {
-      // Ignore errors during preview, just don't show a result
       setPreviewResult(null);
     }
-  }, [keypadInput, handleInput, formatNumber, language]);
+    }, 100);
+    return () => clearTimeout(timeout);
+  }, [keypadInput, formatNumber, language]);
 
   // Audio recording logic for speech-to-text
   // Platform-specific speech-to-text
@@ -1804,32 +1792,7 @@ const MainScreen: React.FC = () => {
 
   // --- Component Lifecycle & Effects ---
   
-  // Add keyboard event listener for shortcuts (web only)
-  useEffect(() => {
-    if (Platform.OS !== 'web') return;
-    
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // M key for mute toggle
-      if (e.key.toLowerCase() === 'm') {
-        toggleSpeechMute();
-      }
-      
-      // Ctrl+Backspace for reset
-      if (e.key === 'Backspace' && e.ctrlKey) {
-        console.log('Ctrl+Backspace detected for reset');
-        setBubbles([]);
-        setKeypadInput('');
-        setPreviewResult(null);
-        setTimeout(() => { flatListRef.current?.scrollToEnd({ animated: true }); }, 100);
-        e.preventDefault(); // Prevent default backspace behavior
-      }
-    };
-    
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [toggleSpeechMute]);
+  // Removed extra shortcuts listener; consolidated above
 
   // --- Webhook Logic Handlers ---
   const handleAddWebhook = () => {
@@ -1994,7 +1957,11 @@ const MainScreen: React.FC = () => {
     const isCurrentUserBubble = item.type === 'user' && isLastBubble && item.content === keypadInput;
 
     const copyToClipboard = (text: string) => {
-      Clipboard.setString(text);
+      if (Platform.OS === 'web') {
+        navigator.clipboard?.writeText(text).catch(() => {});
+      } else {
+        ExpoClipboard.setStringAsync(text).catch(() => {});
+      }
       // Add vibration feedback
       if (vibrationEnabled) {
         Vibration.vibrate(50);
@@ -2103,7 +2070,8 @@ const MainScreen: React.FC = () => {
         <View style={styles.logoContainer}>
           <Image 
             source={require('../assets/images/LOGO.png')} 
-            style={{ width: 200, height: 80, resizeMode: 'contain' }}
+            style={{ width: 200, height: 80 }}
+            resizeMode="contain"
             fadeDuration={0}
             // Use default loading priority
             defaultSource={require('../assets/images/LOGO.png')}
@@ -2133,7 +2101,8 @@ const MainScreen: React.FC = () => {
         <View style={styles.logoContainer}>
           <Image 
             source={require('../assets/images/LOGO.png')} 
-            style={{ width: 180, height: 72, resizeMode: 'contain' }}
+            style={{ width: 180, height: 72 }}
+            resizeMode="contain"
             fadeDuration={0}
             // Use default loading priority
             defaultSource={require('../assets/images/LOGO.png')}
@@ -2220,6 +2189,7 @@ const MainScreen: React.FC = () => {
         renderItem={renderBubble}
         keyExtractor={item => item.id}
         contentContainerStyle={styles.chatArea}
+        onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
         ListEmptyComponent={
           showKeypad ? null : (
             Platform.OS === 'web' ? <WebEmptyState /> : <MobileEmptyState />
@@ -2601,10 +2571,11 @@ const styles = StyleSheet.create<ComponentStyles>({
     borderRadius: 40,
     width: 70,
     height: 70,
-    ...(Platform.OS === 'web' 
+    ...(Platform.OS === 'web'
       ? {
           backgroundColor: 'transparent',
-        } 
+          boxShadow: '0px 2px 3px rgba(0,0,0,0.3)',
+        }
       : {
           backgroundColor: '#1C1C1E',
           shadowColor: '#000',
@@ -2612,8 +2583,7 @@ const styles = StyleSheet.create<ComponentStyles>({
           shadowOpacity: 0.3,
           shadowRadius: 3,
           elevation: 3,
-        }
-    ),
+        }),
   },
   keypadKeyText: {
     color: '#eee',
@@ -2798,11 +2768,16 @@ const styles = StyleSheet.create<ComponentStyles>({
     right: 0,
     minWidth: 120,
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
+    ...(Platform.select({
+      web: { boxShadow: '0px 2px 4px rgba(0,0,0,0.25)' },
+      default: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 4,
+        elevation: 5,
+      },
+    }) as any),
     zIndex: 1000,
   },
   webhookTooltip: {
@@ -2869,11 +2844,16 @@ const styles = StyleSheet.create<ComponentStyles>({
     borderRadius: 40,
     width: 70,
     height: 70,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
-    elevation: 3,
+    ...(Platform.select({
+      web: { boxShadow: '0px 2px 3px rgba(0,0,0,0.3)' },
+      default: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 3,
+        elevation: 3,
+      },
+    }) as any),
     borderWidth: 1,
     borderColor: 'rgba(200, 200, 200, 0.1)',
   },
@@ -2887,11 +2867,16 @@ const styles = StyleSheet.create<ComponentStyles>({
     borderRadius: 40,
     width: 70,
     height: 70,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
-    elevation: 3,
+    ...(Platform.select({
+      web: { boxShadow: '0px 2px 3px rgba(0,0,0,0.3)' },
+      default: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 3,
+        elevation: 3,
+      },
+    }) as any),
     borderWidth: 1,
     borderColor: 'rgba(200, 200, 200, 0.15)',
   },
@@ -2905,11 +2890,16 @@ const styles = StyleSheet.create<ComponentStyles>({
     borderRadius: 40,
     width: 70,
     height: 70,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
-    elevation: 3,
+    ...(Platform.select({
+      web: { boxShadow: '0px 2px 3px rgba(0,0,0,0.3)' },
+      default: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 3,
+        elevation: 3,
+      },
+    }) as any),
     borderWidth: 1,
     borderColor: 'rgba(200, 200, 200, 0.1)',
   },
@@ -2928,10 +2918,15 @@ const styles = StyleSheet.create<ComponentStyles>({
     backgroundColor: 'rgba(28, 28, 30, 0.98)',
     borderWidth: 1,
     borderColor: '#333',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
+    ...(Platform.select({
+      web: { boxShadow: '0px -2px 4px rgba(0,0,0,0.3)' },
+      default: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: -2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 4,
+      },
+    }) as any),
     paddingBottom: Platform.OS === 'web' ? 0 : 15, // Add padding for mobile safe area
   },
   micButtonWebMobile: {

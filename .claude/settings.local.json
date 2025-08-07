@@ -4,7 +4,8 @@
     "allow": [
       "Bash(npx tsc:*)",
       "Bash(grep:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(git branch:*)"
     ],
     "deny": []
   }
