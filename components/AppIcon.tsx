@@ -20,6 +20,7 @@ import AccountCircleIcon from '../assets/icons/account-circle.svg';
 import LogoutIcon from '../assets/icons/logout.svg';
 import CheckIcon from '../assets/icons/check.svg';
 import CheckDecagramIcon from '../assets/icons/check-decagram.svg';
+import LanguageIcon from '../assets/icons/language.svg';
 // Crown Outline icon updated inline for settings PRO button
 const CrownOutlineIcon = (props: SvgProps) => {
   const { width = 24, height = 24, color = 'currentColor', ...rest } = props;
@@ -100,7 +101,8 @@ const iconMap: Record<string, React.FC<SvgProps>> = {
   'check-decagram': CheckDecagramIcon,
   'crown-outline': CrownOutlineIcon,
   'backspace': BackspaceIcon,
-  'refresh': RefreshIcon
+  'refresh': RefreshIcon,
+  'language': LanguageIcon
 };
 
 // Define props for our AppIcon component

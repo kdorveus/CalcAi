@@ -651,7 +651,7 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
               activeOpacity={0.7}
             >
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <AppIcon name="web" size={20} color="#888" style={{ marginRight: 8 }} />
+                <AppIcon name="language" size={20} color="#888" style={{ marginRight: 8 }} />
                 <Text style={styles.subHeader}>{t('settings.language.title')}</Text>
               </View>
               <View style={{ flex: 1 }} />
