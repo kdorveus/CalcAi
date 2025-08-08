@@ -40,7 +40,7 @@ if (Platform.OS === 'web') {
     // Check if auth exists (it should, based on initialization)
     if (options.auth) { 
         options.auth.storage = AsyncStorage; // Assign storage here
-        console.log('Native platform detected - using AsyncStorage for auth');
+  // Use AsyncStorage for native auth storage without logging to console
     } else {
         // This case should ideally not happen based on our initialization
         console.error("FATAL: options.auth is unexpectedly undefined.");

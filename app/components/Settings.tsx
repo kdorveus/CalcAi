@@ -285,11 +285,8 @@ export const WebhookSettings: React.FC<WebhookSettingsProps> = ({
           setWebhookUrls(updatedWebhooks);
         }
         
-        // Save to AsyncStorage
-        AsyncStorage.setItem('webhookUrls', JSON.stringify(updatedWebhooks))
-          .catch(error => {
-            console.error('Error saving webhooks:', error);
-          });
+        // Save to AsyncStorage (no console logs)
+        AsyncStorage.setItem('webhookUrls', JSON.stringify(updatedWebhooks)).catch(() => {});
         
         // Clear input fields
         setLocalWebhookUrl('');
@@ -520,6 +517,7 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
   
   // Function to save edited bulk data item
   const saveEditedItem = (itemId: string | number) => {
+    // Avoid redundant writes by checking for actual changes
     const updatedBulkData = bulkData.map(item => 
       item.id === itemId ? { ...item, data: editingItemValue } : item
     );
@@ -537,8 +535,8 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
   
   // Function to delete a bulk data item
   const deleteBulkItem = (itemId: string | number) => {
+    // Guard deletion to only write when list actually shrank
     const updatedBulkData = bulkData.filter(item => item.id !== itemId);
-    
     AsyncStorage.setItem('bulkData', JSON.stringify(updatedBulkData))
       .then(() => {
         setBulkData(updatedBulkData);

@@ -54,16 +54,7 @@ import HistoryIcon from '../assets/icons/history.svg';
 import CheckCircleIcon from '../assets/icons/check-circle.svg';
 import CrownIcon from '../assets/icons/crown.svg';
 
-// Preload app assets
-const usePreloadAssets = () => {
-  useEffect(() => {
-    if (Platform.OS === 'web') {
-      // Preload the logo image
-      const logoPreload = new window.Image();
-      logoPreload.src = require('../assets/images/LOGO.png').uri || '';
-    }
-  }, []);
-};
+// (Removed unused asset preload hook to avoid dead code)
 
 // --- Module-level constants and caches (hoisted to avoid re-creation) ---
 const LOCALE_MAP: { [key: string]: string } = {
@@ -196,6 +187,7 @@ const MainScreen: React.FC = () => {
   
   // Refs
   const flatListRef = useRef<FlatList>(null);
+  const bubbleIdRef = useRef<number>(1);
   const keypadInputRef = useRef('');
   const speechModuleRef = useRef<any>(null); // Ref to store loaded speech module
   const speechInitializedRef = useRef(false); // Track if speech is ready
@@ -263,7 +255,6 @@ const MainScreen: React.FC = () => {
 
   // --- Settings State ---
   const [webhookUrls, setWebhookUrls] = useState<any[]>([]);
-  const [hasActiveWebhooks, setHasActiveWebhooks] = useState<boolean>(false);
   const [enterKeyNewLine, setEnterKeyNewLine] = useState<boolean>(false);
   const [newWebhookUrl, setNewWebhookUrl] = useState<string>('');
   const [newWebhookTitle, setNewWebhookTitle] = useState<string>(''); // Add state for webhook title
@@ -337,9 +328,8 @@ const MainScreen: React.FC = () => {
   // Internal error constant for programming logic (never shown to user)
   const MATH_ERROR = 'MATH_ERROR_INTERNAL';
 
-  // Get language-specific math patterns
-  const getMathPatterns = useCallback((lang: string): LanguagePatterns => {
-    const patterns: { [key: string]: LanguagePatterns } = {
+  // Hoisted, static language patterns (module-scope style but kept here for minimal diff)
+  const LANGUAGE_PATTERNS: { [key: string]: LanguagePatterns } = {
       en: {
         numbers: {
           'zero': '0', 'one': '1', 'two': '2', 'three': '3', 'four': '4', 'five': '5',
@@ -533,23 +523,74 @@ const MainScreen: React.FC = () => {
         fillerWords: ['fare', 'ore', 'ora', 'scatola', 'e', 'il', 'la', 'un', 'una', 'uguale', 'è', 'calcolare', 'risultato', 'per favore', 'per', 'di']
       }
     };
-
-    // Return the patterns for the requested language, fallback to English if not found
-    return patterns[lang] ?? patterns['en'];
+  
+  // Get language-specific math patterns
+  const getMathPatterns = useCallback((lang: string): LanguagePatterns => {
+    return LANGUAGE_PATTERNS[lang] ?? LANGUAGE_PATTERNS['en'];
   }, []); // Dependencies: none
+
+  // Precompile regex per language to avoid rebuilding on every normalization
+  const compiledLanguageRegex = useMemo(() => {
+    const p = getMathPatterns(language);
+    const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const joinEscaped = (arr: string[]) => arr.map(escape).join('|');
+
+    const numberWordsKeys = Object.keys(p.numbers).join('|');
+    const numberWordsRegex = numberWordsKeys
+      ? new RegExp(`\\b(${numberWordsKeys})\\b`, 'g')
+      : null;
+
+    const phraseAddTo = p.specificPhrases.addTo ? new RegExp(p.specificPhrases.addTo, 'g') : null;
+    const phraseSubtractFrom = p.specificPhrases.subtractFrom ? new RegExp(p.specificPhrases.subtractFrom, 'g') : null;
+    const phraseMultiplyBy = p.specificPhrases.multiplyBy ? new RegExp(p.specificPhrases.multiplyBy, 'g') : null;
+    const phraseDivideBy = p.specificPhrases.divideBy ? new RegExp(p.specificPhrases.divideBy, 'g') : null;
+
+    const addition = p.operations.addition.length ? new RegExp(`\\b(${joinEscaped(p.operations.addition)})\\b`, 'g') : null;
+    const subtraction = p.operations.subtraction.length ? new RegExp(`\\b(${joinEscaped(p.operations.subtraction)})\\b`, 'g') : null;
+    const multiplication = p.operations.multiplication.length ? new RegExp(`\\b(${joinEscaped(p.operations.multiplication)})\\b`, 'g') : null;
+    const division = p.operations.division.length ? new RegExp(`\\b(${joinEscaped(p.operations.division)})\\b`, 'g') : null;
+    const percentOf = p.operations.percentOf.length ? new RegExp(`\\b(${joinEscaped(p.operations.percentOf)})\\b`, 'g') : null;
+    const percentage = p.operations.percentage.length ? new RegExp(`\\b(${joinEscaped(p.operations.percentage)})\\b`, 'g') : null;
+    const power = p.operations.power.length ? new RegExp(`\\b(${joinEscaped(p.operations.power)})\\b`, 'g') : null;
+    const sqrt = p.operations.sqrt.length ? new RegExp(`\\b(${joinEscaped(p.operations.sqrt)})\\b`, 'g') : null;
+    const openParen = p.operations.parentheses.open.length ? new RegExp(`\\b(${joinEscaped(p.operations.parentheses.open)})\\b`, 'g') : null;
+    const closeParen = p.operations.parentheses.close.length ? new RegExp(`\\b(${joinEscaped(p.operations.parentheses.close)})\\b`, 'g') : null;
+    const decimal = p.operations.decimal.length ? new RegExp(`\\b(${joinEscaped(p.operations.decimal)})\\b`, 'g') : null;
+
+    const filler = p.fillerWords.map(w => new RegExp(`\\b${escape(w)}\\b`, 'g'));
+
+    return {
+      patterns: p,
+      numberWordsRegex,
+      phraseAddTo,
+      phraseSubtractFrom,
+      phraseMultiplyBy,
+      phraseDivideBy,
+      addition,
+      subtraction,
+      multiplication,
+      division,
+      percentOf,
+      percentage,
+      power,
+      sqrt,
+      openParen,
+      closeParen,
+      decimal,
+      filler,
+    } as const;
+  }, [language, getMathPatterns]);
 
   // Normalize spoken math expressions
   const normalizeSpokenMath = useCallback((text: string): string => {
     let normalized = text.toLowerCase();
-
-    // Get language-specific patterns
-    const patterns = getMathPatterns(language);
+    const compiled = compiledLanguageRegex;
+    const patterns = compiled.patterns;
     
     // Convert spelled-out numbers FIRST
     const numWords = patterns.numbers;
-    const numWordsKeys = Object.keys(numWords).join('|');
-    if (numWordsKeys) {
-      normalized = normalized.replace(new RegExp(`\\b(${numWordsKeys})\\b`, 'g'), (match) => numWords[match]);
+    if (compiled.numberWordsRegex) {
+      normalized = normalized.replace(compiled.numberWordsRegex, (match) => numWords[match]);
     }
 
     // IMPORTANT: Handle specific phrases BEFORE general replacements
@@ -557,93 +598,50 @@ const MainScreen: React.FC = () => {
     const numRegex = "\\d+(?:\\.\\d+)?"; 
     
     // Handle language-specific phrase patterns
-    if (patterns.specificPhrases.addTo) {
-      normalized = normalized.replace(new RegExp(patterns.specificPhrases.addTo, 'g'), '$1 + $2');
-    }
-    if (patterns.specificPhrases.subtractFrom) {
-      normalized = normalized.replace(new RegExp(patterns.specificPhrases.subtractFrom, 'g'), '$2 - $1');
-    }
-    if (patterns.specificPhrases.multiplyBy) {
-      normalized = normalized.replace(new RegExp(patterns.specificPhrases.multiplyBy, 'g'), '$2 * $3');
-    }
-    if (patterns.specificPhrases.divideBy) {
-      normalized = normalized.replace(new RegExp(patterns.specificPhrases.divideBy, 'g'), '$2 / $3');
-    }
+    if (compiled.phraseAddTo) normalized = normalized.replace(compiled.phraseAddTo, '$1 + $2');
+    if (compiled.phraseSubtractFrom) normalized = normalized.replace(compiled.phraseSubtractFrom, '$2 - $1');
+    if (compiled.phraseMultiplyBy) normalized = normalized.replace(compiled.phraseMultiplyBy, '$2 * $3');
+    if (compiled.phraseDivideBy) normalized = normalized.replace(compiled.phraseDivideBy, '$2 / $3');
 
     // --- General Replacements (Now run AFTER specific phrases) ---
     // Common operator words to symbols - Use word boundaries for robustness
     
     // Addition
-    if (patterns.operations.addition.length > 0) {
-      const additionPattern = patterns.operations.addition.map(term => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
-      normalized = normalized.replace(new RegExp(`\\b(${additionPattern})\\b`, 'g'), ' + ');
-    }
+    if (compiled.addition) normalized = normalized.replace(compiled.addition, ' + ');
     
     // Subtraction
-    if (patterns.operations.subtraction.length > 0) {
-      const subtractionPattern = patterns.operations.subtraction.map(term => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
-      normalized = normalized.replace(new RegExp(`\\b(${subtractionPattern})\\b`, 'g'), ' - ');
-    }
+    if (compiled.subtraction) normalized = normalized.replace(compiled.subtraction, ' - ');
     
     // Multiplication
-    if (patterns.operations.multiplication.length > 0) {
-      const multiplicationPattern = patterns.operations.multiplication.map(term => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
-      normalized = normalized.replace(new RegExp(`\\b(${multiplicationPattern})\\b`, 'g'), ' * ');
-    }
+    if (compiled.multiplication) normalized = normalized.replace(compiled.multiplication, ' * ');
     
     // Division
-    if (patterns.operations.division.length > 0) {
-      const divisionPattern = patterns.operations.division.map(term => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
-      normalized = normalized.replace(new RegExp(`\\b(${divisionPattern})\\b`, 'g'), ' / ');
-    }
+    if (compiled.division) normalized = normalized.replace(compiled.division, ' / ');
     
     // Percentage "of"
-    if (patterns.operations.percentOf.length > 0) {
-      const percentOfPattern = patterns.operations.percentOf.map(term => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
-      normalized = normalized.replace(new RegExp(`\\b(${percentOfPattern})\\b`, 'g'), ' * 0.01 * ');
-    }
+    if (compiled.percentOf) normalized = normalized.replace(compiled.percentOf, ' * 0.01 * ');
     
     // Percentage
-    if (patterns.operations.percentage.length > 0) {
-      const percentagePattern = patterns.operations.percentage.map(term => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
-      normalized = normalized.replace(new RegExp(`\\b(${percentagePattern})\\b`, 'g'), ' % ');
-    }
+    if (compiled.percentage) normalized = normalized.replace(compiled.percentage, ' % ');
     
     // Power
-    if (patterns.operations.power.length > 0) {
-      const powerPattern = patterns.operations.power.map(term => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
-      normalized = normalized.replace(new RegExp(`\\b(${powerPattern})\\b`, 'g'), ' ^ ');
-    }
+    if (compiled.power) normalized = normalized.replace(compiled.power, ' ^ ');
     
     // Square root
-    if (patterns.operations.sqrt.length > 0) {
-      const sqrtPattern = patterns.operations.sqrt.map(term => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
-      normalized = normalized.replace(new RegExp(`\\b(${sqrtPattern})\\b`, 'g'), ' sqrt ');
-    }
+    if (compiled.sqrt) normalized = normalized.replace(compiled.sqrt, ' sqrt ');
     
     // Open parentheses
-    if (patterns.operations.parentheses.open.length > 0) {
-      const openParenPattern = patterns.operations.parentheses.open.map(term => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
-      normalized = normalized.replace(new RegExp(`\\b(${openParenPattern})\\b`, 'g'), ' ( ');
-    }
+    if (compiled.openParen) normalized = normalized.replace(compiled.openParen, ' ( ');
     
     // Close parentheses
-    if (patterns.operations.parentheses.close.length > 0) {
-      const closeParenPattern = patterns.operations.parentheses.close.map(term => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
-      normalized = normalized.replace(new RegExp(`\\b(${closeParenPattern})\\b`, 'g'), ' ) ');
-    }
+    if (compiled.closeParen) normalized = normalized.replace(compiled.closeParen, ' ) ');
 
     // Handle decimal points explicitly
-    if (patterns.operations.decimal.length > 0) {
-      const decimalPattern = patterns.operations.decimal.map(term => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
-      normalized = normalized.replace(new RegExp(`\\b(${decimalPattern})\\b`, 'g'), '.');
-    }
+    if (compiled.decimal) normalized = normalized.replace(compiled.decimal, '.');
 
     // Remove only true non-math filler words (do NOT remove operator keywords)
-    const fillerWords = patterns.fillerWords;
-    fillerWords.forEach(word => {
-      const escapedWord = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      normalized = normalized.replace(new RegExp(`\\b${escapedWord}\\b`, 'g'), '');
+    compiled.filler.forEach(regex => {
+      normalized = normalized.replace(regex, '');
     });
 
     // Final cleanup: Remove characters not part of a valid expression
@@ -656,7 +654,7 @@ const MainScreen: React.FC = () => {
     normalized = normalized.trim();
 
     return normalized;
-  }, [language, getMathPatterns]); // Dependencies: language and getMathPatterns
+  }, [compiledLanguageRegex]); // Dependencies: compiled per language
 
   // Handle input and calculation (used by keypad and speech)
   const handleInput = useCallback((val: string, type: 'user' | 'keypad' | 'speech'): string => {
@@ -752,7 +750,7 @@ const MainScreen: React.FC = () => {
       const digitCount = keypadInput.replace(/[^\d]/g, '').length;
       if (digitCount >= 100) {
         setBubbles(prev => [...prev, { 
-          id: Date.now() + Math.random() + '', 
+          id: (bubbleIdRef.current++).toString(), 
           type: 'error', 
           content: t('mainApp.mathErrors.invalidExpression') 
         }]);
@@ -764,14 +762,13 @@ const MainScreen: React.FC = () => {
     if (expectingFreshInput) {
       // Case 1: Enter/Check/Backspace - clear input and start new
       if (isClearingKey) {
-        console.log('Clearing input after calculation');
         setKeypadInput('');
         setPreviewResult(null);
         
         // Remove the result-input bubble and add an empty user bubble
         setBubbles(prev => {
           const filtered = prev.filter(b => b.type !== 'result-input');
-          return [...filtered, { id: Date.now() + '-empty', type: 'user', content: '' }];
+        return [...filtered, { id: (bubbleIdRef.current++).toString(), type: 'user', content: '' }];
         });
         
         setExpectingFreshInput(false);
@@ -781,7 +778,6 @@ const MainScreen: React.FC = () => {
       }
       
       // Case 2: Any other key - confirm result and continue
-      console.log('Continuing calculation after result');
       const currentResult = keypadInput;
       
       // Append the key to the current result
@@ -791,7 +787,7 @@ const MainScreen: React.FC = () => {
       // Replace gray result with white result and continue
       setBubbles(prev => {
         const filtered = prev.filter(b => b.type !== 'result-input');
-        return [...filtered, { id: Date.now() + '-user', type: 'user', content: newInput }];
+        return [...filtered, { id: (bubbleIdRef.current++).toString(), type: 'user', content: newInput }];
       });
       
       setExpectingFreshInput(false);
@@ -812,7 +808,7 @@ const MainScreen: React.FC = () => {
       setKeypadInput(newInput);
       setBubbles(prev => {
         const others = prev.filter(b => b.type !== 'user' || b.content !== keypadInput);
-        return [...others, { id: Date.now() + Math.random() + '', type: 'user', content: newInput }];
+        return [...others, { id: (bubbleIdRef.current++).toString(), type: 'user', content: newInput }];
       });
       // Scroll to bottom after adding dot
       setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 50);
@@ -834,7 +830,7 @@ const MainScreen: React.FC = () => {
       setBubbles(prev => {
         const others = prev.filter(b => b.type !== 'user' || b.content !== keypadInput);
         if (newInput) {
-          return [...others, { id: Date.now() + Math.random() + '', type: 'user', content: newInput }];
+          return [...others, { id: (bubbleIdRef.current++).toString(), type: 'user', content: newInput }];
         }
         return others;
       });
@@ -855,7 +851,6 @@ const MainScreen: React.FC = () => {
     
     if (key === 'CHECK_ICON') { // Handle check icon as 'ok' button
       key = 'ok'; // Process as 'ok' for the rest of the function
-      console.log('Processing CHECK_ICON as ok');
     }
 
     let newInput = keypadInput;
@@ -883,14 +878,14 @@ const MainScreen: React.FC = () => {
       // Create bubbles based on the calculation
       if (result !== MATH_ERROR) {
         // Create a bubble showing the equation with equals sign
-        const equationBubble: ChatBubble = { id: Date.now() + '-equation', type: 'user', content: `${expressionToCalc} = ${result}` };
+        const equationBubble: ChatBubble = { id: (bubbleIdRef.current++).toString(), type: 'user', content: `${expressionToCalc} = ${result}` };
         // Create the result bubble to show just the result
-        const resultBubble: ChatBubble = { id: Date.now() + '-calc', type: 'calc', content: result };
+        const resultBubble: ChatBubble = { id: (bubbleIdRef.current++).toString(), type: 'calc', content: result };
         
         if (enterKeyNewLine) {
           // New Line Mode: Create a new empty user bubble instead of showing the result
           const newEmptyBubble: ChatBubble = {
-            id: Date.now() + '-empty', 
+            id: (bubbleIdRef.current++).toString(), 
             type: 'user',
             content: ''
           };
@@ -907,7 +902,7 @@ const MainScreen: React.FC = () => {
         } else {
           // Normal Mode: Show the result in the input field
           const nextUserBubble: ChatBubble = { 
-            id: Date.now() + '-user', 
+            id: (bubbleIdRef.current++).toString(), 
             type: 'result-input',
             content: result 
           };
@@ -935,7 +930,7 @@ const MainScreen: React.FC = () => {
         // Scroll to bottom after calculation
         setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 50);
       } else {
-        const errorBubble: ChatBubble = { id: Date.now() + '-error', type: 'error', content: t('mainApp.mathErrors.error') }; // Or use a specific error message
+        const errorBubble: ChatBubble = { id: (bubbleIdRef.current++).toString(), type: 'error', content: t('mainApp.mathErrors.error') }; // Or use a specific error message
         setBubbles(prev => [...prev, errorBubble]); // Add only error bubble
         setKeypadInput(''); // Clear input on error
         setPreviewResult(null);
@@ -953,7 +948,7 @@ const MainScreen: React.FC = () => {
     // Update or add the live equation bubble
     setBubbles(prev => {
       const others = prev.filter(b => b.type !== 'user' || b.content !== keypadInput);
-      return [...others, { id: Date.now() + Math.random() + '', type: 'user', content: newInput }];
+      return [...others, { id: (bubbleIdRef.current++).toString(), type: 'user', content: newInput }];
     });
     
     // Always scroll to bottom after any key press
@@ -999,7 +994,7 @@ const MainScreen: React.FC = () => {
       e.preventDefault();
       return;
     }
-
+    
     // Calculator keypad mapping
     const allowed = ['0','1','2','3','4','5','6','7','8','9','+','-','×','÷','.','(',')','%','^','√'];
     let key = e.key;
@@ -1176,7 +1171,7 @@ const MainScreen: React.FC = () => {
             // For iOS, use a subtle bubble that auto-dismisses
             setBubbles(prev => [
               { 
-                id: Date.now() + '-empty', 
+                id: (bubbleIdRef.current++).toString(), 
                 type: 'calc', 
                 content: t('mainApp.speechErrors.recognitionFailed') 
               },
@@ -1184,7 +1179,7 @@ const MainScreen: React.FC = () => {
             ]);
             // Auto-remove the bubble after 2 seconds
             setTimeout(() => {
-              setBubbles(prev => prev.filter(b => !b.id.endsWith('-empty')));
+              setBubbles(prev => prev.slice(1));
             }, 2000);
           }
         }
@@ -1221,7 +1216,7 @@ const MainScreen: React.FC = () => {
           // For iOS, use a subtle bubble that auto-dismisses
           setBubbles(prev => [
             { 
-              id: Date.now() + '-empty', 
+              id: (bubbleIdRef.current++).toString(), 
               type: 'calc', 
               content: t('mainApp.speechErrors.recognitionFailed') 
             },
@@ -1229,7 +1224,7 @@ const MainScreen: React.FC = () => {
           ]);
           // Auto-remove the bubble after 2 seconds
           setTimeout(() => {
-            setBubbles(prev => prev.filter(b => !b.id.endsWith('-empty')));
+            setBubbles(prev => prev.slice(1));
           }, 2000);
         }
       };
@@ -1244,7 +1239,7 @@ const MainScreen: React.FC = () => {
           // If we're still recording after 10 seconds, force stop
           stopRecording();
           setBubbles(prev => [...prev, { 
-            id: Date.now() + Math.random() + '', 
+            id: (bubbleIdRef.current++).toString(), 
             type: 'error', 
             content: t('mainApp.speechErrors.recognitionFailed') 
           }]);
@@ -1267,7 +1262,7 @@ const MainScreen: React.FC = () => {
             if (silenceCounter >= 3) { // 3 consecutive silence checks (1.5 seconds)
               stopRecording();
               setBubbles(prev => [...prev, { 
-                id: Date.now() + Math.random() + '', 
+                id: (bubbleIdRef.current++).toString(), 
                 type: 'calc', 
                 content: t('mainApp.speechErrors.noSpeechDetected') 
               }]);
@@ -1308,7 +1303,7 @@ const MainScreen: React.FC = () => {
         // For iOS, use a subtle bubble that auto-dismisses
         setBubbles(prev => [
           { 
-            id: Date.now() + '-empty', 
+            id: (bubbleIdRef.current++).toString(), 
             type: 'calc', 
             content: t('mainApp.speechErrors.recognitionFailed') 
           },
@@ -1316,7 +1311,7 @@ const MainScreen: React.FC = () => {
         ]);
         // Auto-remove the bubble after 2 seconds
         setTimeout(() => {
-          setBubbles(prev => prev.filter(b => !b.id.endsWith('-empty')));
+          setBubbles(prev => prev.slice(1));
         }, 2000);
       }
     }
@@ -1357,7 +1352,7 @@ const MainScreen: React.FC = () => {
   const processNativeTranscription = (transcript: string) => {
     if (!transcript) {
       setBubbles(prev => [...prev, { 
-        id: Date.now() + Math.random() + '', 
+        id: (bubbleIdRef.current++).toString(), 
         type: 'error', 
         content: t('mainApp.speechErrors.noSpeechDetected') 
       }]);
@@ -1388,12 +1383,12 @@ const MainScreen: React.FC = () => {
     
     if (result !== MATH_ERROR) {
       // Create a bubble showing the equation with equals sign
-      const equationBubble: ChatBubble = { id: Date.now() + '-equation', type: 'user', content: `${normalized} = ${result}` };
+      const equationBubble: ChatBubble = { id: (bubbleIdRef.current++).toString(), type: 'user', content: `${normalized} = ${result}` };
       // Create the result bubble to show just the result
-      const resultBubble: ChatBubble = { id: Date.now() + '-calc', type: 'calc', content: result };
+      const resultBubble: ChatBubble = { id: (bubbleIdRef.current++).toString(), type: 'calc', content: result };
       // Create a result-input bubble for gray preview (same as keypad input)
       const nextUserBubble: ChatBubble = { 
-        id: Date.now() + '-user', 
+        id: (bubbleIdRef.current++).toString(), 
         type: 'result-input',
         content: result 
       };
@@ -1401,7 +1396,7 @@ const MainScreen: React.FC = () => {
       if (enterKeyNewLine) {
         // New Line Mode: Create a new empty user bubble instead of showing the result
         const newEmptyBubble: ChatBubble = {
-          id: Date.now() + '-empty', 
+          id: (bubbleIdRef.current++).toString(), 
           type: 'user',
           content: ''
         };
@@ -1442,7 +1437,7 @@ const MainScreen: React.FC = () => {
       sendWebhookData(normalized, result);
     } else {
       setBubbles((prev: ChatBubble[]) => [...prev, { 
-        id: Date.now() + Math.random() + '', 
+        id: (bubbleIdRef.current++).toString(), 
         type: 'error', 
         content: t('mainApp.mathErrors.sorryTryAgain') // Changed from 'Could not calculate'
       }]);
@@ -1476,12 +1471,12 @@ const MainScreen: React.FC = () => {
       
       if (result !== MATH_ERROR) {
         // Create a bubble showing the equation with equals sign
-        const equationBubble: ChatBubble = { id: Date.now() + '-equation', type: 'user', content: `${spokenEquation} = ${result}` };
+        const equationBubble: ChatBubble = { id: (bubbleIdRef.current++).toString(), type: 'user', content: `${spokenEquation} = ${result}` };
         // Create the result bubble to show just the result
-        const resultBubble: ChatBubble = { id: Date.now() + '-calc', type: 'calc', content: result };
+        const resultBubble: ChatBubble = { id: (bubbleIdRef.current++).toString(), type: 'calc', content: result };
         // Create a result-input bubble for gray preview (same as keypad input)
         const nextUserBubble: ChatBubble = { 
-          id: Date.now() + '-user', 
+          id: (bubbleIdRef.current++).toString(), 
           type: 'result-input',
           content: result 
         };
@@ -1489,7 +1484,7 @@ const MainScreen: React.FC = () => {
         if (enterKeyNewLine) {
           // New Line Mode: Create a new empty user bubble instead of showing the result
           const newEmptyBubble: ChatBubble = {
-            id: Date.now() + '-empty', 
+            id: (bubbleIdRef.current++).toString(), 
             type: 'user',
             content: ''
           };
@@ -1529,13 +1524,13 @@ const MainScreen: React.FC = () => {
         }
         sendWebhookData(spokenEquation, result);
        } else {
-        setBubbles((prev: ChatBubble[]) => [...prev, { id: Date.now() + Math.random() + '', type: 'error', content: t('mainApp.mathErrors.sorryTryAgain') }]); // Changed from 'Could not calculate'
+        setBubbles((prev: ChatBubble[]) => [...prev, { id: (bubbleIdRef.current++).toString(), type: 'error', content: t('mainApp.mathErrors.sorryTryAgain') }]); // Changed from 'Could not calculate'
         // No error speech
         setKeypadInput(''); // Clear input on error
         setExpectingFreshInput(false);
       }
     } else {
-      setBubbles(prev => [...prev, { id: Date.now() + Math.random() + '', type: 'error', content: t('mainApp.speechErrors.noSpeechDetected') }]);
+      setBubbles(prev => [...prev, { id: (bubbleIdRef.current++).toString(), type: 'error', content: t('mainApp.speechErrors.noSpeechDetected') }]);
     }
 
     setIsRecording(false); // Ensure recording stops
@@ -1603,7 +1598,7 @@ const MainScreen: React.FC = () => {
     } else {
       // Add to bulk queue without logging
       const newItem = {
-        id: Date.now() + Math.random(),
+        id: bubbleIdRef.current++,
         timestamp: Date.now(),
         data: JSON.stringify(dataToSend)
       };
@@ -1678,7 +1673,6 @@ const MainScreen: React.FC = () => {
           return url;
         });
         setWebhookUrls(webhookItems);
-        setHasActiveWebhooks(webhookItems.some((item: WebhookItem) => item.active));
       }
 
       if (storedSendEquation) {
@@ -1768,23 +1762,40 @@ const MainScreen: React.FC = () => {
           setHistoryEnabled(isHistoryEnabled);
         }
       } catch (error) {
-        console.error('Error loading settings:', error);
+        // Silent error handling
       }
     };
     loadSettings();
   }, []);
 
-  // Save settings when they change
+  // Save settings when they change (avoid redundant writes)
+  const previousPrefsRef = useRef({
+    openInCalcMode: undefined as undefined | boolean,
+    isSpeechMuted: undefined as undefined | boolean,
+    historyEnabled: undefined as undefined | boolean,
+  });
   useEffect(() => {
     const saveSettings = async () => {
       try {
-        await Promise.all([
-          AsyncStorage.setItem('openInCalcMode', JSON.stringify(openInCalcMode)),
-          AsyncStorage.setItem('speechMuted', JSON.stringify(isSpeechMuted)),
-          AsyncStorage.setItem('historyEnabled', JSON.stringify(historyEnabled))
-        ]);
+        const ops: Promise<void>[] = [];
+        const prev = previousPrefsRef.current;
+        if (prev.openInCalcMode !== openInCalcMode) {
+          ops.push(AsyncStorage.setItem('openInCalcMode', JSON.stringify(openInCalcMode)));
+          prev.openInCalcMode = openInCalcMode;
+        }
+        if (prev.isSpeechMuted !== isSpeechMuted) {
+          ops.push(AsyncStorage.setItem('speechMuted', JSON.stringify(isSpeechMuted)));
+          prev.isSpeechMuted = isSpeechMuted;
+        }
+        if (prev.historyEnabled !== historyEnabled) {
+          ops.push(AsyncStorage.setItem('historyEnabled', JSON.stringify(historyEnabled)));
+          prev.historyEnabled = historyEnabled;
+        }
+        if (ops.length > 0) {
+          await Promise.all(ops);
+        }
       } catch (error) {
-        console.error('Error saving settings:', error);
+        // Silent error handling
       }
     };
     saveSettings();
@@ -1828,15 +1839,9 @@ const MainScreen: React.FC = () => {
   
   // Handle toggling webhook activation
   const handleToggleWebhook = (url: string, active: boolean) => {
-    console.log('Toggling webhook:', url, 'to', active);
     setWebhookUrls(webhookUrls.map(webhook => 
       webhook.url === url ? { ...webhook, active } : webhook
     ));
-    
-    // If activating a webhook and there are pending calculations, log it
-    if (active && pendingWebhookDataRef.current.length > 0) {
-      console.log(`Webhook activated with ${pendingWebhookDataRef.current.length} pending calculations`);
-    }
   };
 
   // Implement handleSendBulkData to send bulk data to active webhooks
@@ -1915,19 +1920,16 @@ const MainScreen: React.FC = () => {
             
             if (urlOutcome.status === 'fulfilled') {
               successCount++;
-              // Access the url property which is definitely a string
-              console.log(`Bulk send success to ${urlOutcome.value.url} for item ${bulkData[itemIndex]?.id}`);
             } else {
               failureCount++;
               // Explicitly cast the reason to our failure payload type
               const failureInfo = urlOutcome.reason;
-              console.error(`Bulk send failed to ${failureInfo.url} for item ${bulkData[itemIndex]?.id}:`, 
-                failureInfo.error?.message || failureInfo.error);
+              // Keep failure count; avoid noisy logs in production
             }
           }
         } else {
           // This means the Promise.allSettled for an item batch rejected
-          console.error(`Error processing bulk item ${bulkData[itemIndex]?.id}:`, itemOutcome.reason);
+          // Count as failures without logging
           failureCount += activeWebhooks.length; // Assume failure for all URLs for this item
         }
       }
@@ -1941,8 +1943,8 @@ const MainScreen: React.FC = () => {
         `Successfully sent data to ${successCount} endpoints.\nFailed to send data to ${failureCount} endpoints.`
       );
 
-    } catch (error) {
-      console.error("Error during bulk send process:", error);
+      } catch (error) {
+        // Silent error handling
       Alert.alert(t('mainApp.bulkSendError'), t('mainApp.bulkSendErrorMessage'));
       // Decide if bulkData should be cleared even on catastrophic failure
       // setBulkData([]);
@@ -1977,7 +1979,7 @@ const MainScreen: React.FC = () => {
         // For iOS and web, add a temporary bubble at the top
         setBubbles(prev => [
           { 
-            id: Date.now() + '-copy', 
+            id: (bubbleIdRef.current++).toString(), 
             type: 'calc', 
             content: t('mainApp.answerCopiedToClipboard') 
           },
@@ -1985,7 +1987,7 @@ const MainScreen: React.FC = () => {
         ]);
         // Remove the notification bubble after 2 seconds
         setTimeout(() => {
-          setBubbles(prev => prev.filter(b => !b.id.endsWith('-copy')));
+          setBubbles(prev => prev.slice(1));
         }, 2000);
       }
     };
@@ -2063,7 +2065,7 @@ const MainScreen: React.FC = () => {
   // Log rendering outside of JSX to avoid TypeScript errors
   // console.log('CalculatorScreen rendering...');
   
-  // Wrapper component for Web Empty State with logging
+  // Wrapper component for Web Empty State
   const WebEmptyState = () => {
     return (
       <View style={styles.emptyStateContainer}>
@@ -2094,7 +2096,7 @@ const MainScreen: React.FC = () => {
     );
   };
 
-  // Wrapper component for Mobile Empty State with logging
+  // Wrapper component for Mobile Empty State
   const MobileEmptyState = () => {
     return (
       <View style={styles.emptyStateContainer}>
@@ -2171,6 +2173,10 @@ const MainScreen: React.FC = () => {
     );
   };
 
+  const emptyComponent = useMemo(() => (
+    showKeypad ? null : (Platform.OS === 'web' ? <WebEmptyState /> : <MobileEmptyState />)
+  ), [showKeypad]);
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#121212" />
@@ -2190,11 +2196,7 @@ const MainScreen: React.FC = () => {
         keyExtractor={item => item.id}
         contentContainerStyle={styles.chatArea}
         onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
-        ListEmptyComponent={
-          showKeypad ? null : (
-            Platform.OS === 'web' ? <WebEmptyState /> : <MobileEmptyState />
-          )
-        }
+        ListEmptyComponent={emptyComponent}
         getItemLayout={(data, index) => ({
           length: 60, // Average height of a bubble
           offset: 60 * index,
@@ -2571,11 +2573,11 @@ const styles = StyleSheet.create<ComponentStyles>({
     borderRadius: 40,
     width: 70,
     height: 70,
-    ...(Platform.OS === 'web'
+    ...(Platform.OS === 'web' 
       ? {
           backgroundColor: 'transparent',
           boxShadow: '0px 2px 3px rgba(0,0,0,0.3)',
-        }
+        } 
       : {
           backgroundColor: '#1C1C1E',
           shadowColor: '#000',
@@ -2771,11 +2773,11 @@ const styles = StyleSheet.create<ComponentStyles>({
     ...(Platform.select({
       web: { boxShadow: '0px 2px 4px rgba(0,0,0,0.25)' },
       default: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.25,
-        shadowRadius: 4,
-        elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
       },
     }) as any),
     zIndex: 1000,
@@ -2847,11 +2849,11 @@ const styles = StyleSheet.create<ComponentStyles>({
     ...(Platform.select({
       web: { boxShadow: '0px 2px 3px rgba(0,0,0,0.3)' },
       default: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 3,
-        elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 3,
       },
     }) as any),
     borderWidth: 1,
@@ -2870,11 +2872,11 @@ const styles = StyleSheet.create<ComponentStyles>({
     ...(Platform.select({
       web: { boxShadow: '0px 2px 3px rgba(0,0,0,0.3)' },
       default: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 3,
-        elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 3,
       },
     }) as any),
     borderWidth: 1,
@@ -2893,11 +2895,11 @@ const styles = StyleSheet.create<ComponentStyles>({
     ...(Platform.select({
       web: { boxShadow: '0px 2px 3px rgba(0,0,0,0.3)' },
       default: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 3,
-        elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 3,
       },
     }) as any),
     borderWidth: 1,
@@ -2921,10 +2923,10 @@ const styles = StyleSheet.create<ComponentStyles>({
     ...(Platform.select({
       web: { boxShadow: '0px -2px 4px rgba(0,0,0,0.3)' },
       default: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: -2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
       },
     }) as any),
     paddingBottom: Platform.OS === 'web' ? 0 : 15, // Add padding for mobile safe area
