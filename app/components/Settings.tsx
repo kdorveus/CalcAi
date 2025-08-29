@@ -21,6 +21,7 @@ import {
   Animated,
   Linking,
 } from 'react-native';
+import Slider from '@react-native-community/slider';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 // Using our bundled AppIcon component instead of MaterialCommunityIcons
@@ -76,6 +77,8 @@ interface WebhookSettingsProps {
   setOpenInCalcMode?: (value: boolean) => void;
   historyEnabled?: boolean;
   setHistoryEnabled?: (value: boolean) => void;
+  continuousMode?: boolean;
+  setContinuousMode?: (value: boolean) => void;
 }
 
 export const WebhookSettings: React.FC<WebhookSettingsProps> = ({
@@ -109,6 +112,8 @@ export const WebhookSettings: React.FC<WebhookSettingsProps> = ({
   setOpenInCalcMode,
   historyEnabled = true,
   setHistoryEnabled,
+  continuousMode = false,
+  setContinuousMode,
 }) => {
   const { user, loading, signOut, authError, signInWithGoogle } = useAuth();
   const { isPremium, checkPremiumStatus, premiumLoading } = usePremium();
@@ -584,6 +589,15 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
                       onValueChange={() => requireAuth(() => toggleSpeechMute?.())}
                       trackColor={{ false: "#333", true: "#0066cc" }}
                       thumbColor={isSpeechMuted ? "#0066cc" : "#f4f3f4"}
+                    />
+                  </View>
+                  <View style={styles.settingRowCompact}>
+                    <Text style={styles.settingLabel}>Continuous Mode</Text>
+                    <Switch
+                      value={continuousMode}
+                      onValueChange={v => requireAuth(() => setContinuousMode?.(v))}
+                      trackColor={{ false: "#333", true: "#0066cc" }}
+                      thumbColor={continuousMode ? "#0066cc" : "#f4f3f4"}
                     />
                   </View>
                   <View style={styles.settingRowCompact}>

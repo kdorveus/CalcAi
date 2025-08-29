@@ -24,48 +24,34 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({ children }) 
 
   // Initialize language from storage or system locale
   useEffect(() => {
+    const initializeLanguage = async () => {
+      try {
+        const savedLanguage = await AsyncStorage.getItem(LANGUAGE_STORAGE_KEY);
+        if (savedLanguage && SUPPORTED_LANGUAGES.some(lang => lang.code === savedLanguage)) {
+          setLanguageState(savedLanguage);
+        } else {
+          const systemLanguage = getSystemLanguage();
+          const supportedSystemLang = SUPPORTED_LANGUAGES.find(lang => lang.code === systemLanguage);
+          if (supportedSystemLang) {
+            setLanguageState(systemLanguage);
+            await AsyncStorage.setItem(LANGUAGE_STORAGE_KEY, systemLanguage);
+          }
+        }
+      } catch (error) {
+        //
+      } finally {
+        setIsLoading(false);
+      }
+    };
     initializeLanguage();
   }, []);
-
-  const initializeLanguage = async () => {
-    try {
-      // First, try to get saved language from AsyncStorage
-      const savedLanguage = await AsyncStorage.getItem(LANGUAGE_STORAGE_KEY);
-      
-      if (savedLanguage && SUPPORTED_LANGUAGES.some(lang => lang.code === savedLanguage)) {
-        setLanguageState(savedLanguage);
-      } else {
-        // If no saved language, try to detect system language
-        const systemLanguage = getSystemLanguage();
-        const supportedSystemLang = SUPPORTED_LANGUAGES.find(lang => lang.code === systemLanguage);
-        
-        if (supportedSystemLang) {
-          setLanguageState(systemLanguage);
-          // Save detected language
-          await AsyncStorage.setItem(LANGUAGE_STORAGE_KEY, systemLanguage);
-        } else {
-          // Fall back to default language
-          setLanguageState(DEFAULT_LANGUAGE);
-          await AsyncStorage.setItem(LANGUAGE_STORAGE_KEY, DEFAULT_LANGUAGE);
-        }
-      }
-    } catch (error) {
-      console.error('Error initializing language:', error);
-      setLanguageState(DEFAULT_LANGUAGE);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const getSystemLanguage = (): string => {
     try {
       if (Platform.OS === 'web') {
-        // For web, use navigator.language
         const browserLang = navigator.language?.split('-')[0] || DEFAULT_LANGUAGE;
         return browserLang;
       } else {
-        // For React Native, we could use react-native-localize, but to keep it simple
-        // we'll just use DEFAULT_LANGUAGE for now
         return DEFAULT_LANGUAGE;
       }
     } catch (error) {
@@ -80,7 +66,7 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({ children }) 
         await AsyncStorage.setItem(LANGUAGE_STORAGE_KEY, lang);
       }
     } catch (error) {
-      console.error('Error saving language:', error);
+      //
     }
   };
 

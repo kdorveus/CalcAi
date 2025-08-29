@@ -16,6 +16,24 @@ export const SUPPORTED_LANGUAGES: Language[] = [
 
 export const DEFAULT_LANGUAGE = 'en';
 
+export const LOCALE_MAP: { [key: string]: string } = {
+  en: 'en-US',
+  es: 'es-ES',
+  fr: 'fr-FR',
+  de: 'de-DE',
+  pt: 'pt-BR',
+  it: 'it-IT',
+};
+
+export const SPEECH_RECOGNITION_LANG_MAP: { [key: string]: string } = {
+  en: 'en-US',
+  es: 'es-ES',
+  fr: 'fr-FR',
+  de: 'de-DE',
+  pt: 'pt-BR',
+  it: 'it-IT',
+};
+
 export type TranslationKey = string;
 
 export interface Translations {

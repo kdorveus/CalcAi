@@ -35,6 +35,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useCalculationHistory } from '../contexts/CalculationHistoryContext';
 import HistoryButton from '../components/HistoryButton';
 import { useTranslation } from '../hooks/useTranslation';
+import { LOCALE_MAP, SPEECH_RECOGNITION_LANG_MAP } from '../constants/Languages';
 // import HistoryModal from '../components/HistoryModal'; // Remove this line
 
 // Dynamically import components
@@ -57,24 +58,6 @@ import CrownIcon from '../assets/icons/crown.svg';
 // (Removed unused asset preload hook to avoid dead code)
 
 // --- Module-level constants and caches (hoisted to avoid re-creation) ---
-const LOCALE_MAP: { [key: string]: string } = {
-  en: 'en-US',
-  es: 'es-ES',
-  fr: 'fr-FR',
-  de: 'de-DE',
-  pt: 'pt-BR',
-  it: 'it-IT',
-};
-
-const SPEECH_RECOGNITION_LANG_MAP: { [key: string]: string } = {
-  en: 'en-US',
-  es: 'es-ES',
-  fr: 'fr-FR',
-  de: 'de-DE',
-  pt: 'pt-BR',
-  it: 'it-IT',
-};
-
 const KEYPAD_LAYOUT: string[][] = [
   ['↺', '()', '%', '÷'],
   ['7', '8', '9', '×'],
@@ -205,12 +188,15 @@ const MainScreen: React.FC = () => {
   const [isUnsentDataModalVisible, setIsUnsentDataModalVisible] = useState(false); // State for unsent data alert modal
   const [isSpeechMuted, setIsSpeechMuted] = useState(false); // State for UI updates
   const speechMutedRef = useRef(false); // Ref for actual mute control
+  const isTTSSpeaking = useRef(false);
+  const wasRecordingBeforeTTS = useRef(false);
   const [openInCalcMode, setOpenInCalcMode] = useState(false); // State for calculator mode
   const [showHistoryModal, setShowHistoryModal] = useState(false); // State for history modal
   const [historyEnabled, setHistoryEnabled] = useState(true); // State for history toggle
   
   // State for tracking tooltip hover
   const [hoveredTooltip, setHoveredTooltip] = useState<string | null>(null);
+  const [continuousMode, setContinuousMode] = useState(false);
   
   // Simple function to toggle tooltip visibility
   const toggleTooltip = useCallback((tooltipId: string | null) => {
@@ -228,14 +214,36 @@ const MainScreen: React.FC = () => {
         Speech.speak(text, {
           language: getSpeechRecognitionLanguage(language),
           pitch: 1.0,
-          rate: 0.8,
-          onDone: () => {},
-          onStopped: () => {},
-          onError: () => {}
+          rate: 1.1,
+          onStart: () => {
+            isTTSSpeaking.current = true;
+            if (isRecording) {
+              wasRecordingBeforeTTS.current = true;
+              stopRecording();
+            }
+          },
+          onDone: () => {
+            isTTSSpeaking.current = false;
+            if (wasRecordingBeforeTTS.current) {
+              startRecording();
+              wasRecordingBeforeTTS.current = false;
+            }
+          },
+          onStopped: () => {
+            isTTSSpeaking.current = false;
+            if (wasRecordingBeforeTTS.current) {
+              startRecording();
+              wasRecordingBeforeTTS.current = false;
+            }
+          },
+          onError: () => {
+            isTTSSpeaking.current = false;
+            wasRecordingBeforeTTS.current = false;
+          }
         });
       }, 100);
     }
-  }, [language]);
+  }, [language, isRecording]);
   
   // Function to stop all speech and update mute state
   const toggleSpeechMute = useCallback(() => {
@@ -1278,8 +1286,8 @@ const MainScreen: React.FC = () => {
       // Start speech recognition (permissions already requested in background)
       await ExpoSpeechRecognitionModule.start({
         lang: getSpeechRecognitionLanguage(language),
-        continuous: false,
-        interimResults: false  // Changed to false - we only want final results
+        continuous: continuousMode,
+        interimResults: continuousMode  // Changed to false - we only want final results
       });
       
     } catch (e) {
@@ -1734,10 +1742,11 @@ const MainScreen: React.FC = () => {
   useEffect(() => {
     const loadSettings = async () => {
       try {
-        const [storedOpenInCalcMode, storedSpeechMuted, storedHistoryEnabled] = await Promise.all([
+        const [storedOpenInCalcMode, storedSpeechMuted, storedHistoryEnabled, storedContinuousMode] = await Promise.all([
           AsyncStorage.getItem('openInCalcMode'),
           AsyncStorage.getItem('speechMuted'),
-          AsyncStorage.getItem('historyEnabled')
+          AsyncStorage.getItem('historyEnabled'),
+          AsyncStorage.getItem('continuousMode')
         ]);
 
         // Initialize calculator mode
@@ -1761,6 +1770,10 @@ const MainScreen: React.FC = () => {
           const isHistoryEnabled = JSON.parse(storedHistoryEnabled);
           setHistoryEnabled(isHistoryEnabled);
         }
+
+        if (storedContinuousMode !== null) {
+          setContinuousMode(JSON.parse(storedContinuousMode));
+        }
       } catch (error) {
         // Silent error handling
       }
@@ -1773,6 +1786,7 @@ const MainScreen: React.FC = () => {
     openInCalcMode: undefined as undefined | boolean,
     isSpeechMuted: undefined as undefined | boolean,
     historyEnabled: undefined as undefined | boolean,
+    continuousMode: undefined as undefined | boolean,
   });
   useEffect(() => {
     const saveSettings = async () => {
@@ -1791,6 +1805,10 @@ const MainScreen: React.FC = () => {
           ops.push(AsyncStorage.setItem('historyEnabled', JSON.stringify(historyEnabled)));
           prev.historyEnabled = historyEnabled;
         }
+        if (prev.continuousMode !== continuousMode) {
+          ops.push(AsyncStorage.setItem('continuousMode', JSON.stringify(continuousMode)));
+          prev.continuousMode = continuousMode;
+        }
         if (ops.length > 0) {
           await Promise.all(ops);
         }
@@ -1799,7 +1817,7 @@ const MainScreen: React.FC = () => {
       }
     };
     saveSettings();
-  }, [openInCalcMode, isSpeechMuted, historyEnabled]);
+  }, [openInCalcMode, isSpeechMuted, historyEnabled, continuousMode]);
 
   // --- Component Lifecycle & Effects ---
   
@@ -2313,6 +2331,8 @@ const MainScreen: React.FC = () => {
           setOpenInCalcMode={setOpenInCalcMode}
           historyEnabled={historyEnabled}
           setHistoryEnabled={setHistoryEnabled}
+          continuousMode={continuousMode}
+          setContinuousMode={setContinuousMode}
         />
       </Suspense>
 
@@ -2351,13 +2371,19 @@ const MainScreen: React.FC = () => {
             isRecording ? { backgroundColor: '#0066cc' } : {}, // Blue if recording
             isWebMobile && styles.micButtonWebMobile // Additional styles for web mobile
           ]}
-          onPress={isRecording ? stopRecording : startRecording}
-          disabled={isTranscribing}
+          onPress={() => {
+            if (isRecording) {
+              stopRecording();
+            } else {
+              startRecording();
+            }
+          }}
+          disabled={isTranscribing && !continuousMode}
         >
-          {isTranscribing ? (
+          {isTranscribing && !continuousMode ? (
             <ActivityIndicator color="#eee" />
           ) : (
-            <AppIcon name={isRecording ? "stop" : "microphone"} size={isWebMobile ? 40 : 60} color="#eee" />
+            <AppIcon name={isRecording ? "microphone-off" : "microphone"} size={isWebMobile ? 40 : 60} color={"#eee"} />
           )}
         </TouchableOpacity>
         {/* Webhook Icon with tooltip */}
