@@ -320,7 +320,8 @@ const MainScreen: React.FC = () => {
           'eleven': '11', 'twelve': '12', 'thirteen': '13', 'fourteen': '14', 'fifteen': '15',
           'sixteen': '16', 'seventeen': '17', 'eighteen': '18', 'nineteen': '19', 'twenty': '20',
           'thirty': '30', 'forty': '40', 'fifty': '50', 'sixty': '60', 'seventy': '70',
-          'eighty': '80', 'ninety': '90', 'hundred': '100'
+          'eighty': '80', 'ninety': '90', 'hundred': '100',
+          'million': '1000000', 'billion': '1000000000', 'trillion': '1000000000000'
         },
         operations: {
           addition: ['plus', 'add', 'and'],
@@ -352,7 +353,8 @@ const MainScreen: React.FC = () => {
           'once': '11', 'doce': '12', 'trece': '13', 'catorce': '14', 'quince': '15',
           'dieciséis': '16', 'diecisiete': '17', 'dieciocho': '18', 'diecinueve': '19', 'veinte': '20',
           'treinta': '30', 'cuarenta': '40', 'cincuenta': '50', 'sesenta': '60', 'setenta': '70',
-          'ochenta': '80', 'noventa': '90', 'cien': '100'
+          'ochenta': '80', 'noventa': '90', 'cien': '100',
+          'millón': '1000000', 'mil millones': '1000000000', 'billón': '1000000000000'
         },
         operations: {
           addition: ['más', 'sumar', 'y', 'suma'],
@@ -384,7 +386,8 @@ const MainScreen: React.FC = () => {
           'onze': '11', 'douze': '12', 'treize': '13', 'quatorze': '14', 'quinze': '15',
           'seize': '16', 'dix-sept': '17', 'dix-huit': '18', 'dix-neuf': '19', 'vingt': '20',
           'trente': '30', 'quarante': '40', 'cinquante': '50', 'soixante': '60', 'soixante-dix': '70',
-          'quatre-vingts': '80', 'quatre-vingt-dix': '90', 'cent': '100'
+          'quatre-vingts': '80', 'quatre-vingt-dix': '90', 'cent': '100',
+          'million': '1000000', 'milliard': '1000000000', 'trillion': '1000000000000'
         },
         operations: {
           addition: ['plus', 'ajouter', 'et', 'additionner'],
@@ -416,7 +419,8 @@ const MainScreen: React.FC = () => {
           'elf': '11', 'zwölf': '12', 'dreizehn': '13', 'vierzehn': '14', 'fünfzehn': '15',
           'sechzehn': '16', 'siebzehn': '17', 'achtzehn': '18', 'neunzehn': '19', 'zwanzig': '20',
           'dreißig': '30', 'vierzig': '40', 'fünfzig': '50', 'sechzig': '60', 'siebzig': '70',
-          'achtzig': '80', 'neunzig': '90', 'hundert': '100'
+          'achtzig': '80', 'neunzig': '90', 'hundert': '100',
+          'million': '1000000', 'milliarde': '1000000000', 'trillion': '1000000000000'
         },
         operations: {
           addition: ['plus', 'addieren', 'und', 'hinzufügen'],
@@ -448,7 +452,8 @@ const MainScreen: React.FC = () => {
           'onze': '11', 'doze': '12', 'treze': '13', 'quatorze': '14', 'quinze': '15',
           'dezesseis': '16', 'dezessete': '17', 'dezoito': '18', 'dezenove': '19', 'vinte': '20',
           'trinta': '30', 'quarenta': '40', 'cinquenta': '50', 'sessenta': '60', 'setenta': '70',
-          'oitenta': '80', 'noventa': '90', 'cem': '100'
+          'oitenta': '80', 'noventa': '90', 'cem': '100',
+          'milhão': '1000000', 'bilhão': '1000000000', 'trilhão': '1000000000000'
         },
         operations: {
           addition: ['mais', 'somar', 'e', 'adicionar'],
@@ -480,7 +485,8 @@ const MainScreen: React.FC = () => {
           'undici': '11', 'dodici': '12', 'tredici': '13', 'quattordici': '14', 'quindici': '15',
           'sedici': '16', 'diciassette': '17', 'diciotto': '18', 'diciannove': '19', 'venti': '20',
           'trenta': '30', 'quaranta': '40', 'cinquanta': '50', 'sessanta': '60', 'settanta': '70',
-          'ottanta': '80', 'novanta': '90', 'cento': '100'
+          'ottanta': '80', 'novanta': '90', 'cento': '100',
+          'milione': '1000000', 'miliardo': '1000000000', 'trillione': '1000000000000'
         },
         operations: {
           addition: ['più', 'sommare', 'e', 'aggiungere'],
@@ -569,8 +575,40 @@ const MainScreen: React.FC = () => {
     let normalized = text.toLowerCase();
     const compiled = compiledLanguageRegex;
     const patterns = compiled.patterns;
-    
-    // Convert spelled-out numbers FIRST
+
+    // Handle compound numbers (e.g., "5million", "3billion", "2trillion") FIRST
+    const compoundRegex = /(\d+)\s*(million|milliard|milliarde|milhão|milione|billion|mil millones|billón|bilhão|miliardo|trillion|trilhão|trillione)/g;
+    normalized = normalized.replace(compoundRegex, (match, number, multiplier) => {
+      const num = parseInt(number, 10);
+      let result = num;
+
+      // Apply multiplier based on the word
+      switch (multiplier.toLowerCase()) {
+        case 'million':
+        case 'milliard':  // French for billion
+        case 'milliarde': // German for billion
+        case 'milhão':    // Portuguese for million
+        case 'milione':   // Italian for million
+          result = num * 1000000;
+          break;
+        case 'billion':
+        case 'mil millones': // Spanish for billion
+        case 'bilhão':       // Portuguese for billion
+        case 'miliardo':     // Italian for billion
+          result = num * 1000000000;
+          break;
+        case 'trillion':
+        case 'billón':       // Spanish for trillion
+        case 'trilhão':      // Portuguese for trillion
+        case 'trillione':    // Italian for trillion
+          result = num * 1000000000000;
+          break;
+      }
+
+      return result.toString();
+    });
+
+    // Convert spelled-out numbers (basic numbers and standalone large numbers)
     const numWords = patterns.numbers;
     if (compiled.numberWordsRegex) {
       normalized = normalized.replace(compiled.numberWordsRegex, (match) => numWords[match]);
@@ -1057,13 +1095,22 @@ const MainScreen: React.FC = () => {
         isTTSSpeaking.current = true;
       },
       onDone: () => {
+        // Clear flag and reset ALL speech-related state immediately when TTS finishes
         isTTSSpeaking.current = false;
+        setInterimTranscript(''); // Clear any buffered speech
+        lastProcessedTranscriptRef.current = ''; // Reset duplicate prevention
       },
       onStopped: () => {
+        // Clear flag and reset state when TTS is manually stopped
         isTTSSpeaking.current = false;
+        setInterimTranscript(''); // Clear any buffered speech
+        lastProcessedTranscriptRef.current = ''; // Reset duplicate prevention
       },
       onError: () => {
+        // Clear flag and reset state on TTS error
         isTTSSpeaking.current = false;
+        setInterimTranscript(''); // Clear any buffered speech
+        lastProcessedTranscriptRef.current = ''; // Reset duplicate prevention
       }
     });
   }, [language]);
@@ -1099,6 +1146,9 @@ const MainScreen: React.FC = () => {
     const result = handleInput(processedEquation, 'speech');
 
     if (result !== MATH_ERROR) {
+      // Clear interim transcript immediately after successful calculation
+      setInterimTranscript('');
+
       // Create bubbles for display
       const equationBubble: ChatBubble = {
         id: (bubbleIdRef.current++).toString(),
@@ -1252,12 +1302,18 @@ const MainScreen: React.FC = () => {
         if (continuousMode) {
           let lastTranscript = '';
           silenceTimerRef.current = setInterval(() => {
-            if (interimTranscript && interimTranscript === lastTranscript) {
-              const finalTranscript = interimTranscript;
-              processSpeechResult(finalTranscript, 'native');
+            // CONDITIONAL RULE: Skip processing if TTS is currently speaking
+            if (isTTSSpeaking.current) return;
+
+            // Ensure we have clean transcript data to work with
+            if (interimTranscript && interimTranscript === lastTranscript && interimTranscript.trim()) {
+              const finalTranscript = interimTranscript.trim();
+              if (finalTranscript) {
+                processSpeechResult(finalTranscript, 'native');
+              }
             }
             lastTranscript = interimTranscript;
-          }, 250); // Reduced to 250ms for instant continuous mode response
+          },500); // Reduced to 500ms for instant continuous mode response
         }
 
       } catch (e) {
@@ -1271,9 +1327,12 @@ const MainScreen: React.FC = () => {
   const stopRecording = async () => {
     setIsRecording(false);
     setInterimTranscript('');
-    // Reset refs to prevent stale data in continuous mode
+    // Reset ALL refs to prevent stale data and buffer accumulation
     lastProcessedTranscriptRef.current = '';
     lastSpokenResultRef.current = '';
+    lastTranscriptRef.current = '';
+    // Ensure TTS state is cleared when stopping recording
+    isTTSSpeaking.current = false;
     if (silenceTimerRef.current) {
       clearInterval(silenceTimerRef.current);
       silenceTimerRef.current = null;
