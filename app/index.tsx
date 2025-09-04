@@ -1257,7 +1257,7 @@ const MainScreen: React.FC = () => {
               processSpeechResult(finalTranscript, 'native');
             }
             lastTranscript = interimTranscript;
-          }, 500);
+          }, 250); // Reduced to 250ms for instant continuous mode response
         }
 
       } catch (e) {
