@@ -595,9 +595,10 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
                     <Text style={styles.settingLabel}>Continuous Mode</Text>
                     <Switch
                       value={continuousMode}
-                      onValueChange={v => requireAuth(() => setContinuousMode?.(v))}
+                      onValueChange={v => setContinuousMode?.(v)}
                       trackColor={{ false: "#333", true: "#0066cc" }}
                       thumbColor={continuousMode ? "#0066cc" : "#f4f3f4"}
+                      disabled={loading}
                     />
                   </View>
                   <View style={styles.settingRowCompact}>

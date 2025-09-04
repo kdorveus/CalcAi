@@ -3,6 +3,7 @@ import { SvgProps, Svg, Path } from 'react-native-svg';
 
 // Import all SVG icons
 import MicrophoneIcon from '../assets/icons/microphone.svg';
+import MicrophoneOffIcon from '../assets/icons/microphone-off.svg';
 import CalculatorIcon from '../assets/icons/calculator.svg';
 import SendIcon from '../assets/icons/send.svg';
 import CloseIcon from '../assets/icons/close.svg';
@@ -81,6 +82,7 @@ const RefreshIcon = (props: SvgProps) => (
 const iconMap: Record<string, React.FC<SvgProps>> = {
   'webhook': WebhookIcon,
   'microphone': MicrophoneIcon,
+  'microphone-off': MicrophoneOffIcon,
   'calculator': CalculatorIcon,
   'send': SendIcon,
   'close': CloseIcon,

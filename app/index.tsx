@@ -150,9 +150,21 @@ const MainScreen: React.FC = () => {
   // const fallbackNeeded = false;
   
   // Add responsive dimensions
-  const { height: screenHeight, width: screenWidth } = Dimensions.get('window');
-  const isSmallScreen = screenHeight < 700;
-  const isWebMobile = Platform.OS === 'web' && screenWidth < 768;
+  const [isWebMobile, setIsWebMobile] = useState(false);
+  
+  useEffect(() => {
+    const updateLayout = () => {
+      const { width } = Dimensions.get('window');
+      setIsWebMobile(Platform.OS === 'web' && width < 768);
+    };
+
+    updateLayout();
+    const subscription = Dimensions.addEventListener('change', updateLayout);
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
   
   // --- Force immediate render of critical UI ---
   useEffect(() => {
@@ -175,9 +187,14 @@ const MainScreen: React.FC = () => {
   const speechModuleRef = useRef<any>(null); // Ref to store loaded speech module
   const speechInitializedRef = useRef(false); // Track if speech is ready
   const permissionsGrantedRef = useRef(false); // Track permissions status
+  const lastTranscriptRef = useRef('');
+  const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastProcessedTranscriptRef = useRef<string>(''); // Prevent duplicate processing
+  const lastSpokenResultRef = useRef<string>(''); // Prevent duplicate TTS
   
   // State variables
   const [bubbles, setBubbles] = useState<ChatBubble[]>([]);
+  const [interimTranscript, setInterimTranscript] = useState('');
   const [showKeypad, setShowKeypad] = useState(false);
   // const [recording, setRecording] = useState<Audio.Recording | null>(null); // Removed Audio.Recording type usage here
   const [isRecording, setIsRecording] = useState(false);
@@ -189,7 +206,6 @@ const MainScreen: React.FC = () => {
   const [isSpeechMuted, setIsSpeechMuted] = useState(false); // State for UI updates
   const speechMutedRef = useRef(false); // Ref for actual mute control
   const isTTSSpeaking = useRef(false);
-  const wasRecordingBeforeTTS = useRef(false);
   const [openInCalcMode, setOpenInCalcMode] = useState(false); // State for calculator mode
   const [showHistoryModal, setShowHistoryModal] = useState(false); // State for history modal
   const [historyEnabled, setHistoryEnabled] = useState(true); // State for history toggle
@@ -203,47 +219,6 @@ const MainScreen: React.FC = () => {
     setHoveredTooltip(tooltipId);
   }, []);
   
-  // Function to safely speak text when not muted
-  const speakIfUnmuted = useCallback((text: string) => {
-    if (!speechMutedRef.current) {
-      // Stop any existing speech first to avoid conflicts
-      Speech.stop();
-      
-      // Small delay to ensure stop command completes before starting new speech
-      setTimeout(() => {
-        Speech.speak(text, {
-          language: getSpeechRecognitionLanguage(language),
-          pitch: 1.0,
-          rate: 1.1,
-          onStart: () => {
-            isTTSSpeaking.current = true;
-            if (isRecording) {
-              wasRecordingBeforeTTS.current = true;
-              stopRecording();
-            }
-          },
-          onDone: () => {
-            isTTSSpeaking.current = false;
-            if (wasRecordingBeforeTTS.current) {
-              startRecording();
-              wasRecordingBeforeTTS.current = false;
-            }
-          },
-          onStopped: () => {
-            isTTSSpeaking.current = false;
-            if (wasRecordingBeforeTTS.current) {
-              startRecording();
-              wasRecordingBeforeTTS.current = false;
-            }
-          },
-          onError: () => {
-            isTTSSpeaking.current = false;
-            wasRecordingBeforeTTS.current = false;
-          }
-        });
-      }, 100);
-    }
-  }, [language, isRecording]);
   
   // Function to stop all speech and update mute state
   const toggleSpeechMute = useCallback(() => {
@@ -1067,482 +1042,262 @@ const MainScreen: React.FC = () => {
     return () => clearTimeout(timeout);
   }, [keypadInput, formatNumber, language]);
 
+  // Single TTS function to prevent duplicates
+  const speakSingleResult = useCallback((text: string) => {
+    if (isTTSSpeaking.current) {
+      Speech.stop(); // Cancel any ongoing speech
+    }
+
+    isTTSSpeaking.current = true;
+    Speech.speak(text, {
+      language: getSpeechRecognitionLanguage(language),
+      pitch: 1.0,
+      rate: 1.1,
+      onStart: () => {
+        isTTSSpeaking.current = true;
+      },
+      onDone: () => {
+        isTTSSpeaking.current = false;
+      },
+      onStopped: () => {
+        isTTSSpeaking.current = false;
+      },
+      onError: () => {
+        isTTSSpeaking.current = false;
+      }
+    });
+  }, [language]);
+
+  // Single unified speech result processor (DRY principle)
+  const processSpeechResult = useCallback((transcript: string, source: 'web' | 'native') => {
+    if (!transcript.trim()) return;
+
+    // Prevent duplicate processing in continuous mode
+    if (source === 'web' && lastProcessedTranscriptRef.current === transcript) {
+      return;
+    }
+    lastProcessedTranscriptRef.current = transcript;
+
+    // Clear interim transcript only after we have final result
+    setInterimTranscript('');
+
+    let processedEquation = normalizeSpokenMath(transcript);
+    processedEquation = processedEquation.trim();
+
+    // Check if input starts with an operator and prepend last result if applicable
+    const startsWithOperator = ['+', '-', '*', '/', '%'].some(op =>
+      processedEquation.startsWith(op)
+    );
+    if (startsWithOperator) {
+      const lastResult = lastResultRef.current;
+      if (lastResult !== null) {
+        processedEquation = lastResult + ' ' + processedEquation;
+      }
+    }
+
+    // Calculate the result
+    const result = handleInput(processedEquation, 'speech');
+
+    if (result !== MATH_ERROR) {
+      // Create bubbles for display
+      const equationBubble: ChatBubble = {
+        id: (bubbleIdRef.current++).toString(),
+        type: 'user',
+        content: `${processedEquation} = ${result}`
+      };
+      const resultBubble: ChatBubble = {
+        id: (bubbleIdRef.current++).toString(),
+        type: 'calc',
+        content: result
+      };
+
+      if (enterKeyNewLine) {
+        const newEmptyBubble: ChatBubble = {
+          id: (bubbleIdRef.current++).toString(),
+          type: 'user',
+          content: ''
+        };
+
+        setBubbles(prev => {
+          const filteredBubbles = prev.filter(b => b.type !== 'user' || b.content !== keypadInput);
+          return [...filteredBubbles, equationBubble, resultBubble, newEmptyBubble];
+        });
+
+        setKeypadInput('');
+        setPreviewResult(null);
+      } else {
+        const nextUserBubble: ChatBubble = {
+          id: (bubbleIdRef.current++).toString(),
+          type: 'result-input',
+          content: result
+        };
+
+        setBubbles(prev => {
+          const filteredBubbles = prev.filter(b => b.type !== 'user' || b.content !== keypadInput);
+          return [...filteredBubbles, equationBubble, resultBubble, nextUserBubble];
+        });
+
+        setKeypadInput(result);
+      }
+
+      // Single TTS call point (no duplication)
+      if (!speechMutedRef.current && result !== lastSpokenResultRef.current) {
+        lastSpokenResultRef.current = result;
+        speakSingleResult(result);
+      }
+
+      lastResultRef.current = result;
+      setExpectingFreshInput(true);
+
+      // Webhook and history
+      if (historyEnabled) {
+        addCalculation(processedEquation, result);
+      }
+      sendWebhookData(processedEquation, result);
+    } else {
+      setBubbles(prev => [...prev, {
+        id: (bubbleIdRef.current++).toString(),
+        type: 'error',
+        content: t('mainApp.mathErrors.sorryTryAgain')
+      }]);
+      setKeypadInput('');
+      setExpectingFreshInput(false);
+    }
+  }, [normalizeSpokenMath, handleInput, enterKeyNewLine, keypadInput, historyEnabled, speechMutedRef, lastResultRef, t, lastProcessedTranscriptRef, lastSpokenResultRef, speakSingleResult]);
+
   // Audio recording logic for speech-to-text
   // Platform-specific speech-to-text
   const startRecording = async () => {
+    if (isRecording) return;
+    setIsRecording(true);
+
     if (Platform.OS === 'web') {
-      // Web Speech API
-      if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-        Alert.alert(t('mainApp.speechNotSupported'));
-        return;
-      }
       const WebSpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      const recognition = new WebSpeechRecognition();
-      recognition.lang = getSpeechRecognitionLanguage(language);
-      recognition.interimResults = false;
-      recognition.maxAlternatives = 1;
-      setIsRecording(true);
-      setIsTranscribing(true);
-      recognition.onresult = (event: any) => {
-        handleWebSpeechResult(event.results[0][0].transcript);
-      };
-      recognition.onerror = (event: any) => {
-        // Silent error handling
+      if (!WebSpeechRecognition) {
+        Alert.alert(t('mainApp.speechNotSupported'));
         setIsRecording(false);
-        setIsTranscribing(false);
-      };
-      recognition.onend = () => {
-        setIsRecording(false);
-        setIsTranscribing(false);
-      };
-      recognition.start();
-      return;
-    }
-    
-    // --- Native speech recognition (Android/iOS) ---
-    try {
-      // Use pre-initialized module and permissions
-      if (!speechInitializedRef.current || !speechModuleRef.current) {
-        // Fallback to old behavior if initialization failed
-        if (!speechModuleRef.current) {
-          speechModuleRef.current = await import('expo-speech-recognition');
-        }
-        const { granted } = await Audio.requestPermissionsAsync();
-        if (!granted) {
-          Alert.alert(t('mainApp.permissionRequired'), t('mainApp.microphonePermissionRequired'));
-          return;
-        }
-        const { ExpoSpeechRecognitionModule } = speechModuleRef.current;
-        await ExpoSpeechRecognitionModule.requestPermissionsAsync();
-      }
-
-      const { ExpoSpeechRecognitionModule } = speechModuleRef.current;
-
-      // Always make sure we start clean
-      if (isRecording || isTranscribing) {
-        // Already recording or processing, don't start again
         return;
       }
       
-      // Immediately clean up any existing listeners
-      if (speechListenerRef.current) {
-        speechListenerRef.current.remove();
-        speechListenerRef.current = null;
-      }
-      if (errorListenerRef.current) {
-        errorListenerRef.current.remove();
-        errorListenerRef.current = null;
-      }
-      
-      setIsRecording(true);
-      setIsTranscribing(true);
-      
-      // Important: Use a single-result approach
-      // Create a processing function that will only be called once
-      let resultProcessed = false;
-      
-      const handleResult = (event: any) => {
-        // Critical: Immediately remove all listeners to prevent duplicates
-        if (speechListenerRef.current) {
-          speechListenerRef.current.remove();
-          speechListenerRef.current = null;
-        }
-        if (errorListenerRef.current) {
-          errorListenerRef.current.remove();
-          errorListenerRef.current = null;
-        }
+      recognitionRef.current = new WebSpeechRecognition();
+      const recognition = recognitionRef.current;
+      recognition.lang = getSpeechRecognitionLanguage(language);
+      recognition.interimResults = true;
+      recognition.continuous = continuousMode;
+
+      recognition.onresult = (event: any) => {
+        if (isTTSSpeaking.current) return;
         
-        // Ensure we only process results once
-        if (resultProcessed) return;
-        resultProcessed = true;
-        
-        // Stop recognition immediately
-        try {
-          ExpoSpeechRecognitionModule.stop();
-        } catch (error: unknown) {
-          // Silent error handling
-        }
-        
-        setIsRecording(false);
-        setIsTranscribing(false);
-        
-        if (event.results && event.results.length > 0) {
-          const transcript = event.results[0].transcript;
-          // Remove console.log
-          setTimeout(() => {
-            processNativeTranscription(transcript);
-          }, 10);
-        } else {
-          if (Platform.OS === 'android') {
-            ToastAndroid.show(t('mainApp.speechErrors.noSpeechDetected'), ToastAndroid.SHORT);
+        let finalTranscript = '';
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            finalTranscript += event.results[i][0].transcript;
           } else {
-            // For iOS, use a subtle bubble that auto-dismisses
-            setBubbles(prev => [
-              { 
-                id: (bubbleIdRef.current++).toString(), 
-                type: 'calc', 
-                content: t('mainApp.speechErrors.recognitionFailed') 
-              },
-              ...prev
-            ]);
-            // Auto-remove the bubble after 2 seconds
-            setTimeout(() => {
-              setBubbles(prev => prev.slice(1));
-            }, 2000);
+            setInterimTranscript(finalTranscript + event.results[i][0].transcript);
           }
         }
+
+        if (finalTranscript) {
+          processSpeechResult(finalTranscript.trim(), 'web');
+        }
       };
-      
-      const handleError = (event: any) => {
-        // Critical: Immediately remove all listeners to prevent duplicates
-        if (speechListenerRef.current) {
-          speechListenerRef.current.remove();
-          speechListenerRef.current = null;
-        }
-        if (errorListenerRef.current) {
-          errorListenerRef.current.remove();
-          errorListenerRef.current = null;
-        }
-        
-        // Ensure we only process errors once
-        if (resultProcessed) return;
-        resultProcessed = true;
-        
-        // Stop recognition immediately
-        try {
-          ExpoSpeechRecognitionModule.stop();
-        } catch (error: unknown) {
-          // Silent error handling
-        }
-        
-        setIsRecording(false);
-        setIsTranscribing(false);
-        
-        if (Platform.OS === 'android') {
-          ToastAndroid.show(t('mainApp.speechErrors.recognitionFailed'), ToastAndroid.SHORT);
-        } else {
-          // For iOS, use a subtle bubble that auto-dismisses
-          setBubbles(prev => [
-            { 
-              id: (bubbleIdRef.current++).toString(), 
-              type: 'calc', 
-              content: t('mainApp.speechErrors.recognitionFailed') 
-            },
-            ...prev
-          ]);
-          // Auto-remove the bubble after 2 seconds
-          setTimeout(() => {
-            setBubbles(prev => prev.slice(1));
-          }, 2000);
+
+      recognition.onend = () => {
+        // In continuous mode, we only stop when the user clicks the button.
+        // The service might stop on its own after a long pause, but we let `stopRecording` handle the state.
+        if (!continuousMode) {
+          setIsRecording(false);
+          setInterimTranscript('');
         }
       };
       
-      // Add listeners
-      speechListenerRef.current = ExpoSpeechRecognitionModule.addListener('result', handleResult);
-      errorListenerRef.current = ExpoSpeechRecognitionModule.addListener('error', handleError);
-      
-      // Add a safety timeout to prevent hanging in recording state
-      const safetyTimeout = setTimeout(() => {
-        if (isRecording) {
-          // If we're still recording after 10 seconds, force stop
-          stopRecording();
-          setBubbles(prev => [...prev, { 
-            id: (bubbleIdRef.current++).toString(), 
-            type: 'error', 
-            content: t('mainApp.speechErrors.recognitionFailed') 
-          }]);
+      recognition.start();
+    } else {
+      // --- Native speech recognition (Android/iOS) ---
+      try {
+        if (!speechInitializedRef.current) {
+          await initializeSpeech();
         }
-      }, 10000);
-      
-      // Add silence detection timeout
-      let lastAudioLevel = 0;
-      let silenceCounter = 0;
-      const silenceTimeout = setInterval(() => {
-        if (!isRecording) {
-          clearInterval(silenceTimeout);
+        if (!permissionsGrantedRef.current) {
+          Alert.alert(t('mainApp.permissionRequired'), t('mainApp.microphonePermissionRequired'));
+          setIsRecording(false);
           return;
         }
+
+        const { ExpoSpeechRecognitionModule } = speechModuleRef.current;
         
-        // Get audio level from the recognition module
-        ExpoSpeechRecognitionModule.getAudioLevel().then((level: number) => {
-          if (level === lastAudioLevel || level < 0.1) { // Threshold for silence
-            silenceCounter++;
-            if (silenceCounter >= 3) { // 3 consecutive silence checks (1.5 seconds)
-              stopRecording();
-              setBubbles(prev => [...prev, { 
-                id: (bubbleIdRef.current++).toString(), 
-                type: 'calc', 
-                content: t('mainApp.speechErrors.noSpeechDetected') 
-              }]);
-              clearInterval(silenceTimeout);
-            }
-          } else {
-            silenceCounter = 0;
+        const handleResult = (event: any) => {
+          if (isTTSSpeaking.current) return;
+          if (event.results && event.results.length > 0) {
+            const transcript = event.results[0].transcript;
+            setInterimTranscript(transcript);
           }
-          lastAudioLevel = level;
+        };
+
+        const handleError = () => {
+          setIsRecording(false);
+          setInterimTranscript('');
+          // Handle error display
+        };
+
+        speechListenerRef.current = ExpoSpeechRecognitionModule.addListener('result', handleResult);
+        errorListenerRef.current = ExpoSpeechRecognitionModule.addListener('error', handleError);
+
+        await ExpoSpeechRecognitionModule.start({
+          lang: getSpeechRecognitionLanguage(language),
+          continuous: true,
+          interimResults: true,
         });
-      }, 500); // Check every 500ms
-      
-      // Start speech recognition (permissions already requested in background)
-      await ExpoSpeechRecognitionModule.start({
-        lang: getSpeechRecognitionLanguage(language),
-        continuous: continuousMode,
-        interimResults: continuousMode  // Changed to false - we only want final results
-      });
-      
-    } catch (e) {
-      // Silent error handling
-      setIsRecording(false);
-      setIsTranscribing(false);
-      
-      // Clean up any listeners that might have been created
-      if (speechListenerRef.current) {
-        speechListenerRef.current.remove();
-        speechListenerRef.current = null;
-      }
-      if (errorListenerRef.current) {
-        errorListenerRef.current.remove();
-        errorListenerRef.current = null;
-      }
-      
-      if (Platform.OS === 'android') {
-        ToastAndroid.show(t('mainApp.speechErrors.recognitionFailed'), ToastAndroid.SHORT);
-      } else {
-        // For iOS, use a subtle bubble that auto-dismisses
-        setBubbles(prev => [
-          { 
-            id: (bubbleIdRef.current++).toString(), 
-            type: 'calc', 
-            content: t('mainApp.speechErrors.recognitionFailed') 
-          },
-          ...prev
-        ]);
-        // Auto-remove the bubble after 2 seconds
-        setTimeout(() => {
-          setBubbles(prev => prev.slice(1));
-        }, 2000);
+
+        if (continuousMode) {
+          let lastTranscript = '';
+          silenceTimerRef.current = setInterval(() => {
+            if (interimTranscript && interimTranscript === lastTranscript) {
+              const finalTranscript = interimTranscript;
+              processSpeechResult(finalTranscript, 'native');
+            }
+            lastTranscript = interimTranscript;
+          }, 500);
+        }
+
+      } catch (e) {
+        setIsRecording(false);
+        // Handle error
       }
     }
   };
 
   // Only needed for manual stop (web or if we need to cancel)
   const stopRecording = async () => {
-    if (Platform.OS === 'web') return;
-    
     setIsRecording(false);
-    setIsTranscribing(false);
-    
-    try {
-      if (!speechModuleRef.current) {
-        // Should ideally be loaded by startRecording, but as a fallback:
-        speechModuleRef.current = await import('expo-speech-recognition');
-      }
-      const { ExpoSpeechRecognitionModule } = speechModuleRef.current;
-      // Stop native speech recognition
-      await ExpoSpeechRecognitionModule.stop();
-      
-      // Remove listeners
-      if (speechListenerRef.current) {
-        speechListenerRef.current.remove();
-        speechListenerRef.current = null;
-      }
-      
-      if (errorListenerRef.current) {
-        errorListenerRef.current.remove();
-        errorListenerRef.current = null;
-      }
-    } catch (e) {
-      console.error('Error stopping speech recognition:', e);
-    }
-  };
-
-  // Process native speech recognition results
-  const processNativeTranscription = (transcript: string) => {
-    if (!transcript) {
-      setBubbles(prev => [...prev, { 
-        id: (bubbleIdRef.current++).toString(), 
-        type: 'error', 
-        content: t('mainApp.speechErrors.noSpeechDetected') 
-      }]);
-      return;
+    setInterimTranscript('');
+    // Reset refs to prevent stale data in continuous mode
+    lastProcessedTranscriptRef.current = '';
+    lastSpokenResultRef.current = '';
+    if (silenceTimerRef.current) {
+      clearInterval(silenceTimerRef.current);
+      silenceTimerRef.current = null;
     }
 
-    // Stage 1: Lowercase and normalize whitespace
-    let processedTranscript = transcript.toLowerCase();
-    processedTranscript = processedTranscript.replace(/\s+/g, ' ');
-    
-    // Using the same normalization logic
-    let normalized = normalizeSpokenMath(processedTranscript);
-    normalized = normalized.trim();
-    const trimmedNormalized = normalized;
-
-    // Check if input starts with an operator and prepend last result if applicable
-    const startsWithOperator = ['+', '-', '*', '/', '%'].some(op => trimmedNormalized.startsWith(op));
-    if (startsWithOperator) {
-      const lastResult = lastResultRef.current;
-      if (lastResult !== null) {
-        // Ensure space between last result and operator
-        normalized = lastResult + ' ' + trimmedNormalized;
-      }
-    }
-
-    // Calculate the result from the normalized transcript
-    const result = handleInput(normalized, 'speech');
-    
-    if (result !== MATH_ERROR) {
-      // Create a bubble showing the equation with equals sign
-      const equationBubble: ChatBubble = { id: (bubbleIdRef.current++).toString(), type: 'user', content: `${normalized} = ${result}` };
-      // Create the result bubble to show just the result
-      const resultBubble: ChatBubble = { id: (bubbleIdRef.current++).toString(), type: 'calc', content: result };
-      // Create a result-input bubble for gray preview (same as keypad input)
-      const nextUserBubble: ChatBubble = { 
-        id: (bubbleIdRef.current++).toString(), 
-        type: 'result-input',
-        content: result 
-      };
-      
-      if (enterKeyNewLine) {
-        // New Line Mode: Create a new empty user bubble instead of showing the result
-        const newEmptyBubble: ChatBubble = {
-          id: (bubbleIdRef.current++).toString(), 
-          type: 'user',
-          content: ''
-        };
-        
-        setBubbles(prev => {
-          // Remove any current equation bubble if it exists
-          const filteredBubbles = prev.filter(b => b.type !== 'user' || b.content !== keypadInput);
-          // Append the equation bubble, result bubble, and a new empty bubble
-          return [...filteredBubbles, equationBubble, resultBubble, newEmptyBubble];
-        });
-        
-        // Clear the keypad input for the new line
-        setKeypadInput('');
-        // Don't show preview result in new line mode
-        setPreviewResult(null);
-      } else {
-        // Normal Mode: Show the result in the input field (same as keypad input)
-        setBubbles(prev => {
-          // Remove any current equation bubble if it exists
-          const filteredBubbles = prev.filter(b => b.type !== 'user' || b.content !== keypadInput);
-          // Append the equation bubble, result bubble and the result input bubble
-          return [...filteredBubbles, equationBubble, resultBubble, nextUserBubble];
-        });
-        
-        // Set the result as the current input
-        setKeypadInput(result);
-      }
-      
-      // Common operations regardless of mode
-      // Speak only the result if not muted
-      speakIfUnmuted(result);
-      lastResultRef.current = result; // Set the ref here
-      setExpectingFreshInput(true); // Next '=' or operation starts fresh
-      // Send to webhook if configured
-      if (historyEnabled) {
-        addCalculation(normalized, result);
-      }
-      sendWebhookData(normalized, result);
-    } else {
-      setBubbles((prev: ChatBubble[]) => [...prev, { 
-        id: (bubbleIdRef.current++).toString(), 
-        type: 'error', 
-        content: t('mainApp.mathErrors.sorryTryAgain') // Changed from 'Could not calculate'
-      }]);
-      setKeypadInput('');
-      setExpectingFreshInput(false);
-    }
-  };
-
-  // Process Web Speech Result (separate from recognition callback)
-  const handleWebSpeechResult = (transcript: string) => {
-    if (transcript) {
-      // Normalize the spoken text to get the equation
-      let spokenEquation = normalizeSpokenMath(transcript);
-      spokenEquation = spokenEquation.trim(); // Trim here
-      const trimmedEquation = spokenEquation; // Use the trimmed value
-
-      // Check if input starts with an operator and prepend last result if applicable
-      const startsWithOperator = ['+', '-', '*', '/', '%'].some(op => 
-        trimmedEquation.startsWith(op)
-      );
-      if (startsWithOperator) {
-        const lastResult = lastResultRef.current;
-        if (lastResult !== null) {
-          // Ensure space between last result and operator
-          spokenEquation = lastResult + ' ' + trimmedEquation;
-        }
-      }
-
-      // Calculate the result using the (potentially modified) equation
-      const result = handleInput(spokenEquation, 'speech');
-      
-      if (result !== MATH_ERROR) {
-        // Create a bubble showing the equation with equals sign
-        const equationBubble: ChatBubble = { id: (bubbleIdRef.current++).toString(), type: 'user', content: `${spokenEquation} = ${result}` };
-        // Create the result bubble to show just the result
-        const resultBubble: ChatBubble = { id: (bubbleIdRef.current++).toString(), type: 'calc', content: result };
-        // Create a result-input bubble for gray preview (same as keypad input)
-        const nextUserBubble: ChatBubble = { 
-          id: (bubbleIdRef.current++).toString(), 
-          type: 'result-input',
-          content: result 
-        };
-        
-        if (enterKeyNewLine) {
-          // New Line Mode: Create a new empty user bubble instead of showing the result
-          const newEmptyBubble: ChatBubble = {
-            id: (bubbleIdRef.current++).toString(), 
-            type: 'user',
-            content: ''
-          };
-          
-          setBubbles(prev => {
-            // Remove any current equation bubble if it exists
-            const filteredBubbles = prev.filter(b => b.type !== 'user' || b.content !== keypadInput);
-            // Append the equation bubble, result bubble, and a new empty bubble
-            return [...filteredBubbles, equationBubble, resultBubble, newEmptyBubble];
-          });
-          
-          // Clear the keypad input for the new line
-          setKeypadInput('');
-          // Don't show preview result in new line mode
-          setPreviewResult(null);
-        } else {
-          // Normal Mode: Show the result in the input field (same as keypad input)
-          setBubbles(prev => {
-            // Remove any current equation bubble if it exists
-            const filteredBubbles = prev.filter(b => b.type !== 'user' || b.content !== keypadInput);
-            // Append the equation bubble, result bubble and the result input bubble
-            return [...filteredBubbles, equationBubble, resultBubble, nextUserBubble];
-          });
-          
-          // Set the result as the current input
-          setKeypadInput(result);
-        }
-        
-        // Common operations regardless of mode
-        // Speak only the result if not muted
-        speakIfUnmuted(result);
-        lastResultRef.current = result; // Set the ref here
-        setExpectingFreshInput(true); // Next '=' or operation starts fresh
-        // --- Webhook: also send vocal result to webhook ---
-        if (historyEnabled) {
-          addCalculation(spokenEquation, result);
-        }
-        sendWebhookData(spokenEquation, result);
-       } else {
-        setBubbles((prev: ChatBubble[]) => [...prev, { id: (bubbleIdRef.current++).toString(), type: 'error', content: t('mainApp.mathErrors.sorryTryAgain') }]); // Changed from 'Could not calculate'
-        // No error speech
-        setKeypadInput(''); // Clear input on error
-        setExpectingFreshInput(false);
+    if (Platform.OS === 'web') {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
       }
     } else {
-      setBubbles(prev => [...prev, { id: (bubbleIdRef.current++).toString(), type: 'error', content: t('mainApp.speechErrors.noSpeechDetected') }]);
+      try {
+        if (speechModuleRef.current) {
+          const { ExpoSpeechRecognitionModule } = speechModuleRef.current;
+          await ExpoSpeechRecognitionModule.stop();
+        }
+        if (speechListenerRef.current) speechListenerRef.current.remove();
+        if (errorListenerRef.current) errorListenerRef.current.remove();
+      } catch (e) {
+        // console.error('Error stopping native speech recognition:', e);
+      }
     }
-
-    setIsRecording(false); // Ensure recording stops
   };
+
+
 
   // --- Send Data to Webhooks ---
   const sendWebhookData = async (equation: string, result: string) => {
@@ -2043,6 +1798,13 @@ const MainScreen: React.FC = () => {
     
     // user
     if (item.type === 'user') {
+      if (item.id === 'interim_speech') {
+        return (
+          <View style={styles.userBubble}>
+            <Text style={[styles.userText, { color: '#999' }]}>{item.content}</Text>
+          </View>
+        );
+      }
       if (isCurrentUserBubble) {
         return (
           <View style={styles.currentUserBubbleContainer}>
@@ -2206,7 +1968,9 @@ const MainScreen: React.FC = () => {
         style={{ flex: 1 }}
         ref={flatListRef}
         data={
-          previewResult
+          interimTranscript
+            ? [...bubbles, { id: 'interim_speech', type: 'user', content: interimTranscript }]
+            : previewResult
             ? [...bubbles, { id: 'preview', type: 'result', content: previewResult }]
             : bubbles
         }
@@ -2368,7 +2132,7 @@ const MainScreen: React.FC = () => {
         <TouchableOpacity
           style={[
             styles.micButton, // Base style
-            isRecording ? { backgroundColor: '#0066cc' } : {}, // Blue if recording
+            isRecording ? { backgroundColor: '#cc0000' } : {}, // Red if recording
             isWebMobile && styles.micButtonWebMobile // Additional styles for web mobile
           ]}
           onPress={() => {
@@ -2988,3 +2752,7 @@ const styles = StyleSheet.create<ComponentStyles>({
 });
 
 export default MainScreen;
+function initializeSpeech() {
+  throw new Error('Function not implemented.');
+}
+
