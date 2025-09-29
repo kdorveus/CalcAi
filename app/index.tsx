@@ -2014,7 +2014,7 @@ const MainScreen: React.FC = () => {
 
   const emptyComponent = useMemo(() => (
     showKeypad ? null : (Platform.OS === 'web' ? <WebEmptyState /> : <MobileEmptyState />)
-  ), [showKeypad]);
+  ), [showKeypad, language]);
 
   return (
     <SafeAreaView style={styles.container}>
