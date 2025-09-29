@@ -195,6 +195,7 @@ const MainScreen: React.FC = () => {
   // State variables
   const [bubbles, setBubbles] = useState<ChatBubble[]>([]);
   const [interimTranscript, setInterimTranscript] = useState('');
+  
   const [showKeypad, setShowKeypad] = useState(false);
   // const [recording, setRecording] = useState<Audio.Recording | null>(null); // Removed Audio.Recording type usage here
   const [isRecording, setIsRecording] = useState(false);
@@ -665,14 +666,20 @@ const MainScreen: React.FC = () => {
       normalized = normalized.replace(regex, '');
     });
 
-    // Final cleanup: Remove characters not part of a valid expression
-    // Allows: digits, whitespace, operators (+-*/%^), parentheses, decimal point, 'sqrt'
-    normalized = normalized.replace(/[^\d\s\+\-\*\/\%\^\(\)\.sqrt]/g, ''); 
-
-    // Consolidate multiple spaces into one
-    normalized = normalized.replace(/\s+/g, ' ');
-    // Trim leading/trailing whitespace before returning
-    normalized = normalized.trim();
+    // Final cleanup:
+    // 1) Preserve 'sqrt' tokens
+    normalized = normalized.replace(/\bsqrt\b/g, '__SQRT__');
+    // 2) Remove apostrophes/quotes that can leak from contractions like what's
+    normalized = normalized.replace(/[’'"`]+/g, ' ');
+    // 3) Remove any remaining alphabetic sequences (then, and, etc.)
+    normalized = normalized.replace(/[A-Za-z]+/g, ' ');
+    // 4) Restore 'sqrt'
+    normalized = normalized.replace(/__SQRT__/g, ' sqrt ');
+    // 5) Collapse duplicate plus operators that can arise from phrase joins (e.g., "+ +")
+    normalized = normalized.replace(/\+\s*\+/g, '+');
+    
+    // Consolidate spaces and trim
+    normalized = normalized.replace(/\s+/g, ' ').trim();
 
     return normalized;
   }, [compiledLanguageRegex]); // Dependencies: compiled per language
@@ -696,6 +703,15 @@ const MainScreen: React.FC = () => {
     expression = expression.replace(/(\d+)%/g, '($1 / 100)'); 
     // Allow trailing % interpreted as /100
     expression = expression.replace(/%/g, '/100');
+
+    // For speech input, reject single numbers without operators (must be an equation)
+    if (type === 'speech') {
+      const trimmedExpression = expression.trim();
+      // Check if it's just a number (integer or decimal) without any operators
+      if (/^\d+(\.\d+)?$/.test(trimmedExpression)) {
+        return MATH_ERROR;
+      }
+    }
 
     // Sanitize for security: Allow only expected characters
     const allowedChars = /^[\d\+\-\*\/\.\(\)\^\s\/e\s q r t]+$/; // Added space, e, q, r, t for sqrt
@@ -1125,8 +1141,7 @@ const MainScreen: React.FC = () => {
     }
     lastProcessedTranscriptRef.current = transcript;
 
-    // Clear interim transcript only after we have final result
-    setInterimTranscript('');
+    // Keep interim transcript visible during processing
 
     let processedEquation = normalizeSpokenMath(transcript);
     processedEquation = processedEquation.trim();
@@ -1146,7 +1161,7 @@ const MainScreen: React.FC = () => {
     const result = handleInput(processedEquation, 'speech');
 
     if (result !== MATH_ERROR) {
-      // Clear interim transcript immediately after successful calculation
+      // Clear interim transcript immediately on success so gray text disappears
       setInterimTranscript('');
 
       // Create bubbles for display
@@ -1205,18 +1220,25 @@ const MainScreen: React.FC = () => {
       }
       sendWebhookData(processedEquation, result);
     } else {
-      setBubbles(prev => [...prev, {
+      // Clear interim transcript and show "No Equation Detected" bubble for MATH_ERROR
+      setInterimTranscript('');
+      
+      // Add error bubble for invalid equations
+      const errorBubble: ChatBubble = {
         id: (bubbleIdRef.current++).toString(),
         type: 'error',
-        content: t('mainApp.mathErrors.sorryTryAgain')
-      }]);
+        content: 'No Equation Detected'
+      };
+      
+      setBubbles(prev => [...prev, errorBubble]);
+      
       setKeypadInput('');
       setExpectingFreshInput(false);
     }
   }, [normalizeSpokenMath, handleInput, enterKeyNewLine, keypadInput, historyEnabled, speechMutedRef, lastResultRef, t, lastProcessedTranscriptRef, lastSpokenResultRef, speakSingleResult]);
 
-  // Audio recording logic for speech-to-text
-  // Platform-specific speech-to-text
+// Audio recording logic for speech-to-text
+// Platform-specific speech-to-text
   const startRecording = async () => {
     if (isRecording) return;
     setIsRecording(true);
@@ -1234,19 +1256,29 @@ const MainScreen: React.FC = () => {
       recognition.lang = getSpeechRecognitionLanguage(language);
       recognition.interimResults = true;
       recognition.continuous = continuousMode;
+      recognition.maxAlternatives = 1; // Fastest processing with single result
+      recognition.serviceURI = ''; // Use default for best performance
 
       recognition.onresult = (event: any) => {
         if (isTTSSpeaking.current) return;
         
         let finalTranscript = '';
+        let interimText = '';
+        
         for (let i = event.resultIndex; i < event.results.length; ++i) {
           if (event.results[i].isFinal) {
             finalTranscript += event.results[i][0].transcript;
           } else {
-            setInterimTranscript(finalTranscript + event.results[i][0].transcript);
+            interimText += event.results[i][0].transcript;
           }
         }
 
+        // Always update interim transcript for real-time streaming
+        if (interimText) {
+          setInterimTranscript(interimText);
+        }
+
+        // Only process final results
         if (finalTranscript) {
           processSpeechResult(finalTranscript.trim(), 'web');
         }
@@ -1868,7 +1900,9 @@ const MainScreen: React.FC = () => {
         return (
           <View style={styles.currentUserBubbleContainer}>
             <View style={styles.userBubble}>
-              <Text style={styles.userText}>{item.content || ' '}</Text>
+              <Text style={[styles.userText, interimTranscript ? { color: '#999' } : null]}>
+                {interimTranscript ? interimTranscript : (item.content || ' ')}
+              </Text>
             </View>
           </View>
         );
@@ -1885,7 +1919,7 @@ const MainScreen: React.FC = () => {
               onLongPress={() => copyToClipboard(answer)}
               delayLongPress={500}
             >
-              <Text style={[styles.userText, { color: '#888' }]}>{item.content}</Text>
+              <Text style={[styles.userText, { color: '#fff' }]}>{item.content}</Text>
             </Pressable>
           );
         }
@@ -1899,7 +1933,7 @@ const MainScreen: React.FC = () => {
     }
 
     return null;
-  }, [bubbles.length, keypadInput, vibrationEnabled]);
+  }, [bubbles.length, keypadInput, vibrationEnabled, interimTranscript]);
 
   // Log rendering outside of JSX to avoid TypeScript errors
   // console.log('CalculatorScreen rendering...');
@@ -1917,7 +1951,7 @@ const MainScreen: React.FC = () => {
             // Use default loading priority
             defaultSource={require('../assets/images/LOGO.png')}
           />
-          <Text style={styles.betaText}>{t('common.beta')}</Text>
+          <Text style={styles.betaText}>BETA</Text>
         </View>
         <View style={styles.emptyStateItem}>
           <AppIcon name="keyboard-space" size={24} color="#ffffff" />
@@ -1948,7 +1982,7 @@ const MainScreen: React.FC = () => {
             // Use default loading priority
             defaultSource={require('../assets/images/LOGO.png')}
           />
-          <Text style={styles.betaText}>{t('common.beta')}</Text>
+          <Text style={styles.betaText}>BETA</Text>
         </View>
         <View style={styles.emptyStateItem}>
           <AppIcon name="microphone" size={24} color="#ffffff" />
@@ -2028,9 +2062,11 @@ const MainScreen: React.FC = () => {
         ref={flatListRef}
         data={
           interimTranscript
-            ? [...bubbles, { id: 'interim_speech', type: 'user', content: interimTranscript }]
+            ? (() => {
+                return [...bubbles, { id: 'interim_speech', type: 'user' as const, content: interimTranscript }];
+              })()
             : previewResult
-            ? [...bubbles, { id: 'preview', type: 'result', content: previewResult }]
+            ? [...bubbles, { id: 'preview', type: 'result' as const, content: previewResult }]
             : bubbles
         }
         renderItem={renderBubble}

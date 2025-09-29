@@ -45,7 +45,7 @@ export default function LoginScreen() {
             source={require('../../assets/images/LOGO.png')} 
             style={styles.logo}
           />
-          <Text style={styles.betaText}>{t('common.beta')}</Text>
+          <Text style={styles.betaText}>BETA</Text>
         </View>
 
         <View style={styles.headerContainer}>

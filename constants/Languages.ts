@@ -110,7 +110,6 @@ export const TRANSLATIONS: Record<string, Translations> = {
     },
     common: {
       error: 'Error',
-      beta: 'BETA',
       privacyPolicy: 'Privacy Policy',
       screenNotExist: "This screen doesn't exist.",
       lastUpdated: 'Last Updated: May 9, 2025',
@@ -292,7 +291,6 @@ export const TRANSLATIONS: Record<string, Translations> = {
     },
     common: {
       error: 'Error',
-      beta: 'BETA',
       privacyPolicy: 'Política de Privacidad',
       screenNotExist: 'Esta pantalla no existe.',
       lastUpdated: 'Última Actualización: 9 de Mayo, 2025',
@@ -474,7 +472,6 @@ export const TRANSLATIONS: Record<string, Translations> = {
     },
     common: {
       error: 'Erreur',
-      beta: 'BETA',
       privacyPolicy: 'Politique de Confidentialité',
       screenNotExist: 'Cet écran n\'existe pas.',
       lastUpdated: 'Dernière Mise à Jour : 9 Mai 2025',
@@ -656,7 +653,6 @@ export const TRANSLATIONS: Record<string, Translations> = {
     },
     common: {
       error: 'Fehler',
-      beta: 'BETA',
       privacyPolicy: 'Datenschutzrichtlinie',
       screenNotExist: 'Dieser Bildschirm existiert nicht.',
       lastUpdated: 'Zuletzt Aktualisiert: 9. Mai 2025',
@@ -838,7 +834,6 @@ export const TRANSLATIONS: Record<string, Translations> = {
     },
     common: {
       error: 'Erro',
-      beta: 'BETA',
       privacyPolicy: 'Política de Privacidade',
       screenNotExist: 'Esta tela não existe.',
       lastUpdated: 'Última Atualização: 9 de Maio, 2025',
@@ -1020,7 +1015,6 @@ export const TRANSLATIONS: Record<string, Translations> = {
     },
     common: {
       error: 'Errore',
-      beta: 'BETA',
       privacyPolicy: 'Informativa sulla Privacy',
       screenNotExist: 'Questa schermata non esiste.',
       lastUpdated: 'Ultimo Aggiornamento: 9 Maggio 2025',

@@ -379,7 +379,7 @@ export const WebhookSettings: React.FC<WebhookSettingsProps> = ({
                   source={require('../../assets/images/LOGO.png')} 
                   style={{ width: 180, height: 72, marginBottom: 20, resizeMode: 'contain' }} 
                 />
-                <Text style={styles.betaText}>{t('common.beta')}</Text>
+                <Text style={styles.betaText}>BETA</Text>
               </View>
               <Text style={styles.loginModalTitle}>{t('auth.signInToContinue')}</Text>
               <TouchableOpacity 
@@ -1037,7 +1037,7 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
                             source={require('../../assets/images/LOGO.png')} 
                             style={{ width: 180, height: 72, marginBottom: 20, resizeMode: 'contain' }} 
                           />
-                          <Text style={styles.betaText}>{t('common.beta')}</Text>
+                          <Text style={styles.betaText}>BETA</Text>
                         </View>
                         <Text style={styles.limitedTimeOffer}>{t('premium.firstUsersLifetime')}</Text>
                         <Text style={[styles.limitedTimeOffer, { color: '#e0e0e0' }]}>{t('premium.toPremium')}</Text>
