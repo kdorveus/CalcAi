@@ -20,6 +20,8 @@ interface PremiumPaymentModalProps {
   onSuccess?: () => void;
 }
 
+type PlanType = 'monthly' | 'yearly' | 'lifetime';
+
 const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
   visible,
   onClose,
@@ -29,6 +31,7 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
   const { t } = useTranslation();
   const [isLoading, setIsLoading] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<PlanType>('yearly');
 
   const handlePayment = async () => {
     setIsLoading(true);
@@ -50,6 +53,19 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
   const handleClose = () => {
     if (!isLoading && !isRestoring) {
       onClose();
+    }
+  };
+
+  const getPlanButtonText = () => {
+    switch (selectedPlan) {
+      case 'monthly':
+        return 'Get Monthly Premium Access';
+      case 'yearly':
+        return 'Get Yearly Premium Access';
+      case 'lifetime':
+        return 'Get Lifetime Premium Access';
+      default:
+        return 'Get Premium Access';
     }
   };
 
@@ -81,37 +97,64 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
 
             <View style={styles.pricingContainer}>
               {/* Monthly Plan */}
-              <View style={styles.priceBox}>
+              <TouchableOpacity 
+                style={[
+                  styles.priceBox,
+                  selectedPlan === 'monthly' && styles.selectedBox,
+                  // extra top padding to align with yearly badge
+                  { paddingTop: Platform.OS === 'web' ? 48 : 18 }
+                ]}
+                onPress={() => setSelectedPlan('monthly')}
+                activeOpacity={0.7}
+              >
                 <View style={styles.priceHeader}>
-                  <AppIcon name="calendar" size={32} color="#ff9500" />
+                  <AppIcon name="calendar" size={Platform.OS === 'web' ? 32 : 24} color="#ff9500" />
                 </View>
                 <Text style={styles.planName}>Monthly</Text>
-                <Text style={styles.planPrice}>$5.00</Text>
+                <Text style={styles.planPrice}>$5</Text>
                 <Text style={styles.planBilling}>Cancel Anytime</Text>
-              </View>
+              </TouchableOpacity>
 
               {/* Yearly Plan - Most Popular */}
-              <View style={[styles.priceBox, styles.popularBox]}>
+              <TouchableOpacity 
+                style={[
+                  styles.priceBox,
+                  selectedPlan === 'yearly' && styles.selectedBox,
+                  // extra top padding so content sits lower under the badge
+                  { paddingTop: Platform.OS === 'web' ? 48 : 18 },
+                ]}
+                onPress={() => setSelectedPlan('yearly')}
+                activeOpacity={0.7}
+              >
                 <View style={styles.popularBadge}>
                   <Text style={styles.popularBadgeText}>MOST POPULAR</Text>
                 </View>
                 <View style={styles.priceHeader}>
-                  <AppIcon name="star" size={32} color="#ff9500" />
+                  <AppIcon name="star" size={Platform.OS === 'web' ? 32 : 24} color="#ff9500" />
                 </View>
                 <Text style={styles.planName}>Yearly</Text>
-                <Text style={styles.planPrice}>$50.00</Text>
+                <Text style={styles.planPrice}>$50</Text>
                 <Text style={styles.planBilling}>Cancel Anytime</Text>
-              </View>
+              </TouchableOpacity>
 
               {/* Lifetime Plan */}
-              <View style={styles.priceBox}>
+              <TouchableOpacity 
+                style={[
+                  styles.priceBox,
+                  selectedPlan === 'lifetime' && styles.selectedBox,
+                  // extra top padding to align with yearly badge
+                  { paddingTop: Platform.OS === 'web' ? 48 : 18 }
+                ]}
+                onPress={() => setSelectedPlan('lifetime')}
+                activeOpacity={0.7}
+              >
                 <View style={styles.priceHeader}>
-                  <AppIcon name="crown" size={32} color="#ff9500" />
+                  <AppIcon name="crown" size={Platform.OS === 'web' ? 32 : 24} color="#ff9500" />
                 </View>
                 <Text style={styles.planName}>Lifetime</Text>
-                <Text style={styles.planPrice}>$99.00</Text>
+                <Text style={styles.planPrice}>$99</Text>
                 <Text style={styles.planBilling}>Updates Forever</Text>
-              </View>
+              </TouchableOpacity>
             </View>
 
             {/* Advantages List */}
@@ -144,7 +187,7 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
               ) : (
                 <>
                   <AppIcon name="lock-open" size={20} color="#fff" />
-                  <Text style={styles.paymentButtonText}>{t('premium.getLifetimeAccess')}</Text>
+                  <Text style={styles.paymentButtonText}>{getPlanButtonText()}</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -252,27 +295,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 16,
-    gap: 12,
+    gap: Platform.OS === 'web' ? 12 : 8,
   },
   priceBox: {
     flex: 1,
     backgroundColor: '#2C2C2E',
     borderRadius: 16,
-    padding: 20,
+    padding: Platform.OS === 'web' ? 20 : 12,
     borderWidth: 2,
     borderColor: '#3C3C3E',
     alignItems: 'center',
+    minWidth: 0,
   },
-  popularBox: {
-    backgroundColor: '#2C2C2E',
+  selectedBox: {
     borderColor: '#ff9500',
     borderWidth: 3,
-    transform: [{ scale: 1.05 }],
-    shadowColor: '#ff9500',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    backgroundColor: '#3C3C3E',
   },
   popularBadge: {
     position: 'absolute',
@@ -292,23 +330,23 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   priceHeader: {
-    marginBottom: 12,
-    marginTop: 8,
+    marginBottom: Platform.OS === 'web' ? 12 : 6,
+    marginTop: Platform.OS === 'web' ? 8 : 4,
   },
   planName: {
-    fontSize: 18,
+    fontSize: Platform.OS === 'web' ? 18 : 14,
     fontWeight: 'bold',
     color: '#fff',
-    marginBottom: 8,
+    marginBottom: Platform.OS === 'web' ? 8 : 4,
   },
   planPrice: {
-    fontSize: 32,
+    fontSize: Platform.OS === 'web' ? 32 : 24,
     fontWeight: 'bold',
     color: '#ff9500',
     marginBottom: 4,
   },
   planBilling: {
-    fontSize: 12,
+    fontSize: Platform.OS === 'web' ? 11 : 9,
     color: '#999',
   },
   paymentButton: {

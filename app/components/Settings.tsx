@@ -680,9 +680,6 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
             {languageSectionOpen && (
               <View>
                 <View style={styles.optionsDropdownMenu}>
-                  <Text style={[styles.settingLabel, { color: '#888', fontSize: 14, marginBottom: 8 }]}>
-                    {t('settings.language.selectLanguage')}
-                  </Text>
                   {SUPPORTED_LANGUAGES.map((lang) => (
                     <TouchableOpacity
                       key={lang.code}
@@ -691,12 +688,10 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
                       activeOpacity={0.7}
                     >
                       <View style={styles.languageOptionContent}>
-                        <Text style={styles.languageFlag}>{lang.flag}</Text>
                         <Text style={styles.languageName}>{lang.nativeName}</Text>
-                        <Text style={styles.languageEnglishName}>({lang.name})</Text>
                       </View>
                       {language === lang.code && (
-                        <AppIcon name="check" size={20} color="#0066cc" />
+                        <AppIcon name="check" size={20} color="#fff" />
                       )}
                     </TouchableOpacity>
                   ))}
@@ -980,9 +975,9 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
             <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 4, justifyContent: 'space-between' }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
                 {user ? (
-                  user.user_metadata?.avatar_url ? (
+                  user.picture ? (
                     <Image 
-                      source={{ uri: user.user_metadata.avatar_url }} 
+                      source={{ uri: user.picture }} 
                       style={{ width: 40, height: 40, borderRadius: 20, marginRight: 12 }}
                     />
                   ) : (
@@ -996,7 +991,7 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
                 )}
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.subHeader, { fontSize: 18, marginBottom: 2, fontWeight: 'bold', color: '#fff' }]}>
-                    {user ? (user.user_metadata?.full_name || 'User') : t('auth.anonymousCat')}
+                    {user ? (user.name || 'User') : t('auth.anonymousCat')}
                   </Text>
                   <Text style={[styles.userSubtitle, { fontSize: 14, color: '#888' }]}>
                     {user ? user.email : t('auth.guestUser')}
@@ -1727,7 +1722,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#fff',
     fontWeight: '500',
-    marginRight: 8,
   },
   languageEnglishName: {
     fontSize: 14,
