@@ -81,7 +81,7 @@ interface WebhookSettingsProps {
   setContinuousMode?: (value: boolean) => void;
 }
 
-export const WebhookSettings: React.FC<WebhookSettingsProps> = ({
+export const WebhookSettingsComponent: React.FC<WebhookSettingsProps> = ({
   visible,
   onClose,
   webhookUrls,
@@ -977,11 +977,7 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
           
           {/* Authentication Section */}
           <View style={styles.sectionCard}>
-            <TouchableOpacity
-              style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 4 }}
-              onPress={() => setAuthSectionOpen((prev) => !prev)}
-              activeOpacity={0.7}
-            >
+            <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 4, justifyContent: 'space-between' }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
                 {user ? (
                   user.user_metadata?.avatar_url ? (
@@ -998,7 +994,7 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
                     style={{ width: 40, height: 40, borderRadius: 20, marginRight: 12 }}
                   />
                 )}
-                <View>
+                <View style={{ flex: 1 }}>
                   <Text style={[styles.subHeader, { fontSize: 18, marginBottom: 2, fontWeight: 'bold', color: '#fff' }]}>
                     {user ? (user.user_metadata?.full_name || 'User') : t('auth.anonymousCat')}
                   </Text>
@@ -1007,74 +1003,32 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
                   </Text>
                 </View>
               </View>
-              <AppIcon
-                name={authSectionOpen ? 'chevron-up' : 'chevron-down'}
-                size={24}
-                color="#fff"
-                style={{ marginLeft: 8 }}
-              />
-            </TouchableOpacity>
-            
-            {authSectionOpen && (
-              <View>
-                <View style={styles.optionsDropdownMenu}>
-                   {/* Use actual user state */}
-                  {user ? ( 
-                    <View style={styles.authContainer}>
-                      <TouchableOpacity
-                        style={styles.signOutButton}
-                        onPress={handleSignOut}
-                      >
-                        <AppIcon name="logout" size={18} color="#FF3B30" style={{ marginRight: 8 }} />
-                        <Text style={styles.signOutButtonText}>{t('auth.signOut')}</Text>
-                      </TouchableOpacity>
-                    </View>
+              
+              {user ? (
+                <TouchableOpacity
+                  style={[styles.signOutButton, { marginLeft: 12 }]}
+                  onPress={handleSignOut}
+                >
+                  <AppIcon name="logout" size={18} color="#FF3B30" style={{ marginRight: 8 }} />
+                  <Text style={styles.signOutButtonText}>{t('auth.signOut')}</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity 
+                  style={[styles.googleButton, { marginLeft: 12, paddingVertical: 8, paddingHorizontal: 16 }]}
+                  onPress={handleGoogleLogin}
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <ActivityIndicator color="#0066cc" size="small" />
                   ) : (
-                    <View style={styles.authContainer}>
-                      <View style={styles.promoContainer}>
-                        <View style={styles.logoContainer}>
-                          <Image 
-                            source={require('../../assets/images/LOGO.png')} 
-                            style={{ width: 180, height: 72, marginBottom: 20, resizeMode: 'contain' }} 
-                          />
-                          <Text style={styles.betaText}>BETA</Text>
-                        </View>
-                        <Text style={styles.limitedTimeOffer}>{t('premium.firstUsersLifetime')}</Text>
-                        <Text style={[styles.limitedTimeOffer, { color: '#e0e0e0' }]}>{t('premium.toPremium')}</Text>
-                        
-                        <TouchableOpacity 
-                          style={[styles.googleButton, { marginTop: 20 }]}
-                          onPress={handleGoogleLogin}
-                          disabled={isLoading}
-                        >
-                          {isLoading ? (
-                            <ActivityIndicator color="#0066cc" />
-                          ) : (
-                            <>
-                              <GoogleLogo size={20} />
-                              <Text style={styles.googleButtonText}>{t('auth.continueWithGoogle')}</Text>
-                            </>
-                          )}
-                        </TouchableOpacity>
-
-                        <View style={[styles.promoFeatures, { marginTop: 30 }]}>
-                          <Text style={styles.promoFeature}>
-                            <AppIcon name="check-decagram" size={16} color="#fff" /> {t('premium.unlimitedCalculations')}
-                          </Text>
-                          <Text style={styles.promoFeature}>
-                            <AppIcon name="webhook" size={16} color="#fff" /> {t('premium.webhookIntegration')}
-                          </Text>
-                          <Text style={styles.promoFeature}>
-                            <AppIcon name="history" size={16} color="#fff" /> {t('premium.historySync')}
-                            <Text style={styles.comingSoon}> {t('common.comingSoon')}</Text>
-                          </Text>
-                        </View>
-                      </View>
-                    </View>
+                    <>
+                      <GoogleLogo size={18} />
+                      <Text style={[styles.googleButtonText, { fontSize: 14 }]}>{t('auth.continueWithGoogle')}</Text>
+                    </>
                   )}
-                </View>
-              </View>
-            )}
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
 
           {/* ADDED Privacy Policy Link back at the bottom of ScrollView */}
@@ -1781,4 +1735,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default WebhookSettings;
+export default WebhookSettingsComponent;

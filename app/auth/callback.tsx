@@ -2,39 +2,52 @@ import React, { useEffect } from 'react';
 import { View, Text, ActivityIndicator, Platform, Alert } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from '../../hooks/useTranslation';
-// import { supabase } from '@/utils/supabase'; // No longer needed here
-// import { useAuth } from '@/contexts/AuthContext'; // No longer needed here
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { STORAGE_KEYS } from '../../constants/Config';
 
-// This screen exists solely to catch the OAuth redirect.
-// The actual redirection logic after successful login or on error
-// is handled by the useProtectedRoute hook in app/_layout.tsx,
-// which monitors the global AuthContext state.
 export default function AuthCallbackScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const errorParam = params.error as string;
   const errorDescription = params.error_description as string;
+  const token = params.token as string;
   const { t } = useTranslation();
 
   useEffect(() => {
-    console.log("[AuthCallback] Mounted. Params:", params);
+    const handleCallback = async () => {
+      console.log("[AuthCallback] Mounted. Params:", params);
 
-    // If there's an error passed directly in the URL, handle it immediately.
-    if (errorParam) {
-      console.error(`[AuthCallback] Error from URL: ${errorParam} - ${errorDescription}`);
-      // Show alert and redirect to login, don't wait for context update.
-      Alert.alert(t('auth.authError'), errorDescription || errorParam);
-      router.replace('/auth/login');
-      return; // Stop further execution in this effect
-    }
+      // Handle error
+      if (errorParam) {
+        console.error(`[AuthCallback] Error from URL: ${errorParam} - ${errorDescription}`);
+        Alert.alert(t('auth.authError'), errorDescription || errorParam);
+        router.replace('/auth/login');
+        return;
+      }
 
-    // If no immediate error, just log and wait.
-    // The screen will show "Finalizing..." until the AuthContext state changes
-    // and the useProtectedRoute hook in _layout.tsx triggers a redirect.
-    console.log("[AuthCallback] No immediate error in params. Waiting for AuthContext update and redirect from root layout...");
+      // Handle success with token
+      if (token) {
+        try {
+          console.log("[AuthCallback] Received token, storing and redirecting...");
+          
+          // Store the token
+          await AsyncStorage.setItem(STORAGE_KEYS.SESSION_TOKEN, token);
+          
+          // Redirect to home
+          router.replace('/');
+        } catch (error) {
+          console.error("[AuthCallback] Error storing token:", error);
+          Alert.alert(t('auth.authError'), 'Failed to save session');
+          router.replace('/auth/login');
+        }
+        return;
+      }
 
-    // No dependency array change needed, only runs once on mount effectively
-  }, [router, params, errorParam, errorDescription]); // Added params to deps
+      console.log("[AuthCallback] No token or error. Waiting...");
+    };
+
+    handleCallback();
+  }, [router, params, errorParam, errorDescription, token, t]);
 
   return (
     <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000000' }}>

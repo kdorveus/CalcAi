@@ -1,18 +1,18 @@
 import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
-import { Alert, Linking, Platform } from 'react-native';
-import { supabase } from '../utils/supabase';
+import { Alert, Platform } from 'react-native';
 import { useAuth } from './AuthContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as WebBrowser from 'expo-web-browser';
 import * as SecureStore from 'expo-secure-store';
 
-// Conditionally import InAppPurchases to avoid errors on web
-let InAppPurchases: any = null;
+// Conditionally import Purchases to avoid errors on web
+import PurchasesModule from 'react-native-purchases';
+let Purchases: typeof PurchasesModule | null = null;
 if (Platform.OS === 'android' || Platform.OS === 'ios') {
   try {
-    InAppPurchases = require('expo-in-app-purchases');
+    Purchases = PurchasesModule;
   } catch (e) {
-    console.warn('expo-in-app-purchases not available', e);
+    console.warn('react-native-purchases not available', e);
   }
 }
 
@@ -105,83 +105,46 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
           // Initialize IAP for native platforms
           if (Platform.OS === 'android' || Platform.OS === 'ios') {
             try {
-              if (InAppPurchases) {
-                // Connect to the store
-                await InAppPurchases.connectAsync();
+              if (Purchases) {
+                // Configure RevenueCat
+                Purchases.configure({ apiKey: process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_KEY || '' });
                 setIsIapConnected(true);
                 
                 // Get the products
-                const { responseCode, results } = await InAppPurchases.getProductsAsync([GOOGLE_PLAY_PRODUCT_ID]);
+                const products = await Purchases.getProducts([GOOGLE_PLAY_PRODUCT_ID]);
                 
-                if (responseCode === InAppPurchases.IAPResponseCode.OK && results && results.length > 0) {
-                  const product = results[0];
+                if (products && products.length > 0) {
+                  const product = products[0];
                   setProductInfo({
-                    productId: product.productId,
-                    price: product.price,
+                    productId: product.identifier,
+                    price: product.priceString,
                     title: product.title,
                     description: product.description,
-                    currency: product.priceCurrencyCode || 'USD'
+                    currency: product.currencyCode
                   });
                 }
               } else {
-                console.warn('InAppPurchases module not available');
+                console.warn('Purchases module not available');
               }
             } catch (error) {
               console.warn('Error initializing in-app purchases:', error);
             }
             
             // Set up purchase listener
-            if (InAppPurchases) {
-              InAppPurchases.setPurchaseListener(({ responseCode, results }: { responseCode: number, results: any[] }) => {
-              if (responseCode === InAppPurchases.IAPResponseCode.OK && results && results.length > 0) {
-                // Process each purchase
-                results.forEach(async (purchase: any) => {
-                  if (!purchase.acknowledged) {
-                    console.log('Purchase successful:', purchase);
-                    
-                    try {
-                      // IMPORTANT: Send purchase token to your backend for validation
-                      // This is a crucial security step - verify the purchase on your server
-                      // with Google Play's servers before granting premium access
-                      
-                      // For this example, we'll assume the purchase is valid
-                      // In a real app, you MUST validate on your server first
-                      
-                      // Finish the transaction
-                      await InAppPurchases.finishTransactionAsync(purchase, false);
-                      
-                      // Update the user's premium status
-                      if (user) {
-                        try {
-                          // Update in Supabase
-                          const { error } = await supabase
-                            .from('users')
-                            .update({ has_premium: true })
-                            .eq('id', user.id);
-                          
-                          if (error) {
-                            console.error('Error updating premium status:', error);
-                          } else {
-                            // Check premium status to update local state
-                            await checkPremiumStatus();
-                          }
-                        } catch (error) {
-                          console.error('Error updating user premium status:', error);
-                        }
-                      }
-                    } catch (error) {
-                      console.error('Error processing purchase:', error);
-                    }
-                  }
-                });
-              } else if (responseCode === InAppPurchases.IAPResponseCode.USER_CANCELED) {
-                console.log('User canceled the purchase');
-              } else if (responseCode === InAppPurchases.IAPResponseCode.DEFERRED) {
-                console.log('Purchase deferred');
-              } else {
-                console.log('Purchase failed with code:', responseCode);
-              }
-            });
+            if (Purchases) {
+              Purchases.addCustomerInfoUpdateListener(async (customerInfo: any) => {
+                console.log('Customer info updated:', customerInfo);
+                // Check if premium entitlement is active
+                if (customerInfo.entitlements.active['premium']) {
+                  console.log('Premium entitlement active');
+                  
+                  // TODO: Update premium status via Cloudflare
+                  // For now, just update local state
+                  setIsPremium(true);
+                  setIsPremiumCached(true);
+                  await savePremiumStatus(true, Date.now());
+                }
+              });
             }
           }
         }
@@ -192,13 +155,9 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
     
     initialize();
     
-    // Cleanup: disconnect from the store
+    // Cleanup: no need to disconnect from RevenueCat
     return () => {
-      if (isIapConnected && Platform.OS !== 'web' && InAppPurchases) {
-        InAppPurchases.disconnectAsync().catch((err: any) => {
-          console.error('Error disconnecting from IAP:', err);
-        });
-      }
+      // RevenueCat handles cleanup automatically
     };
   }, []);
   
@@ -229,77 +188,19 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
     }
   };
 
-  // Check premium status from Supabase
+  // Check premium status - Placeholder for Cloudflare
   const checkPremiumStatus = async (): Promise<boolean> => {
-    // If no user, not premium
-    if (!user) {
-      setIsPremium(false);
-      setIsPremiumCached(false);
-      return false;
+    // TODO: Replace with Cloudflare premium status check
+    console.log("[PremiumContext] checkPremiumStatus - awaiting Cloudflare integration");
+    
+    // For now, use only cached local status
+    if (isPremiumCached) {
+      return isPremium;
     }
     
-    // Check cache first (only check Supabase every 30 minutes max)
-    const now = Date.now();
-    const CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
-    
-    try {
-      // If we have a cached value and it's recent enough, use it
-      if (isPremiumCached && now - lastChecked < CACHE_DURATION) {
-        return isPremium;
-      }
-      
-      // Otherwise, query Supabase
-      setPremiumLoading(true);
-      
-      const { data, error } = await supabase
-        .from('users')
-        .select('has_premium')
-        .eq('id', user.id)
-        .single();
-      
-      if (error) {
-        // If no rows returned, treat as not premium but do not log as error
-        if (error.code === 'PGRST116' && error.message && error.message.includes('multiple (or no) rows returned')) {
-          setPremiumLoading(false);
-          setIsPremium(false);
-          setIsPremiumCached(true);
-          await savePremiumStatus(false, now);
-          setLastChecked(now);
-          return false;
-        } else {
-          console.error('Error checking premium status:', error);
-          setPremiumLoading(false);
-          // If there's an error, use cached value if available
-          return isPremiumCached ? isPremium : false;
-        }
-      }
-      
-      if (!data) {
-        setPremiumLoading(false);
-        setIsPremium(false);
-        setIsPremiumCached(true);
-        await savePremiumStatus(false, now);
-        setLastChecked(now);
-        return false;
-      }
-      
-      // Update state and secure cache
-      const hasPremium = data?.has_premium || false;
-      setIsPremium(hasPremium);
-      setIsPremiumCached(true);
-      setLastChecked(now);
-      
-      // Save to secure storage
-      await savePremiumStatus(hasPremium, now);
-      
-      setPremiumLoading(false);
-      return hasPremium;
-    } catch (error) {
-      console.error('Error in premium check:', error);
-      setPremiumLoading(false);
-      // If there's an error, use cached value if available
-      return isPremiumCached ? isPremium : false;
-    }
+    setIsPremium(false);
+    setIsPremiumCached(true);
+    return false;
   };
 
   // Handle payments based on platform
@@ -307,26 +208,25 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
     try {
       // For Android, use Google Play IAP
       if (Platform.OS === 'android') {
-        console.log('Using Google Play for premium purchase');
+        console.log('Using RevenueCat for premium purchase');
         setPremiumLoading(true);
         
-        if (InAppPurchases) {
+        if (Purchases) {
           try {
-            // Make sure IAP is connected
-            if (!isIapConnected) {
-              await InAppPurchases.connectAsync();
-              setIsIapConnected(true);
+            // Purchase the product
+            const { customerInfo } = await Purchases.purchaseProduct(GOOGLE_PLAY_PRODUCT_ID);
+            // The purchase listener will handle updating the premium status
+            console.log('Purchase completed:', customerInfo);
+          } catch (error: any) {
+            if (error.userCancelled) {
+              console.log('User canceled the purchase');
+            } else {
+              console.error('Error making purchase:', error);
+              Alert.alert('Purchase Error', 'There was an error processing your purchase. Please try again.');
             }
-            
-            // Purchase the item
-            await InAppPurchases.purchaseItemAsync(GOOGLE_PLAY_PRODUCT_ID);
-            // Result handling is done in the purchase listener
-          } catch (error) {
-            console.error('Error making purchase:', error);
-            Alert.alert('Purchase Error', 'There was an error processing your purchase. Please try again.');
           }
         } else {
-          console.warn('InAppPurchases module not available');
+          console.warn('Purchases module not available');
           Alert.alert('Purchase Error', 'In-app purchases are not available on this device.');
         }
         

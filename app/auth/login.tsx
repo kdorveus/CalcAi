@@ -15,7 +15,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useTranslation } from '../../hooks/useTranslation';
 import GoogleLogo from '../components/GoogleLogo';
 
-export default function LoginScreen() {
+export default function Login() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const { signInWithGoogle, authError } = useAuth();
   const { t } = useTranslation();

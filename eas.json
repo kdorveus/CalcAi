@@ -16,9 +16,20 @@
     "production": {
       "channel": "production",
       "android": {
-        "buildType": "app-bundle"
+        "buildType": "app-bundle",
+        "image": "latest"
       },
       "ios": {
+      },
+      "env": {
+        "ENVIRONMENT": "production"
+      }
+    },
+    "android": {
+      "channel": "production",
+      "android": {
+        "buildType": "app-bundle",
+        "image": "latest"
       },
       "env": {
         "ENVIRONMENT": "production"

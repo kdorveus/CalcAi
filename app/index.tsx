@@ -23,7 +23,7 @@ import {
   StatusBar,
 } from 'react-native';
 import * as ExpoClipboard from 'expo-clipboard';
-import { Audio } from 'expo-av';
+import { requestRecordingPermissionsAsync } from 'expo-audio';
 import * as Speech from 'expo-speech';
 import { evaluate } from 'mathjs';
 // Using our bundled AppIcon component instead of MaterialCommunityIcons
@@ -188,7 +188,7 @@ const MainScreen: React.FC = () => {
   const speechInitializedRef = useRef(false); // Track if speech is ready
   const permissionsGrantedRef = useRef(false); // Track permissions status
   const lastTranscriptRef = useRef('');
-  const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const silenceTimerRef = useRef<NodeJS.Timeout | number | null>(null);
   const lastProcessedTranscriptRef = useRef<string>(''); // Prevent duplicate processing
   const lastSpokenResultRef = useRef<string>(''); // Prevent duplicate TTS
   
@@ -289,7 +289,7 @@ const MainScreen: React.FC = () => {
         }
 
         // 2. Request permissions immediately
-        const { granted: audioGranted } = await Audio.requestPermissionsAsync();
+        const { granted: audioGranted } = await requestRecordingPermissionsAsync();
         const { ExpoSpeechRecognitionModule } = speechModuleRef.current;
         await ExpoSpeechRecognitionModule.requestPermissionsAsync();
         
@@ -305,6 +305,34 @@ const MainScreen: React.FC = () => {
     // Start initialization immediately after component mounts
     initializeSpeech();
   }, []);
+
+  // Function to initialize speech recognition for native platforms
+  const initializeSpeech = async () => {
+    if (Platform.OS === 'web') {
+      // Web doesn't need pre-initialization
+      speechInitializedRef.current = true;
+      return;
+    }
+
+    try {
+      // 1. Pre-load speech module
+      if (!speechModuleRef.current) {
+        speechModuleRef.current = await import('expo-speech-recognition');
+      }
+
+      // 2. Request permissions immediately
+      const { granted: audioGranted } = await requestRecordingPermissionsAsync();
+      const { ExpoSpeechRecognitionModule } = speechModuleRef.current;
+      await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+      
+      permissionsGrantedRef.current = audioGranted;
+      speechInitializedRef.current = true;
+    } catch (error) {
+      // Silent error handling - will fall back to old behavior
+      speechInitializedRef.current = false;
+      permissionsGrantedRef.current = false;
+    }
+  };
 
   const [previewResult, setPreviewResult] = useState<string | null>(null);
   const [expectingFreshInput, setExpectingFreshInput] = useState(false);
@@ -696,6 +724,17 @@ const MainScreen: React.FC = () => {
     // Replace visual operators with standard ones for mathjs
     expression = expression.replace(/×/g, '*').replace(/÷/g, '/');
     
+    // For speech input, check if it's just a number BEFORE removing trailing operators
+    // This way "plus 2" (which becomes "+2") is detected as having an operator
+    if (type === 'speech') {
+      const trimmedExpression = expression.trim();
+      // Check if it's just a number (integer or decimal) without any operators
+      // This regex checks for numbers that don't have +, -, *, /, ^, %, (, ) anywhere
+      if (/^\d+(\.\d+)?$/.test(trimmedExpression)) {
+        return MATH_ERROR;
+      }
+    }
+    
     // Remove trailing operators (+, -, *, /) but keep % and ^
     expression = expression.trim().replace(/[+\-*/\s]+$/, '');
     
@@ -703,15 +742,6 @@ const MainScreen: React.FC = () => {
     expression = expression.replace(/(\d+)%/g, '($1 / 100)'); 
     // Allow trailing % interpreted as /100
     expression = expression.replace(/%/g, '/100');
-
-    // For speech input, reject single numbers without operators (must be an equation)
-    if (type === 'speech') {
-      const trimmedExpression = expression.trim();
-      // Check if it's just a number (integer or decimal) without any operators
-      if (/^\d+(\.\d+)?$/.test(trimmedExpression)) {
-        return MATH_ERROR;
-      }
-    }
 
     // Sanitize for security: Allow only expected characters
     const allowedChars = /^[\d\+\-\*\/\.\(\)\^\s\/e\s q r t]+$/; // Added space, e, q, r, t for sqrt
@@ -1869,6 +1899,14 @@ const MainScreen: React.FC = () => {
     }
 
     if (item.type === 'error') {
+      // Special-case: show "No Equation Detected" like interim stream (gray text), not as a red error bubble
+      if (item.content === 'No Equation Detected') {
+        return (
+          <View style={styles.userBubble}>
+            <Text style={[styles.userText, { color: '#999' }]}>{item.content}</Text>
+          </View>
+        );
+      }
       return (
         <View style={styles.errorBubble}>
           <Text style={styles.errorText}>{item.content}</Text>
@@ -2847,7 +2885,3 @@ const styles = StyleSheet.create<ComponentStyles>({
 });
 
 export default MainScreen;
-function initializeSpeech() {
-  throw new Error('Function not implemented.');
-}
-

@@ -15,7 +15,7 @@ import { useTranslation } from '../../hooks/useTranslation';
 import { router } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 
-export default function SignUpScreen() {
+export default function SignUp() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
