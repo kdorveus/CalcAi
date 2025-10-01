@@ -270,6 +270,7 @@ const MainScreen: React.FC = () => {
   // --- Web Speech API State (Web only) ---
   const recognitionRef = useRef<any>(null); // Using 'any' for simplicity with web-specific API
   const speechListenerRef = useRef<any>(null); // Ref for speech recognition listener
+  const endListenerRef = useRef<any>(null); // Ref for end listener
   const errorListenerRef = useRef<any>(null); // Ref for error listener
 
   // Consolidated keyboard handling is defined after onKeypadPress
@@ -1344,6 +1345,23 @@ const MainScreen: React.FC = () => {
           if (event.results && event.results.length > 0) {
             const transcript = event.results[0].transcript;
             setInterimTranscript(transcript);
+            
+            // In non-continuous mode, check if this is a final result
+            if (!continuousMode && event.isFinal) {
+              processSpeechResult(transcript.trim(), 'native');
+            }
+          }
+        };
+
+        const handleEnd = () => {
+          // In non-continuous mode, process buffered transcript when recognition ends (like web)
+          if (!continuousMode) {
+            const bufferedTranscript = interimTranscript;
+            if (bufferedTranscript && bufferedTranscript.trim() && !isTTSSpeaking.current) {
+              processSpeechResult(bufferedTranscript.trim(), 'native');
+            }
+            setIsRecording(false);
+            setInterimTranscript('');
           }
         };
 
@@ -1354,11 +1372,12 @@ const MainScreen: React.FC = () => {
         };
 
         speechListenerRef.current = ExpoSpeechRecognitionModule.addListener('result', handleResult);
+        endListenerRef.current = ExpoSpeechRecognitionModule.addListener('end', handleEnd);
         errorListenerRef.current = ExpoSpeechRecognitionModule.addListener('error', handleError);
 
         await ExpoSpeechRecognitionModule.start({
           lang: getSpeechRecognitionLanguage(language),
-          continuous: true,
+          continuous: continuousMode,
           interimResults: true,
         });
 
@@ -1412,6 +1431,7 @@ const MainScreen: React.FC = () => {
           await ExpoSpeechRecognitionModule.stop();
         }
         if (speechListenerRef.current) speechListenerRef.current.remove();
+        if (endListenerRef.current) endListenerRef.current.remove();
         if (errorListenerRef.current) errorListenerRef.current.remove();
       } catch (e) {
         // console.error('Error stopping native speech recognition:', e);
