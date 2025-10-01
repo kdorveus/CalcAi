@@ -111,6 +111,7 @@ export const TRANSLATIONS: Record<string, Translations> = {
     common: {
       error: 'Error',
       privacyPolicy: 'Privacy Policy',
+      termsOfService: 'Terms of Service',
       screenNotExist: "This screen doesn't exist.",
       lastUpdated: 'Last Updated: May 9, 2025',
       duplicate: 'Duplicate',
@@ -292,6 +293,7 @@ export const TRANSLATIONS: Record<string, Translations> = {
     common: {
       error: 'Error',
       privacyPolicy: 'Política de Privacidad',
+      termsOfService: 'Términos de Servicio',
       screenNotExist: 'Esta pantalla no existe.',
       lastUpdated: 'Última Actualización: 9 de Mayo, 2025',
       duplicate: 'Duplicado',
@@ -473,6 +475,7 @@ export const TRANSLATIONS: Record<string, Translations> = {
     common: {
       error: 'Erreur',
       privacyPolicy: 'Politique de Confidentialité',
+      termsOfService: 'Conditions d\'Utilisation',
       screenNotExist: 'Cet écran n\'existe pas.',
       lastUpdated: 'Dernière Mise à Jour : 9 Mai 2025',
       duplicate: 'Dupliquer',
@@ -654,6 +657,7 @@ export const TRANSLATIONS: Record<string, Translations> = {
     common: {
       error: 'Fehler',
       privacyPolicy: 'Datenschutzrichtlinie',
+      termsOfService: 'Nutzungsbedingungen',
       screenNotExist: 'Dieser Bildschirm existiert nicht.',
       lastUpdated: 'Zuletzt Aktualisiert: 9. Mai 2025',
       duplicate: 'Duplikat',

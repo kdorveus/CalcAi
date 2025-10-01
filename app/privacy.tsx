@@ -9,7 +9,7 @@ const PrivacyPolicyScreen = () => {
   
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor="#000" />
+      <StatusBar barStyle="light-content" backgroundColor="#121212" />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <MaterialIcons name={Platform.OS === 'ios' ? 'arrow-back-ios' : 'arrow-back'} size={24} color="#fff" />
@@ -31,11 +31,15 @@ const PrivacyPolicyScreen = () => {
         </Text>
         <Text style={styles.subHeading}>Personal Data</Text>
         <Text style={styles.paragraph}>
-          When you choose to create an account using Google Sign-In, we, through our authentication provider Supabase, collect personal information provided by Google. This typically includes your name, email address, and profile picture/avatar URL. We do not typically receive precise location data through this standard Google Sign-In process. For details on what information Google shares, please review Google's privacy policy. For details on how Supabase handles this data, please review Supabase's privacy policy. We do not collect other forms of personally identifiable information directly unless you provide it to us through support channels.
+          When you choose to create an account using Google Sign-In, we collect personal information provided by Google. This typically includes your name, email address, and profile picture/avatar URL. We do not typically receive precise location data through this standard Google Sign-In process. For details on what information Google shares, please review Google's privacy policy. We do not collect other forms of personally identifiable information directly unless you provide it to us through support channels.
+        </Text>
+        <Text style={styles.subHeading}>Voice Data</Text>
+        <Text style={styles.paragraph}>
+          We do NOT record, store, or transmit your voice recordings. All voice recognition processing happens locally on your device using your browser's or device's built-in speech recognition capabilities. We never have access to your voice data. In the future, if we implement error reporting features, we may collect the transcribed text (not the audio) of calculations that resulted in errors, solely for debugging purposes. If such a feature is implemented, it will be clearly disclosed and you will have control over whether to participate.
         </Text>
         <Text style={styles.subHeading}>Usage Data</Text>
         <Text style={styles.paragraph}>
-          We do not currently collect detailed data about your specific calculations or granular in-app interactions within calcAI for analytics or tracking purposes. Our service providers (such as Supabase for backend operations and Netlify for web hosting) may automatically collect standard operational data, such as IP addresses, access times, device information (e.g., operating system, browser type for web), and system activity, as necessary for providing and maintaining the service, ensuring security, and for operational monitoring. This data is primarily used in an aggregated and often anonymized form.
+          We do not currently collect detailed data about your specific calculations or granular in-app interactions within calcAI for analytics or tracking purposes. Our service providers (such as Cloudflare for backend operations and hosting) may automatically collect standard operational data, such as IP addresses, access times, device information (e.g., operating system, browser type for web), and system activity, as necessary for providing and maintaining the service, ensuring security, and for operational monitoring. This data is primarily used in an aggregated and often anonymized form.
         </Text>
         
         <Text style={styles.heading}>3. How We Use Your Information</Text>
@@ -62,8 +66,9 @@ const PrivacyPolicyScreen = () => {
         <Text style={styles.paragraph}>
           We may share your information with third-party service providers that perform services for us or on our behalf. These include:
         </Text>
-        <Text style={styles.listItem}>- Supabase: For user authentication, account management, and database services (e.g., storing your webhook configurations and future synchronized history).</Text>
-        <Text style={styles.listItem}>- Netlify: For hosting the web version of our Application.</Text>
+        <Text style={styles.listItem}>- Google: For user authentication via Google Sign-In.</Text>
+        <Text style={styles.listItem}>- Cloudflare: For backend operations, database services, and hosting (e.g., storing your webhook configurations and future synchronized history).</Text>
+        <Text style={styles.listItem}>- Stripe: For payment processing of premium subscriptions.</Text>
         <Text style={styles.paragraph}>
           These providers are authorized to use your information only as necessary to provide these services to us and are obligated to protect your information.
         </Text>
@@ -74,7 +79,7 @@ const PrivacyPolicyScreen = () => {
         
         <Text style={styles.heading}>5. Security of Your Information</Text>
         <Text style={styles.paragraph}>
-          We use administrative, technical, and physical security measures to help protect your personal information. Supabase, our primary backend provider, implements industry-standard security practices. While we and our providers have taken reasonable steps to secure the personal information you provide, please be aware that despite our efforts, no security measures are perfect or impenetrable, and no method of data transmission can be guaranteed against any interception or other type of misuse.
+          We use administrative, technical, and physical security measures to help protect your personal information. Cloudflare, our primary backend provider, implements industry-standard security practices. While we and our providers have taken reasonable steps to secure the personal information you provide, please be aware that despite our efforts, no security measures are perfect or impenetrable, and no method of data transmission can be guaranteed against any interception or other type of misuse.
         </Text>
 
         <Text style={styles.heading}>6. Policy for Children</Text>
@@ -107,7 +112,7 @@ const PrivacyPolicyScreen = () => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: '#121212',
   },
   header: {
     flexDirection: 'row',
@@ -133,7 +138,7 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: '#121212',
   },
   contentContainer: {
     padding: 20,

@@ -123,7 +123,7 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
                 activeOpacity={0.7}
               >
                 <View style={styles.priceHeader}>
-                  <View style={{ height: Platform.OS === 'web' ? 32 : 24 }} />
+                  <View style={{ height: 24 }} />
                 </View>
                 <Text style={styles.planName}>Monthly</Text>
                 <Text style={styles.planPrice}>$5</Text>
@@ -143,7 +143,7 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
                   <Text style={styles.popularBadgeText}>MOST POPULAR</Text>
                 </View>
                 <View style={styles.priceHeader}>
-                  <View style={{ height: Platform.OS === 'web' ? 32 : 24 }} />
+                  <View style={{ height: 24 }} />
                 </View>
                 <Text style={styles.planName}>Yearly</Text>
                 <Text style={styles.planPrice}>$50</Text>
@@ -160,7 +160,7 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
                 activeOpacity={0.7}
               >
                 <View style={styles.priceHeader}>
-                  <AppIcon name="crown" size={Platform.OS === 'web' ? 32 : 24} color="#ff9500" />
+                  <AppIcon name="crown" size={24} color="#ff9500" />
                 </View>
                 <Text style={styles.planName}>Lifetime</Text>
                 <Text style={styles.planPrice}>$99</Text>
@@ -171,15 +171,15 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
             {/* Advantages List */}
             <View style={styles.advantagesContainer}>
               <View style={styles.advantageItem}>
-                <AppIcon name="microphone" size={18} color="#fff" />
+                <AppIcon name="microphone" size={16} color="#fff" />
                 <Text style={styles.advantageText}>Continuous Mode</Text>
               </View>
               <View style={styles.advantageItem}>
-                <AppIcon name="history" size={18} color="#fff" />
+                <AppIcon name="history" size={16} color="#fff" />
                 <Text style={styles.advantageText}>History & Sync</Text>
               </View>
               <View style={styles.advantageItem}>
-                <AppIcon name="webhook" size={18} color="#fff" />
+                <AppIcon name="webhook" size={16} color="#fff" />
                 <Text style={styles.advantageText}>Webhooks</Text>
               </View>
             </View>
@@ -226,8 +226,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalContainer: {
-    width: Platform.OS === 'web' ? 600 : '95%',
-    maxWidth: 650,
+    width: '95%',
+    maxWidth: Platform.OS === 'web' ? 650 : '95%',
     maxHeight: '90%',
     backgroundColor: '#1C1C1E',
     borderRadius: 20,
@@ -236,7 +236,7 @@ const styles = StyleSheet.create({
     borderColor: '#333',
   },
   scrollContent: {
-    padding: 24,
+    padding: Platform.OS === 'web' ? 24 : 16,
     paddingTop: 16,
   },
   closeButton: {
@@ -272,7 +272,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   mainTitle: {
-    fontSize: 28,
+    fontSize: Platform.OS === 'web' ? 28 : 22,
     fontWeight: 'bold',
     color: '#fff',
     textAlign: 'center',
@@ -292,20 +292,20 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   advantageText: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#fff',
   },
   pricingContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 16,
-    gap: Platform.OS === 'web' ? 12 : 8,
+    gap: 8,
   },
   priceBox: {
     flex: 1,
     backgroundColor: '#2C2C2E',
     borderRadius: 16,
-    padding: Platform.OS === 'web' ? 20 : 12,
+    padding: 12,
     borderWidth: 2,
     borderColor: '#3C3C3E',
     alignItems: 'center',
@@ -334,23 +334,23 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   priceHeader: {
-    marginBottom: Platform.OS === 'web' ? 12 : 6,
-    marginTop: Platform.OS === 'web' ? 8 : 4,
+    marginBottom: 6,
+    marginTop: 4,
   },
   planName: {
-    fontSize: Platform.OS === 'web' ? 18 : 14,
+    fontSize: 14,
     fontWeight: 'bold',
     color: '#fff',
-    marginBottom: Platform.OS === 'web' ? 8 : 4,
+    marginBottom: 4,
   },
   planPrice: {
-    fontSize: Platform.OS === 'web' ? 32 : 24,
+    fontSize: 24,
     fontWeight: 'bold',
     color: '#ff9500',
     marginBottom: 4,
   },
   planBilling: {
-    fontSize: Platform.OS === 'web' ? 11 : 9,
+    fontSize: 9,
     color: '#999',
   },
   paymentButton: {

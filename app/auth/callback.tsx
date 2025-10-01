@@ -50,7 +50,7 @@ export default function AuthCallbackScreen() {
   }, [router, params, errorParam, errorDescription, token, t]);
 
   return (
-    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000000' }}>
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#121212' }}>
       <ActivityIndicator size="large" color="#1E90FF" />
       <Text style={{ color: 'white', marginTop: 20 }}>
         {t('auth.signInToContinue')}...

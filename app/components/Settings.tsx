@@ -941,16 +941,26 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
             </View>
           </View>
 
-          {/* ADDED Privacy Policy Link back at the bottom of ScrollView */}
-          <TouchableOpacity 
-            style={styles.privacyPolicyLinkContainerInScroll}
-            onPress={() => {
-              onClose(); // Close modal on all platforms before navigating
-              router.push('/privacy');
-            }}
-          >
-            <Text style={styles.privacyPolicyLinkText}>{t('common.privacyPolicy')}</Text>
-          </TouchableOpacity>
+          {/* Legal Links at the bottom of ScrollView */}
+          <View style={styles.legalLinksContainer}>
+            <TouchableOpacity 
+              onPress={() => {
+                onClose();
+                router.push('/privacy');
+              }}
+            >
+              <Text style={styles.legalLinkText}>{t('common.privacyPolicy')}</Text>
+            </TouchableOpacity>
+            <Text style={styles.legalLinkSeparator}> • </Text>
+            <TouchableOpacity 
+              onPress={() => {
+                onClose();
+                router.push('/terms');
+              }}
+            >
+              <Text style={styles.legalLinkText}>{t('common.termsOfService')}</Text>
+            </TouchableOpacity>
+          </View>
 
         </ScrollView>
   );
@@ -1596,16 +1606,23 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '500',
   },
-  // ADDED Style for Privacy Policy Link within ScrollView
-  privacyPolicyLinkContainerInScroll: {
+  // Legal Links Styles
+  legalLinksContainer: {
     marginTop: 24,
     marginBottom: 16, 
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  privacyPolicyLinkText: {
+  legalLinkText: {
     fontSize: 14,
     color: '#AEAEB2',
     textDecorationLine: 'underline',
+  },
+  legalLinkSeparator: {
+    fontSize: 14,
+    color: '#AEAEB2',
+    marginHorizontal: 8,
   },
   headerBackButton: {
     padding: 8, 

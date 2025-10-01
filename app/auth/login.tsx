@@ -14,6 +14,7 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 import { useTranslation } from '../../hooks/useTranslation';
 import GoogleLogo from '../components/GoogleLogo';
+import { router } from 'expo-router';
 
 export default function Login() {
   const [googleLoading, setGoogleLoading] = useState(false);
@@ -70,12 +71,19 @@ export default function Login() {
           </View>
         </TouchableOpacity>
 
-        <TouchableOpacity 
-          style={styles.privacyPolicyContainer}
-          onPress={() => Linking.openURL('https://example.com/privacy')}
-        >
-          <Text style={styles.privacyPolicyText}>{t('common.privacyPolicy')}</Text>
-        </TouchableOpacity>
+        <View style={styles.legalLinksContainer}>
+          <TouchableOpacity 
+            onPress={() => router.push('/privacy')}
+          >
+            <Text style={styles.legalLinkText}>{t('common.privacyPolicy')}</Text>
+          </TouchableOpacity>
+          <Text style={styles.legalLinkSeparator}> • </Text>
+          <TouchableOpacity 
+            onPress={() => router.push('/terms')}
+          >
+            <Text style={styles.legalLinkText}>{t('common.termsOfService')}</Text>
+          </TouchableOpacity>
+        </View>
 
       </View>
     </KeyboardAvoidingView>
@@ -168,13 +176,20 @@ const styles = StyleSheet.create({
     color: '#1f1f1f',
     letterSpacing: 0.25,
   },
-  privacyPolicyContainer: {
+  legalLinksContainer: {
     marginTop: 20, 
-    alignItems: 'center', 
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  privacyPolicyText: {
+  legalLinkText: {
     fontSize: 12,
     color: '#AEAEB2', 
     textDecorationLine: 'underline',
+  },
+  legalLinkSeparator: {
+    fontSize: 12,
+    color: '#AEAEB2',
+    marginHorizontal: 8,
   },
 });
