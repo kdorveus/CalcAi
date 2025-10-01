@@ -465,7 +465,7 @@ async function handleCreateCheckout(request, env, corsHeaders) {
       },
       body: new URLSearchParams({
         email: user.email,
-        metadata: JSON.stringify({ userId: user.id }),
+        'metadata[userId]': user.id,
       }),
     });
 

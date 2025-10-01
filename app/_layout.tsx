@@ -292,14 +292,10 @@ export default function RootLayout() {
   // Initialize deep linking (keep this for potential OAuth returns)
   useEffect(() => {
     const subscription = Linking.addEventListener('url', ({ url }) => {
-      console.log('Incoming link:', url);
       // AuthContext might handle session from deep link via onAuthStateChange or specific logic
     });
     const getInitialLink = async () => {
       const initialUrl = await Linking.getInitialURL();
-      if (initialUrl) {
-        console.log('App opened with link:', initialUrl);
-      }
     };
     getInitialLink();
     return () => {

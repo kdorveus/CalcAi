@@ -51,8 +51,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // Check for existing session on mount
     const initializeAuth = async () => {
       try {
-        console.log("[AuthContext] Initializing authentication...");
-        
         // Try to get stored user first for immediate UI update
         const storedUser = await authService.getStoredUser();
         if (storedUser) {
@@ -63,21 +61,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const { user: verifiedUser, error } = await authService.verifySession();
         
         if (error) {
-          console.error("[AuthContext] Session verification error:", error);
           setAuthError(error.message);
           setUser(null);
           setSession(null);
         } else if (verifiedUser) {
-          console.log("[AuthContext] Session verified for user:", verifiedUser.email);
           setUser(verifiedUser);
           setSession({ sessionToken: '', user: verifiedUser, expiresIn: 0 }); // Token is stored in AsyncStorage
         } else {
-          console.log("[AuthContext] No active session");
           setUser(null);
           setSession(null);
         }
       } catch (error: any) {
-        console.error("[AuthContext] Initialization error:", error);
         setAuthError(error.message);
       } finally {
         setLoading(false);
@@ -89,20 +83,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   // Sign In - Email/password not implemented yet
   const signIn = async (email: string) => {
-    console.log("[AuthContext] Email sign-in not implemented - use Google Sign-In");
     setAuthError("Please use Google Sign-In");
     return { error: { name: 'NotImplemented', message: 'Email sign-in not implemented' } as AuthError };
   };
 
   // Verify OTP - Not implemented yet
   const verifyOtp = async (email: string, token: string) => {
-    console.log("[AuthContext] OTP verification not implemented");
     return { error: { name: 'NotImplemented', message: 'OTP verification not implemented' } as AuthError };
   };
 
   // Sign Up - Email/password not implemented yet
   const signUp = async (email: string) => {
-    console.log("[AuthContext] Email sign-up not implemented - use Google Sign-In");
     setAuthError("Please use Google Sign-In");
     return { error: { name: 'NotImplemented', message: 'Email sign-up not implemented' } as AuthError, session: null, user: null };
   };
@@ -111,12 +102,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const signOut = async () => {
     try {
       setLoading(true);
-      console.log("[AuthContext] Signing out...");
       
       const { error } = await authService.signOut();
       
       if (error) {
-        console.error("[AuthContext] Sign out error:", error);
         setAuthError(error.message);
         return { error };
       }
@@ -124,11 +113,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setSession(null);
       setUser(null);
       setAuthError(null);
-      console.log("[AuthContext] Sign out successful");
       
       return { error: null };
     } catch (error: any) {
-      console.error("[AuthContext] Sign out exception:", error);
       setAuthError(error.message);
       return { error: { name: 'SignOutError', message: error.message } as AuthError };
     } finally {
@@ -141,18 +128,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       setLoading(true);
       setAuthError(null);
-      console.log("[AuthContext] Initiating Google sign-in...");
       
       const { error, session: newSession } = await authService.signInWithGoogle();
       
       if (error) {
-        console.error("[AuthContext] Google sign-in error:", error);
         setAuthError(error.message);
         return { error };
       }
       
       if (newSession) {
-        console.log("[AuthContext] Google sign-in successful for:", newSession.user.email);
         setUser(newSession.user);
         setSession(newSession);
         setAuthError(null);
@@ -160,7 +144,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       return { error: null };
     } catch (error: any) {
-      console.error("[AuthContext] Google sign-in exception:", error);
       const authError = { name: 'GoogleAuthError', message: error.message } as AuthError;
       setAuthError(error.message);
       return { error: authError };
@@ -203,11 +186,8 @@ export function useProtectedRoute() {
     const inAuthGroup = segments[0] === 'auth';
     const isWebhookPath = segments.includes('webhook');
 
-    console.log(`[useProtectedRoute] Loading: ${loading}, Session: ${!!session}, Segments: ${segments.join('/')}, InAuthGroup: ${inAuthGroup}`);
-
     // TODO: Re-enable route protection once Cloudflare auth is integrated
     // For now, allow all routes without authentication
-    console.log("[useProtectedRoute] Route protection disabled - awaiting Cloudflare integration");
     };
 
     // Only navigate when loading is complete to prevent race conditions
