@@ -118,7 +118,6 @@ export const WebhookSettingsComponent: React.FC<WebhookSettingsProps> = ({
   const { user, loading, signOut, authError, signInWithGoogle } = useAuth();
   const { isPremium, checkPremiumStatus, premiumLoading } = usePremium();
   const { t, language, setLanguage } = useTranslation();
-  const [showLoginModal, setShowLoginModal] = useState(false);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [lastAttemptedAction, setLastAttemptedAction] = useState<(() => void) | null>(null);
   const [localWebhookUrls, setLocalWebhookUrls] = useState<WebhookItem[]>(webhookUrls || []);
@@ -191,7 +190,7 @@ export const WebhookSettingsComponent: React.FC<WebhookSettingsProps> = ({
   const requireAuth = (action: () => void) => {
     if (!user) {
       setLastAttemptedAction(() => action);
-      setShowLoginModal(true);
+      handleGoogleLogin();
       return;
     }
     action();
@@ -202,7 +201,7 @@ export const WebhookSettingsComponent: React.FC<WebhookSettingsProps> = ({
     // First check if user is authenticated
     if (!user) {
       setLastAttemptedAction(() => () => requirePremium(action));
-      setShowLoginModal(true);
+      handleGoogleLogin();
       return;
     }
     
@@ -335,7 +334,6 @@ export const WebhookSettingsComponent: React.FC<WebhookSettingsProps> = ({
     const { error } = await signInWithGoogle();
     setIsLoading(false);
     if (!error) {
-      setShowLoginModal(false);
       if (lastAttemptedAction) {
         lastAttemptedAction();
         setLastAttemptedAction(null);
@@ -345,72 +343,6 @@ export const WebhookSettingsComponent: React.FC<WebhookSettingsProps> = ({
     }
   };
 
-  // Login Modal Component
-  const LoginModal = () => {
-    const [isLoading, setIsLoading] = useState(false);
-
-    const handleGoogleLogin = async () => {
-      setIsLoading(true);
-      const { error } = await signInWithGoogle();
-      setIsLoading(false);
-      if (!error) {
-        setShowLoginModal(false);
-        if (lastAttemptedAction) {
-          lastAttemptedAction();
-          setLastAttemptedAction(null);
-        }
-      } else {
-        Alert.alert(t('auth.error'), error.message);
-      }
-    };
-
-    return (
-      <Modal
-        visible={showLoginModal}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowLoginModal(false)}
-      >
-        <View style={styles.loginModalOverlay}>
-          <View style={styles.loginModalContent}>
-            <View style={styles.loginModalHeader}>
-              <View style={styles.logoContainer}>
-                <Image 
-                  source={require('../../assets/images/LOGO.png')} 
-                  style={{ width: 180, height: 72, marginBottom: 20, resizeMode: 'contain' }} 
-                />
-                <Text style={styles.betaText}>BETA</Text>
-              </View>
-              <Text style={styles.loginModalTitle}>{t('auth.signInToContinue')}</Text>
-              <TouchableOpacity 
-                style={styles.loginModalClose}
-                onPress={() => setShowLoginModal(false)}
-              >
-                <AppIcon name="close" size={24} color="#888" />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.loginInputContainer}>
-              <TouchableOpacity 
-                style={styles.googleButton}
-                onPress={handleGoogleLogin}
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <ActivityIndicator color="#0066cc" />
-                ) : (
-                  <>
-                    <GoogleLogo size={20} />
-                    <Text style={styles.googleButtonText}>{t('auth.continueWithGoogle')}</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-    );
-  };
 
   const startEditingWebhook = (url: string) => {
     setEditingWebhookUrl(url);
@@ -971,45 +903,45 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
           )}
           
           {/* Authentication Section */}
-          <View style={styles.sectionCard}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 4, justifyContent: 'space-between' }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-                {user ? (
-                  user.picture ? (
-                    <Image 
-                      source={{ uri: user.picture }} 
-                      style={{ width: 40, height: 40, borderRadius: 20, marginRight: 12 }}
-                    />
-                  ) : (
-                    <AppIcon name="account-circle" size={40} color="#888" style={{ marginRight: 12 }} />
-                  )
-                ) : (
+          <View style={[styles.sectionCard, styles.authSection]}>
+            <View style={{ alignItems: 'center', paddingVertical: 16, paddingHorizontal: 4 }}>
+              {/* Avatar */}
+              {user ? (
+                user.picture ? (
                   <Image 
-                    source={require('../../assets/images/cat.webp')} 
-                    style={{ width: 40, height: 40, borderRadius: 20, marginRight: 12 }}
+                    source={{ uri: user.picture }} 
+                    style={{ width: 72, height: 72, borderRadius: 36, marginBottom: 12 }}
                   />
-                )}
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.subHeader, { fontSize: 18, marginBottom: 2, fontWeight: 'bold', color: '#fff' }]}>
-                    {user ? (user.name || 'User') : t('auth.anonymousCat')}
-                  </Text>
-                  <Text style={[styles.userSubtitle, { fontSize: 14, color: '#888' }]}>
-                    {user ? user.email : t('auth.guestUser')}
-                  </Text>
-                </View>
-              </View>
-              
+                ) : (
+                  <AppIcon name="account-circle" size={72} color="#888" style={{ marginBottom: 12 }} />
+                )
+              ) : (
+                <Image 
+                  source={require('../../assets/images/cat.webp')} 
+                  style={{ width: 72, height: 72, borderRadius: 36, marginBottom: 12 }}
+                />
+              )}
+
+              {/* Text */}
+              <Text style={[styles.subHeader, { fontSize: 18, marginBottom: 2, fontWeight: 'bold', color: '#fff', textAlign: 'center' }]}>
+                {user ? (user.name || 'User') : t('auth.anonymousCat')}
+              </Text>
+              <Text style={[styles.userSubtitle, { fontSize: 14, color: '#888', textAlign: 'center' }]}>
+                {user ? user.email : t('auth.guestUser')}
+              </Text>
+
+              {/* Button */}
               {user ? (
                 <TouchableOpacity
-                  style={[styles.signOutButton, { marginLeft: 12 }]}
+                  style={[styles.signOutButton, { marginTop: 12 }]}
                   onPress={handleSignOut}
                 >
-                  <AppIcon name="logout" size={18} color="#FF3B30" style={{ marginRight: 8 }} />
+                  <AppIcon name="logout" size={18} color="#888" style={{ marginRight: 8 }} />
                   <Text style={styles.signOutButtonText}>{t('auth.signOut')}</Text>
                 </TouchableOpacity>
               ) : (
                 <TouchableOpacity 
-                  style={[styles.googleButton, { marginLeft: 12, paddingVertical: 8, paddingHorizontal: 16 }]}
+                  style={[styles.googleButton, { marginTop: 12, paddingVertical: 8, paddingHorizontal: 16 }]}
                   onPress={handleGoogleLogin}
                   disabled={isLoading}
                 >
@@ -1092,7 +1024,6 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
           }}
         />
       </Modal>
-      <LoginModal />
     </>
   );
 };
@@ -1172,6 +1103,10 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderWidth: 1,
     borderColor: '#222',
+  },
+  authSection: {
+    backgroundColor: 'transparent',
+    borderWidth: 0,
   },
   modalTitle: {
     fontSize: 22,
@@ -1484,7 +1419,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   signOutButtonText: {
-    color: '#FF3B30',
+    color: '#888',
     fontSize: 16,
     fontWeight: '500',
   },
