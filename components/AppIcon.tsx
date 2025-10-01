@@ -78,6 +78,7 @@ const RefreshIcon = (props: SvgProps) => (
   </Svg>
 );
 
+
 // Map icon names to their components
 const iconMap: Record<string, React.FC<SvgProps>> = {
   'webhook': WebhookIcon,

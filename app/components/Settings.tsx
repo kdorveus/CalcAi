@@ -198,14 +198,7 @@ export const WebhookSettingsComponent: React.FC<WebhookSettingsProps> = ({
 
   // Wrap actions that need premium
   const requirePremium = async (action: () => void) => {
-    // First check if user is authenticated
-    if (!user) {
-      setLastAttemptedAction(() => () => requirePremium(action));
-      handleGoogleLogin();
-      return;
-    }
-    
-    // Then check if user has premium
+    // Check if user has premium
     const hasPremium = await checkPremiumStatus();
     if (!hasPremium) {
       setLastAttemptedAction(() => action);
@@ -518,7 +511,7 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
                     <Text style={styles.settingLabel}>{t('settings.general.muteVoiceOutput')}</Text>
                     <Switch
                       value={isSpeechMuted}
-                      onValueChange={() => requireAuth(() => toggleSpeechMute?.())}
+                      onValueChange={() => toggleSpeechMute?.()}
                       trackColor={{ false: "#333", true: "#0066cc" }}
                       thumbColor={isSpeechMuted ? "#0066cc" : "#f4f3f4"}
                     />
@@ -527,7 +520,7 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
                     <Text style={styles.settingLabel}>Continuous Mode</Text>
                     <Switch
                       value={continuousMode}
-                      onValueChange={v => setContinuousMode?.(v)}
+                      onValueChange={v => requirePremium(() => setContinuousMode?.(v))}
                       trackColor={{ false: "#333", true: "#0066cc" }}
                       thumbColor={continuousMode ? "#0066cc" : "#f4f3f4"}
                       disabled={loading}
@@ -537,7 +530,7 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
                     <Text style={styles.settingLabel}>{t('settings.general.newLineOnSend')}</Text>
                     <Switch
                       value={enterKeyNewLine}
-                      onValueChange={v => requireAuth(() => setEnterKeyNewLine?.(v))}
+                      onValueChange={v => setEnterKeyNewLine?.(v)}
                       trackColor={{ false: "#333", true: "#0066cc" }}
                       thumbColor={enterKeyNewLine ? "#0066cc" : "#f4f3f4"}
                     />
@@ -547,7 +540,7 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
                       <Text style={styles.settingLabel}>{t('settings.general.enableVibration')}</Text>
                       <Switch
                         value={vibrationEnabled}
-                        onValueChange={v => requireAuth(() => setVibrationEnabled?.(v))}
+                        onValueChange={v => setVibrationEnabled?.(v)}
                         trackColor={{ false: "#333", true: "#0066cc" }}
                         thumbColor={vibrationEnabled ? "#0066cc" : "#f4f3f4"}
                       />
@@ -558,7 +551,7 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
                       <Text style={styles.settingLabel}>{t('settings.general.openInCalcMode')}</Text>
                       <Switch
                         value={openInCalcMode}
-                        onValueChange={v => requireAuth(() => setOpenInCalcMode?.(v))}
+                        onValueChange={v => setOpenInCalcMode?.(v)}
                         trackColor={{ false: "#333", true: "#0066cc" }}
                         thumbColor={openInCalcMode ? "#0066cc" : "#f4f3f4"}
                       />
@@ -657,44 +650,34 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
                 <View>
                   <Text style={styles.sectionSubtitle}>{t('settings.webhooks.createNew')}</Text>
                   <View style={[styles.addWebhookContainer, styles.sectionPadding]}>
+                    <TextInput
+                      style={styles.webhookInput}
+                      placeholder={t('settings.webhooks.enterTitle')}
+                      placeholderTextColor="#888"
+                      value={localWebhookTitle}
+                      onChangeText={updateLocalWebhookTitle}
+                      autoCapitalize="sentences"
+                    />
+                    <TextInput
+                      style={styles.webhookInput}
+                      placeholder={t('settings.webhooks.enterUrl')}
+                      placeholderTextColor="#888"
+                      value={localWebhookUrl}
+                      onChangeText={updateLocalWebhookUrl}
+                      autoCapitalize="none"
+                      keyboardType="url"
+                    />
                     <TouchableOpacity
-                      activeOpacity={0.8}
-                      onPress={() => {
-                        if (!isPremium) {
-                          // Show premium modal for non-premium users
-                          requirePremium(() => {});
-                        }
-                      }}
-                      style={{ width: '100%' }}
-                    >
-                      <View style={[styles.webhookInput, !isPremium && { opacity: 0.6 }]}>
-                        <Text style={{ color: isPremium ? '#fff' : '#888' }}>
-                          {localWebhookTitle || t('settings.webhooks.enterTitle')}
-                        </Text>
-                      </View>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      activeOpacity={0.8}
-                      onPress={() => {
-                        if (!isPremium) {
-                          // Show premium modal for non-premium users
-                          requirePremium(() => {});
-                        }
-                      }}
-                      style={{ width: '100%' }}
-                    >
-                      <View style={[styles.webhookInput, !isPremium && { opacity: 0.6 }]}>
-                        <Text style={{ color: isPremium ? '#fff' : '#888' }}>
-                          {localWebhookUrl || t('settings.webhooks.enterUrl')}
-                        </Text>
-                      </View>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.addButton, !/^https?:\/\//.test(localWebhookUrl.trim()) && styles.addButtonDisabled]}
+                      style={[
+                        styles.addButton, 
+                        (!isPremium || !/^https?:\/\//.test(localWebhookUrl.trim())) && styles.addButtonDisabled
+                      ]}
                       onPress={handleAddWebhookLocal}
-                      disabled={!/^https?:\/\//.test(localWebhookUrl.trim())}
+                      disabled={!isPremium || !/^https?:\/\//.test(localWebhookUrl.trim())}
                     >
-                      <Text style={styles.addButtonText}>{t('settings.webhooks.add')}</Text>
+                      <Text style={styles.addButtonText}>
+                        {!isPremium ? t('common.pro') : t('settings.webhooks.add')}
+                      </Text>
                     </TouchableOpacity>
                   </View>
                   

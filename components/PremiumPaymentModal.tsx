@@ -12,6 +12,7 @@ import {
 // Using our bundled AppIcon component instead of MaterialCommunityIcons
 import AppIcon from './AppIcon';
 import { usePremium } from '../contexts/PremiumContext';
+import { useAuth } from '../contexts/AuthContext';
 import { useTranslation } from '../hooks/useTranslation';
 
 interface PremiumPaymentModalProps {
@@ -28,14 +29,29 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
   onSuccess,
 }) => {
   const { showPremiumPayment, premiumLoading, productInfo } = usePremium();
+  const { user, signInWithGoogle } = useAuth();
   const { t } = useTranslation();
   const [isLoading, setIsLoading] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<PlanType>('yearly');
 
   const handlePayment = async () => {
+    // If not logged in, trigger login first
+    if (!user) {
+      setIsLoading(true);
+      try {
+        await signInWithGoogle();
+        // After login, the payment flow will continue
+      } catch (error) {
+        console.error('Login failed:', error);
+      }
+      setIsLoading(false);
+      return;
+    }
+
+    // User is logged in, proceed with payment
     setIsLoading(true);
-    await showPremiumPayment();
+    await showPremiumPayment(selectedPlan);
     setIsLoading(false);
     // We don't close the modal here because we don't know if payment was successful
     // The premium status will be checked in PremiumContext after payment
@@ -57,15 +73,16 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
   };
 
   const getPlanButtonText = () => {
+    const prefix = !user ? 'Login & ' : '';
     switch (selectedPlan) {
       case 'monthly':
-        return 'Get Monthly Premium Access';
+        return `${prefix}Get Monthly Access`;
       case 'yearly':
-        return 'Get Yearly Premium Access';
+        return `${prefix}Get Yearly Access`;
       case 'lifetime':
-        return 'Get Lifetime Premium Access';
+        return `${prefix}Get Lifetime Access`;
       default:
-        return 'Get Premium Access';
+        return `${prefix}Get Access`;
     }
   };
 
@@ -100,15 +117,13 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
               <TouchableOpacity 
                 style={[
                   styles.priceBox,
-                  selectedPlan === 'monthly' && styles.selectedBox,
-                  // extra top padding to align with yearly badge
-                  { paddingTop: Platform.OS === 'web' ? 48 : 18 }
+                  selectedPlan === 'monthly' && styles.selectedBox
                 ]}
                 onPress={() => setSelectedPlan('monthly')}
                 activeOpacity={0.7}
               >
                 <View style={styles.priceHeader}>
-                  <AppIcon name="calendar" size={Platform.OS === 'web' ? 32 : 24} color="#ff9500" />
+                  <View style={{ height: Platform.OS === 'web' ? 32 : 24 }} />
                 </View>
                 <Text style={styles.planName}>Monthly</Text>
                 <Text style={styles.planPrice}>$5</Text>
@@ -119,9 +134,7 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
               <TouchableOpacity 
                 style={[
                   styles.priceBox,
-                  selectedPlan === 'yearly' && styles.selectedBox,
-                  // extra top padding so content sits lower under the badge
-                  { paddingTop: Platform.OS === 'web' ? 48 : 18 },
+                  selectedPlan === 'yearly' && styles.selectedBox
                 ]}
                 onPress={() => setSelectedPlan('yearly')}
                 activeOpacity={0.7}
@@ -130,7 +143,7 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
                   <Text style={styles.popularBadgeText}>MOST POPULAR</Text>
                 </View>
                 <View style={styles.priceHeader}>
-                  <AppIcon name="star" size={Platform.OS === 'web' ? 32 : 24} color="#ff9500" />
+                  <View style={{ height: Platform.OS === 'web' ? 32 : 24 }} />
                 </View>
                 <Text style={styles.planName}>Yearly</Text>
                 <Text style={styles.planPrice}>$50</Text>
@@ -141,9 +154,7 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
               <TouchableOpacity 
                 style={[
                   styles.priceBox,
-                  selectedPlan === 'lifetime' && styles.selectedBox,
-                  // extra top padding to align with yearly badge
-                  { paddingTop: Platform.OS === 'web' ? 48 : 18 }
+                  selectedPlan === 'lifetime' && styles.selectedBox
                 ]}
                 onPress={() => setSelectedPlan('lifetime')}
                 activeOpacity={0.7}
@@ -160,20 +171,16 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
             {/* Advantages List */}
             <View style={styles.advantagesContainer}>
               <View style={styles.advantageItem}>
-                <AppIcon name="check" size={18} color="#fff" />
+                <AppIcon name="microphone" size={18} color="#fff" />
                 <Text style={styles.advantageText}>Continuous Mode</Text>
               </View>
               <View style={styles.advantageItem}>
-                <AppIcon name="check" size={18} color="#fff" />
+                <AppIcon name="history" size={18} color="#fff" />
                 <Text style={styles.advantageText}>History & Sync</Text>
               </View>
               <View style={styles.advantageItem}>
-                <AppIcon name="check" size={18} color="#fff" />
+                <AppIcon name="webhook" size={18} color="#fff" />
                 <Text style={styles.advantageText}>Webhooks</Text>
-              </View>
-              <View style={styles.advantageItem}>
-                <AppIcon name="check" size={18} color="#fff" />
-                <Text style={styles.advantageText}>Priority Support</Text>
               </View>
             </View>
 
@@ -185,10 +192,7 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
               {isLoading || premiumLoading ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <>
-                  <AppIcon name="lock-open" size={20} color="#fff" />
-                  <Text style={styles.paymentButtonText}>{getPlanButtonText()}</Text>
-                </>
+                <Text style={styles.paymentButtonText}>{getPlanButtonText()}</Text>
               )}
             </TouchableOpacity>
 
@@ -237,7 +241,7 @@ const styles = StyleSheet.create({
   },
   closeButton: {
     position: 'absolute',
-    top: 16,
+    top: 6,
     right: 16,
     zIndex: 10,
     padding: 8,
@@ -253,7 +257,7 @@ const styles = StyleSheet.create({
   },
   premiumHeaderText: {
     fontSize: 14,
-    fontWeight: 'bold',
+    fontWeight: 'normal',
     color: '#fff',
     letterSpacing: 1.5,
   },
@@ -381,8 +385,8 @@ const styles = StyleSheet.create({
   },
   restoreButtonText: {
     color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 12,
+    fontWeight: 'normal',
     letterSpacing: 0.5,
   },
 });

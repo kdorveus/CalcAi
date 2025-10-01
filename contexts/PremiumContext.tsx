@@ -1,9 +1,11 @@
-import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
-import { Alert, Platform } from 'react-native';
-import { useAuth } from './AuthContext';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { Platform, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios from 'axios';
+import { PREMIUM_ENDPOINTS, STORAGE_KEYS } from '../constants/Config';
 import * as WebBrowser from 'expo-web-browser';
 import * as SecureStore from 'expo-secure-store';
+import { useAuth } from './AuthContext';
 
 // Conditionally import Purchases to avoid errors on web
 import PurchasesModule from 'react-native-purchases';
@@ -19,6 +21,13 @@ if (Platform.OS === 'android' || Platform.OS === 'ios') {
 // Product ID for Google Play
 const GOOGLE_PLAY_PRODUCT_ID = 'YOUR_GOOGLE_PLAY_PRODUCT_ID';
 
+// Stripe Price IDs
+const STRIPE_PRICE_IDS = {
+  monthly: 'price_1SDR9XDmsyc2Q0HRnMKTqbyM',
+  yearly: 'price_1SDR9YDmsyc2Q0HRpwm7xVbE',
+  lifetime: 'price_1SDR9ZDmsyc2Q0HRCNYKpUvW',
+};
+
 // Define product structure
 type ProductInfo = {
   productId: string;
@@ -32,7 +41,7 @@ type ProductInfo = {
 type PremiumContextType = {
   isPremium: boolean;
   checkPremiumStatus: () => Promise<boolean>;
-  showPremiumPayment: () => Promise<void>;
+  showPremiumPayment: (planType?: 'monthly' | 'yearly' | 'lifetime') => Promise<void>;
   premiumLoading: boolean;
   stripePaymentUrl: string;
   isPremiumCached: boolean; // Added to indicate if we have a cached value
@@ -43,9 +52,9 @@ type PremiumContextType = {
 const PremiumContext = createContext<PremiumContextType>({
   isPremium: false,
   checkPremiumStatus: async () => false,
-  showPremiumPayment: async () => {},
+  showPremiumPayment: async (planType?: 'monthly' | 'yearly' | 'lifetime') => {},
   premiumLoading: false,
-  stripePaymentUrl: 'https://buy.stripe.com/bJe4gzeXH8bE5I31Xs24003', // Default payment URL from Stripe
+  stripePaymentUrl: '', // Deprecated - will be generated dynamically
   isPremiumCached: false,
   productInfo: null,
 });
@@ -66,7 +75,7 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
   const [isPremiumCached, setIsPremiumCached] = useState<boolean>(false);
   const [premiumLoading, setPremiumLoading] = useState<boolean>(false);
   const [lastChecked, setLastChecked] = useState<number>(0);
-  const [stripePaymentUrl] = useState<string>('https://buy.stripe.com/bJe4gzeXH8bE5I31Xs24003');
+  const [stripePaymentUrl] = useState<string>(''); // Deprecated
   const [productInfo, setProductInfo] = useState<ProductInfo | null>(null);
   const [isIapConnected, setIsIapConnected] = useState<boolean>(false);
   
@@ -188,8 +197,33 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
     }
   };
 
-  // Check premium status - Placeholder for Cloudflare
+  // Check premium status from Cloudflare Worker
   const checkPremiumStatus = async (): Promise<boolean> => {
+    try {
+      const token = await AsyncStorage.getItem(STORAGE_KEYS.SESSION_TOKEN);
+      if (!token) {
+        setIsPremium(false);
+        return false;
+      }
+
+      const response = await axios.get(PREMIUM_ENDPOINTS.CHECK, {
+        headers: { Authorization: `Bearer ${token}` },
+        timeout: 5000,
+      });
+
+      const premium = response.data.isPremium === true;
+      setIsPremium(premium);
+      setIsPremiumCached(true);
+      await savePremiumStatus(premium, Date.now());
+      return premium;
+    } catch (error) {
+      setIsPremium(false);
+      return false;
+    }
+  };
+
+  // Legacy check premium status
+  const checkPremiumStatusLegacy = async (): Promise<boolean> => {
     // TODO: Replace with Cloudflare premium status check
     console.log("[PremiumContext] checkPremiumStatus - awaiting Cloudflare integration");
     
@@ -204,7 +238,7 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
   };
 
   // Handle payments based on platform
-  const showPremiumPayment = async (): Promise<void> => {
+  const showPremiumPayment = async (planType: 'monthly' | 'yearly' | 'lifetime' = 'yearly'): Promise<void> => {
     try {
       // For Android, use Google Play IAP
       if (Platform.OS === 'android') {
@@ -237,25 +271,60 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
         // TODO: Implement iOS IAP when needed
         Alert.alert('Coming Soon', 'iOS in-app purchases are coming soon!');
       }
-      // For web and other platforms, use Stripe
+      // For web and other platforms, use Stripe Checkout
       else {
-        console.log('Using Stripe for premium purchase');
-        if (Platform.OS === 'web') {
-          // For web, open in a new tab
-          window.open(stripePaymentUrl, '_blank');
-        } else {
-          // For other platforms, use WebBrowser
-          await WebBrowser.openBrowserAsync(stripePaymentUrl);
-          
-          // After payment, we should check premium status again
-          setTimeout(() => {
-            checkPremiumStatus();
-          }, 5000); // Check after 5 seconds
+        console.log('Using Stripe Checkout for premium purchase');
+        setPremiumLoading(true);
+        
+        try {
+          const token = await AsyncStorage.getItem(STORAGE_KEYS.SESSION_TOKEN);
+          if (!token) {
+            Alert.alert('Authentication Required', 'Please sign in to purchase premium.');
+            setPremiumLoading(false);
+            return;
+          }
+
+          // Get the price ID for the selected plan
+          const priceId = STRIPE_PRICE_IDS[planType];
+
+          // Create checkout session via worker
+          const response = await axios.post(
+            PREMIUM_ENDPOINTS.CREATE_CHECKOUT,
+            { priceId },
+            {
+              headers: { Authorization: `Bearer ${token}` },
+              timeout: 10000,
+            }
+          );
+
+          const { url } = response.data;
+
+          if (Platform.OS === 'web') {
+            // For web, open in the same tab
+            window.location.href = url;
+          } else {
+            // For other platforms, use WebBrowser
+            const result = await WebBrowser.openBrowserAsync(url);
+            
+            // After browser closes, check premium status
+            if (result.type === 'dismiss' || result.type === 'cancel') {
+              // User closed the browser, check if payment was completed
+              setTimeout(() => {
+                checkPremiumStatus();
+              }, 1000);
+            }
+          }
+        } catch (error: any) {
+          console.error('Error creating checkout session:', error);
+          Alert.alert('Error', error.response?.data?.error || 'Could not start checkout. Please try again.');
+        } finally {
+          setPremiumLoading(false);
         }
       }
     } catch (error) {
       console.error('Error opening payment page:', error);
       Alert.alert('Error', 'Could not open payment page. Please try again.');
+      setPremiumLoading(false);
     }
   };
 

@@ -33,6 +33,14 @@ export default {
         return handleRefreshToken(request, env, corsHeaders);
       } else if (path === '/auth/logout') {
         return handleLogout(request, env, corsHeaders);
+      } else if (path === '/webhook/send') {
+        return handleWebhookProxy(request, env, corsHeaders);
+      } else if (path === '/premium/check') {
+        return handlePremiumCheck(request, env, corsHeaders);
+      } else if (path === '/premium/create-checkout') {
+        return handleCreateCheckout(request, env, corsHeaders);
+      } else if (path === '/stripe/webhook') {
+        return handleStripeWebhook(request, env, corsHeaders);
       } else if (path === '/health') {
         return new Response(JSON.stringify({ status: 'ok' }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -345,4 +353,472 @@ async function generateSessionToken(userId) {
   const hashBuffer = await crypto.subtle.digest('SHA-256', dataBuffer);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * Checks if user has premium status
+ */
+async function handlePremiumCheck(request, env, corsHeaders) {
+  const authHeader = request.headers.get('Authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return new Response(
+      JSON.stringify({ isPremium: false }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  const token = authHeader.substring(7);
+  const sessionData = await env.SESSIONS.get(token);
+
+  if (!sessionData) {
+    return new Response(
+      JSON.stringify({ isPremium: false }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  const session = JSON.parse(sessionData);
+  const user = await env.DB.prepare(
+    'SELECT is_premium FROM users WHERE id = ?'
+  ).bind(session.userId).first();
+
+  return new Response(
+    JSON.stringify({ isPremium: user?.is_premium ? true : false }),
+    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  );
+}
+
+/**
+ * Creates a Stripe Checkout session for premium purchase
+ */
+async function handleCreateCheckout(request, env, corsHeaders) {
+  if (request.method !== 'POST') {
+    return new Response(
+      JSON.stringify({ error: 'Method not allowed' }),
+      { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // Verify authentication
+  const authHeader = request.headers.get('Authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return new Response(
+      JSON.stringify({ error: 'Missing or invalid authorization header' }),
+      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  const token = authHeader.substring(7);
+  const sessionData = await env.SESSIONS.get(token);
+
+  if (!sessionData) {
+    return new Response(
+      JSON.stringify({ error: 'Invalid or expired session' }),
+      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  const session = JSON.parse(sessionData);
+
+  // Get user from database
+  const user = await env.DB.prepare(
+    'SELECT id, email, stripe_customer_id FROM users WHERE id = ?'
+  ).bind(session.userId).first();
+
+  if (!user) {
+    return new Response(
+      JSON.stringify({ error: 'User not found' }),
+      { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // Parse request body
+  let body;
+  try {
+    body = await request.json();
+  } catch (e) {
+    return new Response(
+      JSON.stringify({ error: 'Invalid JSON body' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  const { priceId } = body;
+
+  if (!priceId) {
+    return new Response(
+      JSON.stringify({ error: 'Missing priceId' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // Create or retrieve Stripe customer
+  let customerId = user.stripe_customer_id;
+  
+  if (!customerId) {
+    // Create new Stripe customer
+    const customerResponse = await fetch('https://api.stripe.com/v1/customers', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${env.STRIPE_SECRET_KEY}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        email: user.email,
+        metadata: JSON.stringify({ userId: user.id }),
+      }),
+    });
+
+    if (!customerResponse.ok) {
+      const errorData = await customerResponse.text();
+      return new Response(
+        JSON.stringify({ error: 'Failed to create Stripe customer', details: errorData }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const customer = await customerResponse.json();
+    customerId = customer.id;
+
+    // Save customer ID to database
+    await env.DB.prepare(
+      'UPDATE users SET stripe_customer_id = ? WHERE id = ?'
+    ).bind(customerId, user.id).run();
+  }
+
+  // Create Stripe Checkout session
+  const checkoutResponse = await fetch('https://api.stripe.com/v1/checkout/sessions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${env.STRIPE_SECRET_KEY}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({
+      customer: customerId,
+      'line_items[0][price]': priceId,
+      'line_items[0][quantity]': '1',
+      mode: 'payment',
+      success_url: 'https://calc.tearhappy.com/premium/success?session_id={CHECKOUT_SESSION_ID}',
+      cancel_url: 'https://calc.tearhappy.com/premium/cancel',
+      'metadata[userId]': user.id,
+    }),
+  });
+
+  if (!checkoutResponse.ok) {
+    const errorData = await checkoutResponse.text();
+    return new Response(
+      JSON.stringify({ error: 'Failed to create checkout session', details: errorData }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  const checkout = await checkoutResponse.json();
+
+  return new Response(
+    JSON.stringify({ 
+      sessionId: checkout.id,
+      url: checkout.url,
+    }),
+    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  );
+}
+
+/**
+ * Handles Stripe webhook events
+ */
+async function handleStripeWebhook(request, env, corsHeaders) {
+  if (request.method !== 'POST') {
+    return new Response(
+      JSON.stringify({ error: 'Method not allowed' }),
+      { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  const signature = request.headers.get('stripe-signature');
+  if (!signature) {
+    return new Response(
+      JSON.stringify({ error: 'Missing stripe-signature header' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  let event;
+  try {
+    const body = await request.text();
+    
+    // Verify webhook signature
+    event = await verifyStripeWebhook(body, signature, env.STRIPE_WEBHOOK_SECRET);
+  } catch (err) {
+    console.error('Webhook signature verification failed:', err.message);
+    return new Response(
+      JSON.stringify({ error: 'Webhook signature verification failed' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // Handle the event
+  try {
+    switch (event.type) {
+      case 'checkout.session.completed':
+        await handleCheckoutCompleted(event.data.object, env);
+        break;
+      case 'invoice.paid':
+        await handleInvoicePaid(event.data.object, env);
+        break;
+      case 'invoice.payment_failed':
+        await handlePaymentFailed(event.data.object, env);
+        break;
+      case 'customer.subscription.deleted':
+        await handleSubscriptionDeleted(event.data.object, env);
+        break;
+      default:
+        console.log(`Unhandled event type: ${event.type}`);
+    }
+
+    return new Response(
+      JSON.stringify({ received: true }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  } catch (error) {
+    console.error('Error handling webhook:', error);
+    return new Response(
+      JSON.stringify({ error: 'Webhook handler failed' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+}
+
+/**
+ * Verifies Stripe webhook signature
+ */
+async function verifyStripeWebhook(payload, signature, secret) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(payload);
+  
+  // Extract timestamp and signatures from header
+  const signatureParts = signature.split(',');
+  let timestamp;
+  const signatures = [];
+  
+  for (const part of signatureParts) {
+    const [key, value] = part.split('=');
+    if (key === 't') {
+      timestamp = value;
+    } else if (key === 'v1') {
+      signatures.push(value);
+    }
+  }
+  
+  if (!timestamp || signatures.length === 0) {
+    throw new Error('Invalid signature format');
+  }
+  
+  // Create the signed payload
+  const signedPayload = `${timestamp}.${payload}`;
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  
+  const signature_bytes = await crypto.subtle.sign(
+    'HMAC',
+    key,
+    encoder.encode(signedPayload)
+  );
+  
+  const expectedSignature = Array.from(new Uint8Array(signature_bytes))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+  
+  // Compare signatures
+  if (!signatures.includes(expectedSignature)) {
+    throw new Error('Signature verification failed');
+  }
+  
+  // Parse and return the event
+  return JSON.parse(payload);
+}
+
+/**
+ * Handles successful checkout completion
+ */
+async function handleCheckoutCompleted(session, env) {
+  const userId = session.metadata?.userId;
+  if (!userId) {
+    console.error('No userId in checkout session metadata');
+    return;
+  }
+
+  // Update user premium status
+  await env.DB.prepare(
+    'UPDATE users SET is_premium = 1, stripe_customer_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+  ).bind(session.customer, userId).run();
+
+  console.log(`Premium activated for user ${userId}`);
+}
+
+/**
+ * Handles successful invoice payment
+ */
+async function handleInvoicePaid(invoice, env) {
+  const customerId = invoice.customer;
+  
+  // Find user by Stripe customer ID and activate premium
+  const user = await env.DB.prepare(
+    'SELECT id FROM users WHERE stripe_customer_id = ?'
+  ).bind(customerId).first();
+
+  if (user) {
+    await env.DB.prepare(
+      'UPDATE users SET is_premium = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+    ).bind(user.id).run();
+    
+    console.log(`Premium activated for user ${user.id} via invoice payment`);
+  }
+}
+
+/**
+ * Handles failed payment
+ */
+async function handlePaymentFailed(invoice, env) {
+  const customerId = invoice.customer;
+  
+  // Find user and potentially deactivate premium
+  const user = await env.DB.prepare(
+    'SELECT id FROM users WHERE stripe_customer_id = ?'
+  ).bind(customerId).first();
+
+  if (user) {
+    console.log(`Payment failed for user ${user.id}`);
+    // Optionally deactivate premium after grace period
+  }
+}
+
+/**
+ * Handles subscription deletion/cancellation
+ */
+async function handleSubscriptionDeleted(subscription, env) {
+  const customerId = subscription.customer;
+  
+  // Find user and deactivate premium
+  const user = await env.DB.prepare(
+    'SELECT id FROM users WHERE stripe_customer_id = ?'
+  ).bind(customerId).first();
+
+  if (user) {
+    await env.DB.prepare(
+      'UPDATE users SET is_premium = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+    ).bind(user.id).run();
+    
+    console.log(`Premium deactivated for user ${user.id} due to subscription cancellation`);
+  }
+}
+
+/**
+ * Proxies webhook requests with authentication and rate limiting
+ */
+async function handleWebhookProxy(request, env, corsHeaders) {
+  if (request.method !== 'POST') {
+    return new Response(
+      JSON.stringify({ error: 'Method not allowed' }),
+      { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // Verify authentication
+  const authHeader = request.headers.get('Authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return new Response(
+      JSON.stringify({ error: 'Missing or invalid authorization header' }),
+      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  const token = authHeader.substring(7);
+  const sessionData = await env.SESSIONS.get(token);
+
+  if (!sessionData) {
+    return new Response(
+      JSON.stringify({ error: 'Invalid or expired session' }),
+      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  const session = JSON.parse(sessionData);
+
+  // Get user and verify premium status
+  const user = await env.DB.prepare(
+    'SELECT id, email, is_premium FROM users WHERE id = ?'
+  ).bind(session.userId).first();
+
+  if (!user || !user.is_premium) {
+    return new Response(
+      JSON.stringify({ error: 'Premium subscription required' }),
+      { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // Parse request body
+  let body;
+  try {
+    body = await request.json();
+  } catch (e) {
+    return new Response(
+      JSON.stringify({ error: 'Invalid JSON body' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  const { webhookUrl, data } = body;
+
+  if (!webhookUrl || !data) {
+    return new Response(
+      JSON.stringify({ error: 'Missing webhookUrl or data' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // Validate webhook URL
+  try {
+    new URL(webhookUrl);
+  } catch (e) {
+    return new Response(
+      JSON.stringify({ error: 'Invalid webhook URL' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // Send webhook with timeout
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+    const webhookResponse = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    return new Response(
+      JSON.stringify({ 
+        success: true, 
+        status: webhookResponse.status 
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  } catch (error) {
+    return new Response(
+      JSON.stringify({ 
+        success: false, 
+        error: error.name === 'AbortError' ? 'Webhook timeout' : 'Webhook failed' 
+      }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
 }

@@ -36,6 +36,7 @@ import { useCalculationHistory } from '../contexts/CalculationHistoryContext';
 import HistoryButton from '../components/HistoryButton';
 import { useTranslation } from '../hooks/useTranslation';
 import { LOCALE_MAP, SPEECH_RECOGNITION_LANG_MAP } from '../constants/Languages';
+import { sendWebhook } from '../utils/webhookService';
 // import HistoryModal from '../components/HistoryModal'; // Remove this line
 
 // Dynamically import components
@@ -1584,7 +1585,7 @@ const MainScreen: React.FC = () => {
           
           try {
             const promises = activeWebhooks.map(webhook => 
-              axios.post(webhook.url, dataToSend)
+              sendWebhook(webhook.url, dataToSend)
             );
             await Promise.allSettled(promises);
           } catch (error) {
@@ -1768,10 +1769,7 @@ const MainScreen: React.FC = () => {
           const webhookUrl: string = webhook.url;
           
           // Create a promise for this webhook
-          const promise = axios.post(webhookUrl, itemData, {
-            headers: { 'Content-Type': 'application/json' },
-            timeout: 8000 // Slightly longer timeout for bulk potentially
-          })
+          const promise = sendWebhook(webhookUrl, itemData)
           .then(response => {
             // Return a simple object with string url
             const successPayload = {

@@ -17,6 +17,17 @@ export const AUTH_ENDPOINTS = {
   LOGOUT: `${WORKER_URL}/auth/logout`,
 };
 
+// Webhook endpoints
+export const WEBHOOK_ENDPOINTS = {
+  SEND: `${WORKER_URL}/webhook/send`,
+};
+
+// Premium endpoints
+export const PREMIUM_ENDPOINTS = {
+  CHECK: `${WORKER_URL}/premium/check`,
+  CREATE_CHECKOUT: `${WORKER_URL}/premium/create-checkout`,
+};
+
 // Session storage keys
 export const STORAGE_KEYS = {
   SESSION_TOKEN: '@calcai_session_token',
