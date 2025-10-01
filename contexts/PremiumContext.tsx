@@ -287,6 +287,8 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
           // Get the price ID for the selected plan
           const priceId = STRIPE_PRICE_IDS[planType];
 
+          console.log(`[PremiumContext] Creating checkout for plan: ${planType}, priceId: ${priceId}`);
+
           // Create checkout session via worker
           const response = await axios.post(
             PREMIUM_ENDPOINTS.CREATE_CHECKOUT,
@@ -296,6 +298,8 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
               timeout: 10000,
             }
           );
+
+          console.log('[PremiumContext] Checkout session created:', response.data);
 
           const { url } = response.data;
 
@@ -315,8 +319,14 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
             }
           }
         } catch (error: any) {
-          console.error('Error creating checkout session:', error);
-          Alert.alert('Error', error.response?.data?.error || 'Could not start checkout. Please try again.');
+          console.error('[PremiumContext] Error creating checkout session:', error);
+          console.error('[PremiumContext] Error response:', error.response?.data);
+          console.error('[PremiumContext] Error status:', error.response?.status);
+          
+          const errorMessage = error.response?.data?.error || error.response?.data?.details || error.message || 'Could not start checkout. Please try again.';
+          console.error('[PremiumContext] Final error message:', errorMessage);
+          
+          Alert.alert('Checkout Error', errorMessage);
         } finally {
           setPremiumLoading(false);
         }
