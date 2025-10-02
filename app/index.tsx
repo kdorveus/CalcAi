@@ -119,18 +119,11 @@ const MainScreen: React.FC = () => {
   const { user } = useAuth();
   const { history, addCalculation, deleteCalculation, clearAllCalculations, loading } = useCalculationHistory();
 
-  // Number formatting function with per-locale cache
+  // Number formatting function - returns raw number string (no locale formatting)
   const formatNumber = useCallback((num: number, lang: string): string => {
-    const locale = LOCALE_MAP[lang] || 'en-US';
-    let formatter = numberFormattersByLocale.get(locale);
-    if (!formatter) {
-      formatter = new Intl.NumberFormat(locale, {
-      maximumFractionDigits: 10,
-        minimumFractionDigits: 0,
-    });
-      numberFormattersByLocale.set(locale, formatter);
-    }
-    return formatter.format(num);
+    // Return raw number string to avoid locale-specific formatting issues
+    // (e.g., French locale would format 1.333 as "1,333" which looks like thousands)
+    return num.toString();
   }, []);
 
   // Language mapping for speech recognition
