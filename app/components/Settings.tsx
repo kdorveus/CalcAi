@@ -960,6 +960,19 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
             >
               <Text style={styles.legalLinkText}>{t('common.termsOfService')}</Text>
             </TouchableOpacity>
+            {user && (
+              <>
+                <Text style={styles.legalLinkSeparator}> • </Text>
+                <TouchableOpacity 
+                  onPress={() => {
+                    onClose();
+                    router.push('/contact');
+                  }}
+                >
+                  <Text style={styles.legalLinkText}>Contact Us</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
 
         </ScrollView>
@@ -1613,16 +1626,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    flexWrap: 'wrap',
+    paddingHorizontal: 16,
   },
   legalLinkText: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#AEAEB2',
     textDecorationLine: 'underline',
   },
   legalLinkSeparator: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#AEAEB2',
-    marginHorizontal: 8,
+    marginHorizontal: 6,
   },
   headerBackButton: {
     padding: 8, 

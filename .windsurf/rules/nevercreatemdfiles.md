@@ -1,0 +1,5 @@
+---
+trigger: always_on
+---
+
+NEVER CREATE MD FILES AWAYS EXPLAIN IN THE CHAT

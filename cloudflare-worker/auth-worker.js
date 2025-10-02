@@ -24,23 +24,25 @@ export default {
     try {
       // Route handling
       if (path === '/auth/google') {
-        return handleGoogleAuth(request, env, corsHeaders);
+        return handleGoogleAuth(request, env, corsHeaders, ctx);
       } else if (path === '/auth/callback') {
-        return handleGoogleCallback(request, env, corsHeaders);
+        return handleGoogleCallback(request, env, corsHeaders, ctx);
       } else if (path === '/auth/verify') {
-        return handleVerifyToken(request, env, corsHeaders);
+        return handleVerifyToken(request, env, corsHeaders, ctx);
       } else if (path === '/auth/refresh') {
-        return handleRefreshToken(request, env, corsHeaders);
+        return handleRefreshToken(request, env, corsHeaders, ctx);
       } else if (path === '/auth/logout') {
-        return handleLogout(request, env, corsHeaders);
+        return handleLogout(request, env, corsHeaders, ctx);
       } else if (path === '/webhook/send') {
-        return handleWebhookProxy(request, env, corsHeaders);
+        return handleWebhookProxy(request, env, corsHeaders, ctx);
       } else if (path === '/premium/check') {
-        return handlePremiumCheck(request, env, corsHeaders);
+        return handlePremiumCheck(request, env, corsHeaders, ctx);
       } else if (path === '/premium/create-checkout') {
-        return handleCreateCheckout(request, env, corsHeaders);
+        return handleCreateCheckout(request, env, corsHeaders, ctx);
       } else if (path === '/stripe/webhook') {
         return handleStripeWebhook(request, env, corsHeaders);
+      } else if (path === '/contact/send') {
+        return handleContactForm(request, env, corsHeaders, ctx);
       } else if (path === '/health') {
         return new Response(JSON.stringify({ status: 'ok' }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -62,7 +64,7 @@ export default {
  * Initiates Google OAuth flow
  * Returns authorization URL for client to redirect to
  */
-async function handleGoogleAuth(request, env, corsHeaders) {
+async function handleGoogleAuth(request, env, corsHeaders, ctx) {
   const url = new URL(request.url);
   const platform = url.searchParams.get('platform') || 'web'; // 'web' or 'mobile'
   
@@ -102,7 +104,7 @@ async function handleGoogleAuth(request, env, corsHeaders) {
  * Handles OAuth callback from Google
  * Exchanges code for tokens and creates/updates user in database
  */
-async function handleGoogleCallback(request, env, corsHeaders) {
+async function handleGoogleCallback(request, env, corsHeaders, ctx) {
   const url = new URL(request.url);
   const code = url.searchParams.get('code');
   const state = url.searchParams.get('state');
@@ -203,26 +205,12 @@ async function handleGoogleCallback(request, env, corsHeaders) {
 /**
  * Verifies a session token
  */
-async function handleVerifyToken(request, env, corsHeaders) {
-  const authHeader = request.headers.get('Authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return new Response(
-      JSON.stringify({ error: 'Missing or invalid authorization header' }),
-      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+async function handleVerifyToken(request, env, corsHeaders, ctx) {
+  const authResult = await verifyAuth(request, env, corsHeaders);
+  if (authResult instanceof Response) {
+    return authResult;
   }
-
-  const token = authHeader.substring(7);
-  const sessionData = await env.SESSIONS.get(token);
-
-  if (!sessionData) {
-    return new Response(
-      JSON.stringify({ error: 'Invalid or expired session' }),
-      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  }
-
-  const session = JSON.parse(sessionData);
+  const { session } = authResult;
 
   // Get user from database
   const user = await env.DB.prepare(
@@ -253,26 +241,12 @@ async function handleVerifyToken(request, env, corsHeaders) {
 /**
  * Refreshes a session token
  */
-async function handleRefreshToken(request, env, corsHeaders) {
-  const authHeader = request.headers.get('Authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return new Response(
-      JSON.stringify({ error: 'Missing or invalid authorization header' }),
-      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+async function handleRefreshToken(request, env, corsHeaders, ctx) {
+  const authResult = await verifyAuth(request, env, corsHeaders);
+  if (authResult instanceof Response) {
+    return authResult;
   }
-
-  const oldToken = authHeader.substring(7);
-  const sessionData = await env.SESSIONS.get(oldToken);
-
-  if (!sessionData) {
-    return new Response(
-      JSON.stringify({ error: 'Invalid or expired session' }),
-      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  }
-
-  const session = JSON.parse(sessionData);
+  const { session, token: oldToken } = authResult;
 
   // Generate new session token
   const newToken = await generateSessionToken(session.userId);
@@ -299,17 +273,13 @@ async function handleRefreshToken(request, env, corsHeaders) {
 /**
  * Logs out a user by deleting their session
  */
-async function handleLogout(request, env, corsHeaders) {
-  const authHeader = request.headers.get('Authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return new Response(
-      JSON.stringify({ error: 'Missing or invalid authorization header' }),
-      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+async function handleLogout(request, env, corsHeaders, ctx) {
+  const authResult = await verifyAuth(request, env, corsHeaders);
+  if (authResult instanceof Response) {
+    return authResult;
   }
-
-  const token = authHeader.substring(7);
-  await env.SESSIONS.delete(token);
+  const { token } = authResult;
+  ctx.waitUntil(env.SESSIONS.delete(token));
 
   return new Response(
     JSON.stringify({ success: true }),
@@ -356,50 +326,10 @@ async function generateSessionToken(userId) {
 }
 
 /**
- * Checks if user has premium status
+ * Helper function to verify authentication token and return session data
+ * @returns {Promise<Response|{session: object, token: string}>} - Returns a Response object on failure, or session data on success.
  */
-async function handlePremiumCheck(request, env, corsHeaders) {
-  const authHeader = request.headers.get('Authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return new Response(
-      JSON.stringify({ isPremium: false }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  }
-
-  const token = authHeader.substring(7);
-  const sessionData = await env.SESSIONS.get(token);
-
-  if (!sessionData) {
-    return new Response(
-      JSON.stringify({ isPremium: false }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  }
-
-  const session = JSON.parse(sessionData);
-  const user = await env.DB.prepare(
-    'SELECT is_premium FROM users WHERE id = ?'
-  ).bind(session.userId).first();
-
-  return new Response(
-    JSON.stringify({ isPremium: user?.is_premium ? true : false }),
-    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-  );
-}
-
-/**
- * Creates a Stripe Checkout session for premium purchase
- */
-async function handleCreateCheckout(request, env, corsHeaders) {
-  if (request.method !== 'POST') {
-    return new Response(
-      JSON.stringify({ error: 'Method not allowed' }),
-      { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  }
-
-  // Verify authentication
+async function verifyAuth(request, env, corsHeaders) {
   const authHeader = request.headers.get('Authorization');
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return new Response(
@@ -418,7 +348,56 @@ async function handleCreateCheckout(request, env, corsHeaders) {
     );
   }
 
-  const session = JSON.parse(sessionData);
+  try {
+    const session = JSON.parse(sessionData);
+    return { session, token };
+  } catch (e) {
+    return new Response(
+      JSON.stringify({ error: 'Invalid session format' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+}
+
+/**
+ * Checks if user has premium status
+ */
+async function handlePremiumCheck(request, env, corsHeaders, ctx) {
+  const authResult = await verifyAuth(request, env, corsHeaders);
+  if (authResult instanceof Response) {
+    return new Response(
+      JSON.stringify({ isPremium: false }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+  const { session } = authResult;
+
+  const user = await env.DB.prepare(
+    'SELECT is_premium FROM users WHERE id = ?'
+  ).bind(session.userId).first();
+
+  return new Response(
+    JSON.stringify({ isPremium: user?.is_premium ? true : false }),
+    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  );
+}
+
+/**
+ * Creates a Stripe Checkout session for premium purchase
+ */
+async function handleCreateCheckout(request, env, corsHeaders, ctx) {
+  if (request.method !== 'POST') {
+    return new Response(
+      JSON.stringify({ error: 'Method not allowed' }),
+      { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  const authResult = await verifyAuth(request, env, corsHeaders);
+  if (authResult instanceof Response) {
+    return authResult;
+  }
+  const { session } = authResult;
 
   // Get user from database
   const user = await env.DB.prepare(
@@ -720,7 +699,7 @@ async function handleSubscriptionDeleted(subscription, env) {
 /**
  * Proxies webhook requests with authentication and rate limiting
  */
-async function handleWebhookProxy(request, env, corsHeaders) {
+async function handleWebhookProxy(request, env, corsHeaders, ctx) {
   if (request.method !== 'POST') {
     return new Response(
       JSON.stringify({ error: 'Method not allowed' }),
@@ -728,26 +707,11 @@ async function handleWebhookProxy(request, env, corsHeaders) {
     );
   }
 
-  // Verify authentication
-  const authHeader = request.headers.get('Authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return new Response(
-      JSON.stringify({ error: 'Missing or invalid authorization header' }),
-      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+  const authResult = await verifyAuth(request, env, corsHeaders);
+  if (authResult instanceof Response) {
+    return authResult;
   }
-
-  const token = authHeader.substring(7);
-  const sessionData = await env.SESSIONS.get(token);
-
-  if (!sessionData) {
-    return new Response(
-      JSON.stringify({ error: 'Invalid or expired session' }),
-      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  }
-
-  const session = JSON.parse(sessionData);
+  const { session } = authResult;
 
   // Get user and verify premium status
   const user = await env.DB.prepare(
@@ -821,4 +785,112 @@ async function handleWebhookProxy(request, env, corsHeaders) {
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
+}
+
+/**
+ * Handles contact form submissions
+ */
+async function handleContactForm(request, env, corsHeaders, ctx) {
+  if (request.method !== 'POST') {
+    return new Response(
+      JSON.stringify({ error: 'Method not allowed' }),
+      { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  const authResult = await verifyAuth(request, env, corsHeaders);
+  if (authResult instanceof Response) {
+    return authResult;
+  }
+  const { session } = authResult;
+
+  // Get user from database
+  const user = await env.DB.prepare(
+    'SELECT id, email, name FROM users WHERE id = ?'
+  ).bind(session.userId).first();
+
+  if (!user) {
+    return new Response(
+      JSON.stringify({ error: 'User not found' }),
+      { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // Parse request body
+  let body;
+  try {
+    body = await request.json();
+  } catch (e) {
+    return new Response(
+      JSON.stringify({ error: 'Invalid JSON body' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  const { message } = body;
+
+  if (!message || typeof message !== 'string' || !message.trim()) {
+    return new Response(
+      JSON.stringify({ error: 'Message is required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // Validate message length
+  if (message.length > 1000) {
+    return new Response(
+      JSON.stringify({ error: 'Message too long (max 1000 characters)' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // Prepare webhook payload
+  const webhookPayload = {
+    email: user.email,
+    name: user.name,
+    message: message.trim(),
+    date: new Date().toISOString(),
+    userId: user.id,
+  };
+
+  // Define the webhook sending function
+  const sendWebhook = async () => {
+    // Read from environment (configure these in Cloudflare dashboard)
+    const webhookUrl = env.ACTIVEPIECES_WEBHOOK_URL;
+    const contactHeaderName = env.CONTACT_HEADER_NAME;
+    const contactHeaderValue = env.CONTACT_HEADER_VALUE;
+
+    if (!webhookUrl || !contactHeaderName || !contactHeaderValue) {
+      console.error('Server misconfiguration: missing webhook env vars');
+      return;
+    }
+
+    const webhookResponse = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        [contactHeaderName]: contactHeaderValue,
+      },
+      body: JSON.stringify(webhookPayload),
+    });
+
+    if (!webhookResponse.ok) {
+      console.error('Webhook failed:', webhookResponse.status, await webhookResponse.text());
+    }
+  };
+
+  // Perform the webhook call in the background after the response has been sent
+  // This makes the API feel instantaneous to the user
+  ctx.waitUntil(sendWebhook().catch(err => {
+    console.error('Contact form webhook failed in waitUntil:', err);
+  }));
+
+  // Immediately return a success response to the client
+  return new Response(
+    JSON.stringify({
+      success: true,
+      message: 'Message is being sent.'
+    }),
+    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  );
 }
