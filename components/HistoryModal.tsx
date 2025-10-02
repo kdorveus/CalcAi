@@ -17,6 +17,7 @@ import { useCalculationHistory, CalculationHistoryItem } from '../contexts/Calcu
 import { usePremium } from '../contexts/PremiumContext';
 import PremiumPaymentModal from './PremiumPaymentModal';
 import { useTranslation } from '../hooks/useTranslation';
+import { usePostHog } from '../contexts/PostHogContext';
 
 interface HistoryModalProps {
   visible: boolean;
@@ -41,6 +42,7 @@ const HistoryModal: React.FC<HistoryModalProps> = ({
 }) => {
   const { isPremium, checkPremiumStatus } = usePremium();
   const { t } = useTranslation();
+  const { captureEvent } = usePostHog();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [webhookModalVisible, setWebhookModalVisible] = useState(false);
   const [selectedItem, setSelectedItem] = useState<CalculationHistoryItem | null>(null);
@@ -53,11 +55,13 @@ const HistoryModal: React.FC<HistoryModalProps> = ({
 
   // Handle deleting a calculation
   const handleDelete = (created_at: string) => {
+    captureEvent('history_item_deleted');
     onDelete(created_at);
   };
 
   // Handle clearing all calculations
   const handleClearAll = () => {
+    captureEvent('history_cleared_all');
     onClearAll();
     onClose();
   };

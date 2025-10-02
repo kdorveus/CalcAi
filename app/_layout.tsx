@@ -10,6 +10,7 @@ import { AuthProvider, useProtectedRoute } from '../contexts/AuthContext';
 import { PremiumProvider } from '../contexts/PremiumContext';
 import { CalculationHistoryProvider } from '../contexts/CalculationHistoryContext';
 import { LanguageProvider } from '../contexts/LanguageContext';
+import { PostHogProvider } from '../contexts/PostHogContext';
 import { Platform } from 'react-native';
 // import { router } from 'expo-router'; // No longer directly needed here
 
@@ -309,15 +310,17 @@ export default function RootLayout() {
 
   // Wrap the navigation stack with providers
   return (
-      <LanguageProvider>
-        <AuthProvider>
-          <PremiumProvider>
-            <CalculationHistoryProvider>
-              <RootLayoutNav />
-            </CalculationHistoryProvider>
-          </PremiumProvider>
-        </AuthProvider>
-      </LanguageProvider>
+      <PostHogProvider>
+        <LanguageProvider>
+          <AuthProvider>
+            <PremiumProvider>
+              <CalculationHistoryProvider>
+                <RootLayoutNav />
+              </CalculationHistoryProvider>
+            </PremiumProvider>
+          </AuthProvider>
+        </LanguageProvider>
+      </PostHogProvider>
   );
 }
 

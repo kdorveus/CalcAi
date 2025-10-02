@@ -1,6 +1,7 @@
 import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
 import { Platform } from 'react-native';
 import { useRouter, useSegments } from 'expo-router';
+import { usePostHog } from './PostHogContext';
 import * as authService from '../utils/authService';
 
 // Import types from auth service
@@ -46,6 +47,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [authError, setAuthError] = useState<string | null>(null);
+  const { resetUser: postHogReset, identifyUser } = usePostHog();
 
   useEffect(() => {
     // Check for existing session on mount
@@ -65,6 +67,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           setUser(null);
           setSession(null);
         } else if (verifiedUser) {
+          identifyUser(verifiedUser.id, { email: verifiedUser.email, name: verifiedUser.name });
           setUser(verifiedUser);
           setSession({ sessionToken: '', user: verifiedUser, expiresIn: 0 }); // Token is stored in AsyncStorage
         } else {
@@ -112,6 +115,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       setSession(null);
       setUser(null);
+      postHogReset();
       setAuthError(null);
       
       return { error: null };

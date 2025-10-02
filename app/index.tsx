@@ -116,7 +116,6 @@ interface LanguagePatterns {
     multiplyBy: string;
     divideBy: string;
   };
-  fillerWords: string[];
 }
 
 const MainScreen: React.FC = () => {
@@ -358,9 +357,9 @@ const MainScreen: React.FC = () => {
           addition: ['plus', 'add', 'and'],
           subtraction: ['minus', 'subtract', 'less', 'take away'],
           multiplication: ['times', 'multiplied by', 'x', 'multiply'],
-          division: ['divided by', 'divide', 'over'],
+          division: ['divided by', 'divided', 'divide', 'over'],
           percentage: ['percent', 'percentage'],
-          percentOf: ['percent of'],
+          percentOf: ['percent of', 'percentage of'],
           power: ['power', 'raised to', 'to the power of', 'squared', 'cubed'],
           sqrt: ['square root of', 'root of', 'square root'],
           parentheses: {
@@ -374,8 +373,7 @@ const MainScreen: React.FC = () => {
           subtractFrom: 'subtract (\\d+(?:\\.\\d+)?) from (\\d+(?:\\.\\d+)?)',
           multiplyBy: '(multiply|multiplied) (\\d+(?:\\.\\d+)?) by (\\d+(?:\\.\\d+)?)',
           divideBy: '(divide|divided) (\\d+(?:\\.\\d+)?) by (\\d+(?:\\.\\d+)?)'
-        },
-        fillerWords: ['do', 'hours', 'hour', 'box', 'and', 'the', 'a', 'an', 'equals', 'is', 'calculate', 'result', 'please', 'for', 'of']
+        }
       },
       es: {
         numbers: {
@@ -407,8 +405,7 @@ const MainScreen: React.FC = () => {
           subtractFrom: 'restar (\\d+(?:\\.\\d+)?) de (\\d+(?:\\.\\d+)?)',
           multiplyBy: '(multiplicar|multiplicado) (\\d+(?:\\.\\d+)?) por (\\d+(?:\\.\\d+)?)',
           divideBy: '(dividir|dividido) (\\d+(?:\\.\\d+)?) por (\\d+(?:\\.\\d+)?)'
-        },
-        fillerWords: ['hacer', 'horas', 'hora', 'caja', 'y', 'el', 'la', 'un', 'una', 'igual', 'es', 'calcular', 'resultado', 'por favor', 'para', 'de']
+        }
       },
       fr: {
         numbers: {
@@ -424,9 +421,9 @@ const MainScreen: React.FC = () => {
           addition: ['plus', 'ajouter', 'et', 'additionner'],
           subtraction: ['moins', 'soustraire', 'retirer'],
           multiplication: ['fois', 'multiplié par', 'x', 'multiplier'],
-          division: ['divisé par', 'diviser', 'sur'],
+          division: ['divisé', 'divisé par', 'diviser', 'sur'],
           percentage: ['pour cent', 'pourcent'],
-          percentOf: ['pour cent de'],
+          percentOf: ['pour cent de', 'pourcent de'],
           power: ['puissance', 'élevé à', 'à la puissance de', 'au carré', 'au cube'],
           sqrt: ['racine carrée de', 'racine de', 'racine carrée'],
           parentheses: {
@@ -440,8 +437,7 @@ const MainScreen: React.FC = () => {
           subtractFrom: 'soustraire (\\d+(?:\\.\\d+)?) de (\\d+(?:\\.\\d+)?)',
           multiplyBy: '(multiplier|multiplié) (\\d+(?:\\.\\d+)?) par (\\d+(?:\\.\\d+)?)',
           divideBy: '(diviser|divisé) (\\d+(?:\\.\\d+)?) par (\\d+(?:\\.\\d+)?)'
-        },
-        fillerWords: ['faire', 'heures', 'heure', 'boîte', 'et', 'le', 'la', 'un', 'une', 'égal', 'est', 'calculer', 'résultat', 's\'il vous plaît', 'pour', 'de']
+        }
       },
       de: {
         numbers: {
@@ -473,8 +469,7 @@ const MainScreen: React.FC = () => {
           subtractFrom: 'subtrahiere (\\d+(?:\\.\\d+)?) von (\\d+(?:\\.\\d+)?)',
           multiplyBy: '(multipliziere|multipliziert) (\\d+(?:\\.\\d+)?) mit (\\d+(?:\\.\\d+)?)',
           divideBy: '(teile|geteilt) (\\d+(?:\\.\\d+)?) durch (\\d+(?:\\.\\d+)?)'
-        },
-        fillerWords: ['machen', 'stunden', 'stunde', 'kasten', 'und', 'der', 'die', 'das', 'ein', 'eine', 'gleich', 'ist', 'berechnen', 'ergebnis', 'bitte', 'für', 'von']
+        }
       },
       pt: {
         numbers: {
@@ -506,8 +501,7 @@ const MainScreen: React.FC = () => {
           subtractFrom: 'subtrair (\\d+(?:\\.\\d+)?) de (\\d+(?:\\.\\d+)?)',
           multiplyBy: '(multiplicar|multiplicado) (\\d+(?:\\.\\d+)?) por (\\d+(?:\\.\\d+)?)',
           divideBy: '(dividir|dividido) (\\d+(?:\\.\\d+)?) por (\\d+(?:\\.\\d+)?)'
-        },
-        fillerWords: ['fazer', 'horas', 'hora', 'caixa', 'e', 'o', 'a', 'um', 'uma', 'igual', 'é', 'calcular', 'resultado', 'por favor', 'para', 'de']
+        }
       },
       it: {
         numbers: {
@@ -539,8 +533,7 @@ const MainScreen: React.FC = () => {
           subtractFrom: 'sottrarre (\\d+(?:\\.\\d+)?) da (\\d+(?:\\.\\d+)?)',
           multiplyBy: '(moltiplicare|moltiplicato) (\\d+(?:\\.\\d+)?) per (\\d+(?:\\.\\d+)?)',
           divideBy: '(dividere|diviso) (\\d+(?:\\.\\d+)?) per (\\d+(?:\\.\\d+)?)'
-        },
-        fillerWords: ['fare', 'ore', 'ora', 'scatola', 'e', 'il', 'la', 'un', 'una', 'uguale', 'è', 'calcolare', 'risultato', 'per favore', 'per', 'di']
+        }
       }
     };
   
@@ -577,8 +570,6 @@ const MainScreen: React.FC = () => {
     const closeParen = p.operations.parentheses.close.length ? new RegExp(`\\b(${joinEscaped(p.operations.parentheses.close)})\\b`, 'g') : null;
     const decimal = p.operations.decimal.length ? new RegExp(`\\b(${joinEscaped(p.operations.decimal)})\\b`, 'g') : null;
 
-    const filler = p.fillerWords.map(w => new RegExp(`\\b${escape(w)}\\b`, 'g'));
-
     return {
       patterns: p,
       numberWordsRegex,
@@ -597,7 +588,6 @@ const MainScreen: React.FC = () => {
       openParen,
       closeParen,
       decimal,
-      filler,
     } as const;
   }, [language, getMathPatterns]);
 
@@ -646,8 +636,79 @@ const MainScreen: React.FC = () => {
     }
 
     // IMPORTANT: Handle specific phrases BEFORE general replacements
-    // Match numbers (integer or decimal)
-    const numRegex = "\\d+(?:\\.\\d+)?"; 
+    // First, remove spaces and commas from numbers (speech recognition adds these)
+    // "1 000" → "1000", "10,000" → "10000"
+    normalized = normalized.replace(/(\d+)[\s,]+(\d+)/g, '$1$2');
+    
+    // BULLETPROOF fraction logic - works for ANY fraction
+    // "1/200 of 2562" → "(1/200) * 2562" = 12.81
+    // "3 fourths of 100" → "(3/4) * 100" = 75
+    // "1 third of 90" → "(1/3) * 90" = 30
+    
+    // Pattern 1: Direct fraction notation "1/200 of 2562"
+    normalized = normalized.replace(/(\d+)\s*\/\s*(\d+)\s+(?:of|de|di|von)\s+(\d+(?:\.\d+)?)/gi, '(($1/$2) * $3)');
+    
+    // Pattern 2: Convert fraction words to division, then multiply
+    // "X [fraction word] of Y" → "(X / [denominator]) * Y"
+    // This handles ANY fraction word by converting it to the denominator number
+    
+    // Map fraction words to their denominators (all languages)
+    const fractionMap: { [key: string]: number } = {
+      // English
+      'half': 2, 'halves': 2, 'halfs': 2,
+      'third': 3, 'thirds': 3, 'thir': 3, 'thirdith': 3, 'thirdth': 3,
+      'fourth': 4, 'fourths': 4, 'quarter': 4, 'quarters': 4, 'forth': 4, 'forths': 4,
+      'fifth': 5, 'fifths': 5, 'fith': 5, 'fiths': 5,
+      'sixth': 6, 'sixths': 6, 'sikth': 6, 'sikths': 6,
+      'seventh': 7, 'sevenths': 7, 'sevnth': 7, 'sevnths': 7,
+      'eighth': 8, 'eighths': 8, 'aith': 8, 'aiths': 8, 'eith': 8, 'eiths': 8,
+      'ninth': 9, 'ninths': 9, 'nith': 9, 'niths': 9,
+      'tenth': 10, 'tenths': 10, 'tinth': 10, 'tinths': 10,
+      // French
+      'demi': 2, 'demis': 2,
+      'tiers': 3,
+      'quart': 4, 'quarts': 4,
+      'cinquième': 5, 'cinquièmes': 5,
+      'sixième': 6, 'sixièmes': 6,
+      'septième': 7, 'septièmes': 7,
+      'huitième': 8, 'huitièmes': 8,
+      // Spanish/Portuguese/Italian share many words (all Romance languages)
+      'medio': 2, 'medios': 2, 'meio': 2, 'meios': 2, 'mezzo': 2, 'mezzi': 2,
+      'tercio': 3, 'tercios': 3, 'terço': 3, 'terços': 3, 'terzo': 3, 'terzi': 3,
+      'cuarto': 4, 'cuartos': 4, 'quarto': 4, 'quartos': 4, 'quarti': 4,
+      'quinto': 5, 'quintos': 5, 'quinti': 5,
+      'sexto': 6, 'sextos': 6, 'sesto': 6, 'sesti': 6,
+      'séptimo': 7, 'séptimos': 7,
+      'octavo': 8, 'octavos': 8,
+      // German
+      'halb': 2, 'halbe': 2,
+      'drittel': 3,
+      'viertel': 4,
+      'fünftel': 5,
+      'sechstel': 6,
+    };
+    
+    // Replace fraction phrases with division
+    // Matches: "3 fourths of 100", "1 third of 90", "1/200 of 2562"
+    normalized = normalized.replace(/(\d+)\s+([a-zàáâãäåèéêëìíîïòóôõöùúûüýÿ]+)\s+(?:of|de|di|von)\s+(\d+(?:\.\d+)?)/gi, (match, numerator, fractionWord, number) => {
+      const denominator = fractionMap[fractionWord.toLowerCase()];
+      if (denominator) {
+        return `((${numerator}/${denominator}) * ${number})`;
+      }
+      return match; // If not a fraction word, leave unchanged
+    });
+    
+    // Advanced percentage handling BEFORE other replacements
+    // Pattern: "give me 15% of 10" or "what's 15% of 10" → "10 * 0.15"
+    normalized = normalized.replace(/(\d+(?:\.\d+)?)\s*%\s+(?:of|de|di|von)\s+(\d+(?:\.\d+)?)/gi, '($2 * $1 / 100)');
+    
+    // Pattern: "add 15% to 10" or "10 + 15%" → "10 + (10 * 0.15)" = "10 * 1.15"
+    normalized = normalized.replace(/(?:add|ajouter|adicionar|hinzufügen|aggiungere)\s+(\d+(?:\.\d+)?)\s*%\s+(?:to|à|a|zu)\s+(\d+(?:\.\d+)?)/gi, '($2 * (1 + $1 / 100))');
+    normalized = normalized.replace(/(\d+(?:\.\d+)?)\s*\+\s*(\d+(?:\.\d+)?)\s*%/gi, '($1 * (1 + $2 / 100))');
+    
+    // Pattern: "subtract 15% from 10" or "10 - 15%" → "10 - (10 * 0.15)" = "10 * 0.85"
+    normalized = normalized.replace(/(?:subtract|soustraire|subtrair|subtrahieren|sottrarre)\s+(\d+(?:\.\d+)?)\s*%\s+(?:from|de|von|da)\s+(\d+(?:\.\d+)?)/gi, '($2 * (1 - $1 / 100))');
+    normalized = normalized.replace(/(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)\s*%/gi, '($1 * (1 - $2 / 100))');
     
     // Handle language-specific phrase patterns
     if (compiled.phraseAddTo) normalized = normalized.replace(compiled.phraseAddTo, '$1 + $2');
@@ -691,18 +752,13 @@ const MainScreen: React.FC = () => {
     // Handle decimal points explicitly
     if (compiled.decimal) normalized = normalized.replace(compiled.decimal, '.');
 
-    // Remove only true non-math filler words (do NOT remove operator keywords)
-    compiled.filler.forEach(regex => {
-      normalized = normalized.replace(regex, '');
-    });
-
     // Final cleanup:
     // 1) Preserve 'sqrt' tokens
     normalized = normalized.replace(/\bsqrt\b/g, '__SQRT__');
     // 2) Remove apostrophes/quotes that can leak from contractions like what's
     normalized = normalized.replace(/[’'"`]+/g, ' ');
-    // 3) Remove any remaining alphabetic sequences (then, and, etc.)
-    normalized = normalized.replace(/[A-Za-z]+/g, ' ');
+    // 3) Remove ALL remaining letters (including accented characters like à, é, ñ, etc.)
+    normalized = normalized.replace(/[a-zA-ZÀ-ÿ]+/g, ' ');
     // 4) Restore 'sqrt'
     normalized = normalized.replace(/__SQRT__/g, ' sqrt ');
     // 5) Collapse duplicate plus operators that can arise from phrase joins (e.g., "+ +")
@@ -726,19 +782,29 @@ const MainScreen: React.FC = () => {
     // Replace visual operators with standard ones for mathjs
     expression = expression.replace(/×/g, '*').replace(/÷/g, '/');
     
+    // Trim the expression
+    expression = expression.trim();
+    
     // For speech input, check if it's just a number BEFORE removing trailing operators
     // This way "plus 2" (which becomes "+2") is detected as having an operator
     if (type === 'speech') {
-      const trimmedExpression = expression.trim();
       // Check if it's just a number (integer or decimal) without any operators
       // This regex checks for numbers that don't have +, -, *, /, ^, %, (, ) anywhere
-      if (/^\d+(\.\d+)?$/.test(trimmedExpression)) {
+      if (/^\d+(\.\d+)?$/.test(expression)) {
         return MATH_ERROR;
       }
     }
     
-    // Remove trailing operators (+, -, *, /) but keep % and ^
-    expression = expression.trim().replace(/[+\-*/\s]+$/, '');
+    // Check if equation ends with an operator (incomplete equation)
+    const endsWithOperator = /[+\-*/^]$/.test(expression);
+    
+    // Check if equation starts with an operator (uses previous result)
+    const startsWithOperator = /^[+\-*/^]/.test(expression);
+    
+    // If it ends with an operator but doesn't start with one, it's incomplete
+    if (endsWithOperator && !startsWithOperator) {
+      return MATH_ERROR;
+    }
     
     // Handle percentage correctly - needs number before it
     expression = expression.replace(/(\d+)%/g, '($1 / 100)'); 

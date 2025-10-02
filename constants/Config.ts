@@ -33,3 +33,10 @@ export const STORAGE_KEYS = {
   SESSION_TOKEN: '@calcai_session_token',
   USER_DATA: '@calcai_user_data',
 };
+
+// PostHog Analytics Configuration
+export const POSTHOG_CONFIG = {
+  API_KEY: 'phc_zXIv4mcFHg2CMJJNadoniCiY0HhnC9YSwL8cF1yjaOl',
+  HOST: 'https://us.i.posthog.com',
+  PROJECT_ID: '125886',
+};

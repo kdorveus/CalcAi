@@ -69,6 +69,7 @@ const PrivacyPolicyScreen = () => {
         <Text style={styles.listItem}>- Google: For user authentication via Google Sign-In.</Text>
         <Text style={styles.listItem}>- Cloudflare: For backend operations, database services, and hosting (e.g., storing your webhook configurations and future synchronized history).</Text>
         <Text style={styles.listItem}>- Stripe: For payment processing of premium subscriptions.</Text>
+        <Text style={styles.listItem}>- PostHog: For product analytics to understand user behavior and improve the application. We send event-based data, such as feature usage and screen views. This data is used in an aggregated and anonymized form.</Text>
         <Text style={styles.paragraph}>
           These providers are authorized to use your information only as necessary to provide these services to us and are obligated to protect your information.
         </Text>

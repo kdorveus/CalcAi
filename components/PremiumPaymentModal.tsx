@@ -14,6 +14,7 @@ import AppIcon from './AppIcon';
 import { usePremium } from '../contexts/PremiumContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useTranslation } from '../hooks/useTranslation';
+import { usePostHog } from '../contexts/PostHogContext';
 
 interface PremiumPaymentModalProps {
   visible: boolean;
@@ -31,9 +32,17 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
   const { showPremiumPayment, premiumLoading, productInfo } = usePremium();
   const { user, signInWithGoogle } = useAuth();
   const { t } = useTranslation();
+  const { captureEvent } = usePostHog();
   const [isLoading, setIsLoading] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<PlanType>('yearly');
+
+  // Track when the modal becomes visible
+  React.useEffect(() => {
+    if (visible) {
+      captureEvent('premium_modal_viewed');
+    }
+  }, [visible]);
 
   const handlePayment = async () => {
     // If not logged in, trigger login first
@@ -50,6 +59,10 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
     }
 
     // User is logged in, proceed with payment
+    captureEvent('payment_initiated', {
+      plan: selectedPlan,
+      price: selectedPlan === 'monthly' ? '$5' : selectedPlan === 'yearly' ? '$50' : '$99',
+    });
     setIsLoading(true);
     await showPremiumPayment(selectedPlan);
     setIsLoading(false);
@@ -70,6 +83,11 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
     if (!isLoading && !isRestoring) {
       onClose();
     }
+  };
+
+  const handlePlanSelection = (plan: PlanType) => {
+    setSelectedPlan(plan);
+    captureEvent('plan_selected', { plan });
   };
 
   const getPlanButtonText = () => {
@@ -119,7 +137,7 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
                   styles.priceBox,
                   selectedPlan === 'monthly' && styles.selectedBox
                 ]}
-                onPress={() => setSelectedPlan('monthly')}
+                onPress={() => handlePlanSelection('monthly')}
                 activeOpacity={0.7}
               >
                 <View style={styles.priceHeader}>
@@ -136,7 +154,7 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
                   styles.priceBox,
                   selectedPlan === 'yearly' && styles.selectedBox
                 ]}
-                onPress={() => setSelectedPlan('yearly')}
+                onPress={() => handlePlanSelection('yearly')}
                 activeOpacity={0.7}
               >
                 <View style={styles.popularBadge}>
@@ -156,7 +174,7 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
                   styles.priceBox,
                   selectedPlan === 'lifetime' && styles.selectedBox
                 ]}
-                onPress={() => setSelectedPlan('lifetime')}
+                onPress={() => handlePlanSelection('lifetime')}
                 activeOpacity={0.7}
               >
                 <View style={styles.priceHeader}>
