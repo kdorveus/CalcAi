@@ -528,6 +528,12 @@ const MainScreen: React.FC = () => {
     const compiled = compiledLanguageRegex;
     const patterns = compiled.patterns;
 
+    // CRITICAL FIX: Remove hyphens that are part of words (not mathematical operators)
+    // This fixes French phrases like "peut-tu me dire" being interpreted as "peut - tu me dire"
+    // Pattern: letter-letter → letterletter (removes hyphens between letters)
+    // This preserves actual minus operations like "5 - 3" or "10-2" (number-number)
+    normalized = normalized.replace(/([a-zàáâãäåèéêëìíîïòóôõöùúûüýÿ])-([a-zàáâãäåèéêëìíîïòóôõöùúûüýÿ])/gi, '$1$2');
+
     // Handle compound numbers (e.g., "5million", "3billion", "2trillion") FIRST
     const compoundRegex = /(\d+)\s*(million|milliard|milliarde|milhão|milione|billion|mil millones|billón|bilhão|miliardo|trillion|trilhão|trillione)/g;
     normalized = normalized.replace(compoundRegex, (match, number, multiplier) => {
