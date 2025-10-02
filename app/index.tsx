@@ -30,11 +30,15 @@ import { evaluate } from 'mathjs';
 import AppIcon from '../components/AppIcon';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
+import KeypadComponent from '../components/KeypadComponent';
+import BubbleListComponent from '../components/BubbleListComponent';
 // import Settings from './components/Settings'; // Remove this line
 import { useAuth } from '../contexts/AuthContext';
 import { useCalculationHistory } from '../contexts/CalculationHistoryContext';
 import HistoryButton from '../components/HistoryButton';
 import { useTranslation } from '../hooks/useTranslation';
+import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
+import { useWebhookManager } from '../hooks/useWebhookManager';
 import { LOCALE_MAP, SPEECH_RECOGNITION_LANG_MAP } from '../constants/Languages';
 import { sendWebhook } from '../utils/webhookService';
 // import HistoryModal from '../components/HistoryModal'; // Remove this line
@@ -59,14 +63,6 @@ import CrownIcon from '../assets/icons/crown.svg';
 // (Removed unused asset preload hook to avoid dead code)
 
 // --- Module-level constants and caches (hoisted to avoid re-creation) ---
-const KEYPAD_LAYOUT: string[][] = [
-  ['↺', '()', '%', '÷'],
-  ['7', '8', '9', '×'],
-  ['4', '5', '6', '-'],
-  ['1', '2', '3', '+'],
-  ['^', '0', '.', 'CHECK_ICON'],
-];
-
 const numberFormattersByLocale = new Map<string, Intl.NumberFormat>();
 
 // Types
@@ -183,13 +179,7 @@ const MainScreen: React.FC = () => {
   // Refs
   const flatListRef = useRef<FlatList>(null);
   const bubbleIdRef = useRef<number>(1);
-  const speechModuleRef = useRef<any>(null); // Ref to store loaded speech module
-  const speechInitializedRef = useRef(false); // Track if speech is ready
-  const permissionsGrantedRef = useRef(false); // Track permissions status
-  const lastTranscriptRef = useRef('');
-  const silenceTimerRef = useRef<NodeJS.Timeout | number | null>(null);
-  const lastProcessedTranscriptRef = useRef<string>(''); // Prevent duplicate processing
-  const lastSpokenResultRef = useRef<string>(''); // Prevent duplicate TTS
+  const isTTSSpeaking = useRef(false);
   
   // State variables
   const [bubbles, setBubbles] = useState<ChatBubble[]>([]);
@@ -205,7 +195,6 @@ const MainScreen: React.FC = () => {
   const [isUnsentDataModalVisible, setIsUnsentDataModalVisible] = useState(false); // State for unsent data alert modal
   const [isSpeechMuted, setIsSpeechMuted] = useState(false); // State for UI updates
   const speechMutedRef = useRef(false); // Ref for actual mute control
-  const isTTSSpeaking = useRef(false);
   const [openInCalcMode, setOpenInCalcMode] = useState(false); // State for calculator mode
   const [showHistoryModal, setShowHistoryModal] = useState(false); // State for history modal
   const [historyEnabled, setHistoryEnabled] = useState(true); // State for history toggle
@@ -237,74 +226,51 @@ const MainScreen: React.FC = () => {
   }, []);
 
   // --- Settings State ---
-  const [webhookUrls, setWebhookUrls] = useState<any[]>([]);
   const [enterKeyNewLine, setEnterKeyNewLine] = useState<boolean>(false);
-  const [newWebhookUrl, setNewWebhookUrl] = useState<string>('');
-  const [newWebhookTitle, setNewWebhookTitle] = useState<string>(''); // Add state for webhook title
-  const [sendEquation, setSendEquation] = useState<boolean>(true); // Send 'equation=result' vs 'result'
-  const [streamResults, setStreamResults] = useState<boolean>(true); // Send immediately vs bulk
-  const [bulkData, setBulkData] = useState<any[]>([]); // Data stored for bulk sending
-  const [isSendingBulk, setIsSendingBulk] = useState<boolean>(false); // Loading state for bulk send
-  const [webhookSettingsLoaded, setWebhookSettingsLoaded] = useState<boolean>(false); // Track if settings are loaded
-  const pendingWebhookDataRef = useRef<{equation: string, result: string}[]>([]); // Store calculations that happen before settings load
+
+  // Webhook Manager Hook - handles all webhook operations
+  const webhookManager = useWebhookManager(t, bubbleIdRef);
 
   // Check for unsent data when page loads or refreshes
   useEffect(() => {
     // Show alert if there's unsent data
-    if (!streamResults && bulkData.length > 0) {
+    if (!webhookManager.streamResults && webhookManager.bulkData.length > 0) {
       setIsUnsentDataModalVisible(true);
     }
   }, []); // Empty dependency array means this runs once on mount
   
   // Function to check for unsent data and show modal if needed
   const checkUnsentData = useCallback(() => {
-    if (!streamResults && bulkData.length > 0) {
+    if (!webhookManager.streamResults && webhookManager.bulkData.length > 0) {
       setIsUnsentDataModalVisible(true);
       return true; // Has unsent data
     }
     return false; // No unsent data
-  }, [streamResults, bulkData.length]);
+  }, [webhookManager.streamResults, webhookManager.bulkData.length]);
 
-  // --- Web Speech API State (Web only) ---
-  const recognitionRef = useRef<any>(null); // Using 'any' for simplicity with web-specific API
-  const speechListenerRef = useRef<any>(null); // Ref for speech recognition listener
-  const endListenerRef = useRef<any>(null); // Ref for end listener
-  const errorListenerRef = useRef<any>(null); // Ref for error listener
+  // Placeholder for processSpeechResult - will be defined below
+  const processSpeechResultRef = useRef<(transcript: string, source: 'web' | 'native') => void>(() => {});
 
-  // Consolidated keyboard handling is defined after onKeypadPress
-
-  // Function to initialize speech recognition for native platforms
-  const initializeSpeech = async () => {
-    if (Platform.OS === 'web') {
-      // Web doesn't need pre-initialization
-      speechInitializedRef.current = true;
-      return;
-    }
-
-    try {
-      // 1. Pre-load speech module
-      if (!speechModuleRef.current) {
-        speechModuleRef.current = await import('expo-speech-recognition');
-      }
-
-      // 2. Request permissions immediately
-      const { granted: audioGranted } = await requestRecordingPermissionsAsync();
-      const { ExpoSpeechRecognitionModule } = speechModuleRef.current;
-      await ExpoSpeechRecognitionModule.requestPermissionsAsync();
-      
-      permissionsGrantedRef.current = audioGranted;
-      speechInitializedRef.current = true;
-    } catch (error) {
-      // Silent error handling - will fall back to old behavior
-      speechInitializedRef.current = false;
-      permissionsGrantedRef.current = false;
-    }
-  };
+  // Speech recognition hook - handles all speech logic
+  const speechRecognition = useSpeechRecognition({
+    language,
+    continuousMode,
+    isRecording,
+    setIsRecording,
+    setInterimTranscript,
+    interimTranscript,
+    processSpeechResult: (transcript: string, source: 'web' | 'native') => {
+      processSpeechResultRef.current(transcript, source);
+    },
+    getSpeechRecognitionLanguage,
+    isTTSSpeaking,
+    t,
+  });
 
   // Background initialization for speech recognition - runs immediately after app loads
   useEffect(() => {
     // Start initialization immediately after component mounts
-    initializeSpeech();
+    speechRecognition.initializeSpeech();
   }, []);
 
   const [previewResult, setPreviewResult] = useState<string | null>(null);
@@ -809,118 +775,8 @@ const MainScreen: React.FC = () => {
     return result; // Return the calculated result or internal error constant
   }, [normalizeSpokenMath, formatNumber, language]); // Dependencies: normalizeSpokenMath (stable), formatNumber, language
 
-  // Helper function to sanitize user input
-  const sanitizeInput = (input: string): string => {
-    if (!input) return '';
-    
-    // Remove any HTML/script tags
-    let sanitized = input.replace(/<[^>]*>/g, '');
-    
-    // Encode special characters
-    sanitized = sanitized
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
-      
-    // Limit the length to prevent DoS
-    return sanitized.substring(0, 1000);
-  };
-
-  // Helper function to validate webhook URLs
-  const validateWebhookUrl = (url: string): string | null => {
-    try {
-      // Basic URL validation
-      if (!url || typeof url !== 'string') return null;
-      
-      // Must start with http:// or https://
-      if (!url.startsWith('http://') && !url.startsWith('https://')) return null;
-      
-      // Create URL object to validate and parse
-      const parsedUrl = new URL(url);
-      
-      // Check for valid protocol (extra safety)
-      if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') return null;
-      
-      // Additional checks could be added here, e.g. blocklist of domains
-      
-      return url;
-    } catch (e) {
-      // If URL parsing fails, return null
-      return null;
-    }
-  };
-
-  // --- Send Data to Webhooks ---
-  const sendWebhookData = async (equation: string, result: string) => {
-    if (!webhookSettingsLoaded) {
-      // Store calculation for later without logging
-      pendingWebhookDataRef.current.push({ 
-        equation: sanitizeInput(equation), 
-        result: sanitizeInput(result) 
-      });
-      return;
-    }
-
-    const activeWebhooks = webhookUrls.filter(webhook => webhook.active);
-    
-    if (activeWebhooks.length === 0) {
-      // Store calculation for later without logging
-      pendingWebhookDataRef.current.push({ 
-        equation: sanitizeInput(equation), 
-        result: sanitizeInput(result) 
-      });
-      return;
-    }
-
-    // Sanitize input before sending to webhook
-    const sanitizedEquation = sanitizeInput(equation);
-    const sanitizedResult = sanitizeInput(result);
-
-    const dataToSend = {
-      equation: sendEquation ? sanitizedEquation : undefined,
-      result: sanitizedResult
-    };
-
-    if (streamResults) {
-      try {
-        const promises = activeWebhooks.map(webhook => {
-          // Additional validation of webhook URL
-          const validatedUrl = validateWebhookUrl(webhook.url);
-          if (!validatedUrl) {
-            console.warn('Invalid webhook URL detected:', webhook.url);
-            return Promise.resolve(); // Skip this webhook
-          }
-          
-          return axios.post(validatedUrl, dataToSend, {
-            headers: {
-              'Content-Type': 'application/json',
-              // Prevent CSRF
-              'X-Requested-With': 'XMLHttpRequest'
-            },
-            // Set timeout to prevent hanging requests
-            timeout: 5000
-          });
-        }).filter(Boolean); // Filter out any skipped webhooks
-        
-        await Promise.allSettled(promises);
-      } catch (error) {
-        // Silent error handling for production
-        if (Platform.OS === 'android') {
-          ToastAndroid.show(t('mainApp.couldNotSendData'), ToastAndroid.SHORT);
-        }
-      }
-    } else {
-      // Add to bulk queue without logging
-      const newItem = {
-        id: bubbleIdRef.current++,
-        timestamp: Date.now(),
-        data: JSON.stringify(dataToSend)
-      };
-      setBulkData(prev => [...prev, newItem]);
-    }
-  };
+  // Use webhook manager's sendWebhookData function
+  const sendWebhookData = webhookManager.sendWebhookData;
 
   // Single TTS function to prevent duplicates
   const speakSingleResult = useCallback((text: string) => {
@@ -940,22 +796,22 @@ const MainScreen: React.FC = () => {
         // Clear flag and reset ALL speech-related state immediately when TTS finishes
         isTTSSpeaking.current = false;
         setInterimTranscript(''); // Clear any buffered speech
-        lastProcessedTranscriptRef.current = ''; // Reset duplicate prevention
+        speechRecognition.lastProcessedTranscriptRef.current = ''; // Reset duplicate prevention
       },
       onStopped: () => {
         // Clear flag and reset state when TTS is manually stopped
         isTTSSpeaking.current = false;
         setInterimTranscript(''); // Clear any buffered speech
-        lastProcessedTranscriptRef.current = ''; // Reset duplicate prevention
+        speechRecognition.lastProcessedTranscriptRef.current = ''; // Reset duplicate prevention
       },
       onError: () => {
         // Clear flag and reset state on TTS error
         isTTSSpeaking.current = false;
         setInterimTranscript(''); // Clear any buffered speech
-        lastProcessedTranscriptRef.current = ''; // Reset duplicate prevention
+        speechRecognition.lastProcessedTranscriptRef.current = ''; // Reset duplicate prevention
       }
     });
-  }, [language]);
+  }, [language, speechRecognition.lastProcessedTranscriptRef]);
 
   // Helper function to handle calculation results (DRY principle - used by both keypad and speech)
   const handleCalculationResult = useCallback((equation: string, result: string, source: 'keypad' | 'speech') => {
@@ -1003,8 +859,8 @@ const MainScreen: React.FC = () => {
     }
 
     // Single TTS call for speech input only
-    if (source === 'speech' && !speechMutedRef.current && result !== lastSpokenResultRef.current) {
-      lastSpokenResultRef.current = result;
+    if (source === 'speech' && !speechMutedRef.current && result !== speechRecognition.lastSpokenResultRef.current) {
+      speechRecognition.lastSpokenResultRef.current = result;
       speakSingleResult(result);
     }
 
@@ -1019,27 +875,7 @@ const MainScreen: React.FC = () => {
   }, [enterKeyNewLine, keypadInput, historyEnabled, speakSingleResult, addCalculation, sendWebhookData]);
 
   // Keypad buttons
-  // const [advancedMode, setAdvancedMode] = useState(false); // Removed
   const [vibrationEnabled, setVibrationEnabled] = useState(true); // Add vibration state
-  const KEYPAD = KEYPAD_LAYOUT;
-  // Advanced row removed since we integrated it above
-
-  // Define a function to determine button style
-  const getKeypadButtonStyle = (key: string) => {
-    if (Platform.OS === 'web') {
-      return styles.keypadKeyWeb;
-    }
-    
-    // For mobile
-    if (key === 'CHECK_ICON') {
-      return styles.keypadKeyEnter;
-    } else if (['+', '-', '×', '÷', '()', '%', '^'].includes(key)) {
-      // Add all special characters to the blue operator style
-      return styles.keypadKeyOperator;
-    } else {
-      return styles.keypadKeyMobile;
-    }
-  };
 
   const onKeypadPress = useCallback((key: string) => {
     if (vibrationEnabled) {
@@ -1328,10 +1164,10 @@ const MainScreen: React.FC = () => {
     if (!transcript.trim()) return;
 
     // Prevent duplicate processing in continuous mode
-    if (source === 'web' && lastProcessedTranscriptRef.current === transcript) {
+    if (source === 'web' && speechRecognition.lastProcessedTranscriptRef.current === transcript) {
       return;
     }
-    lastProcessedTranscriptRef.current = transcript;
+    speechRecognition.lastProcessedTranscriptRef.current = transcript;
 
     // Keep interim transcript visible during processing
 
@@ -1374,248 +1210,33 @@ const MainScreen: React.FC = () => {
       setKeypadInput('');
       setExpectingFreshInput(false);
     }
-  }, [normalizeSpokenMath, handleInput, handleCalculationResult]);
+  }, [normalizeSpokenMath, handleInput, handleCalculationResult, speechRecognition.lastProcessedTranscriptRef]);
 
-// Audio recording logic for speech-to-text
-// Platform-specific speech-to-text
-  const startRecording = async () => {
-    if (isRecording) return;
-    setIsRecording(true);
+  // Assign processSpeechResult to the ref so the hook can use it
+  processSpeechResultRef.current = processSpeechResult;
 
-    if (Platform.OS === 'web') {
-      const WebSpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      if (!WebSpeechRecognition) {
-        Alert.alert(t('mainApp.speechNotSupported'));
-        setIsRecording(false);
-        return;
-      }
-      
-      recognitionRef.current = new WebSpeechRecognition();
-      const recognition = recognitionRef.current;
-      recognition.lang = getSpeechRecognitionLanguage(language);
-      recognition.interimResults = true;
-      recognition.continuous = continuousMode;
-      recognition.maxAlternatives = 1; // Fastest processing with single result
-      recognition.serviceURI = ''; // Use default for best performance
+  // Use the hook's startRecording and stopRecording functions
+  const startRecording = speechRecognition.startRecording;
+  const stopRecording = speechRecognition.stopRecording;
 
-      recognition.onresult = (event: any) => {
-        if (isTTSSpeaking.current) return;
-        
-        let finalTranscript = '';
-        let interimText = '';
-        
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) {
-            finalTranscript += event.results[i][0].transcript;
-          } else {
-            interimText += event.results[i][0].transcript;
-          }
-        }
+  // --- Load/Save Settings (App Preferences Only) ---
+  // Note: Webhook settings are managed by useWebhookManager hook
 
-        // Always update interim transcript for real-time streaming
-        if (interimText) {
-          setInterimTranscript(interimText);
-        }
-
-        // Only process final results
-        if (finalTranscript) {
-          processSpeechResult(finalTranscript.trim(), 'web');
-        }
-      };
-
-      recognition.onend = () => {
-        // In continuous mode, we only stop when the user clicks the button.
-        // The service might stop on its own after a long pause, but we let `stopRecording` handle the state.
-        if (!continuousMode) {
-          setIsRecording(false);
-          setInterimTranscript('');
-        }
-      };
-      
-      recognition.start();
-    } else {
-      // --- Native speech recognition (Android/iOS) ---
-      try {
-        if (!speechInitializedRef.current) {
-          await initializeSpeech();
-        }
-        if (!permissionsGrantedRef.current) {
-          Alert.alert(t('mainApp.permissionRequired'), t('mainApp.microphonePermissionRequired'));
-          setIsRecording(false);
-          return;
-        }
-
-        const { ExpoSpeechRecognitionModule } = speechModuleRef.current;
-        
-        const handleResult = (event: any) => {
-          if (isTTSSpeaking.current) return;
-          if (event.results && event.results.length > 0) {
-            const transcript = event.results[0].transcript;
-            setInterimTranscript(transcript);
-            
-            // In non-continuous mode, check if this is a final result
-            if (!continuousMode && event.isFinal) {
-              processSpeechResult(transcript.trim(), 'native');
-            }
-          }
-        };
-
-        const handleEnd = () => {
-          // In non-continuous mode, process buffered transcript when recognition ends (like web)
-          if (!continuousMode) {
-            const bufferedTranscript = interimTranscript;
-            if (bufferedTranscript && bufferedTranscript.trim() && !isTTSSpeaking.current) {
-              processSpeechResult(bufferedTranscript.trim(), 'native');
-            }
-            setIsRecording(false);
-            setInterimTranscript('');
-          }
-        };
-
-        const handleError = () => {
-          setIsRecording(false);
-          setInterimTranscript('');
-          // Handle error display
-        };
-
-        speechListenerRef.current = ExpoSpeechRecognitionModule.addListener('result', handleResult);
-        endListenerRef.current = ExpoSpeechRecognitionModule.addListener('end', handleEnd);
-        errorListenerRef.current = ExpoSpeechRecognitionModule.addListener('error', handleError);
-
-        await ExpoSpeechRecognitionModule.start({
-          lang: getSpeechRecognitionLanguage(language),
-          continuous: continuousMode,
-          interimResults: true,
-        });
-
-        if (continuousMode) {
-          let lastTranscript = '';
-          silenceTimerRef.current = setInterval(() => {
-            // CONDITIONAL RULE: Skip processing if TTS is currently speaking
-            if (isTTSSpeaking.current) return;
-
-            // Ensure we have clean transcript data to work with
-            if (interimTranscript && interimTranscript === lastTranscript && interimTranscript.trim()) {
-              const finalTranscript = interimTranscript.trim();
-              if (finalTranscript) {
-                processSpeechResult(finalTranscript, 'native');
-              }
-            }
-            lastTranscript = interimTranscript;
-          },500); // Reduced to 500ms for instant continuous mode response
-        }
-
-      } catch (e) {
-        setIsRecording(false);
-        // Handle error
-      }
-    }
-  };
-
-  // Only needed for manual stop (web or if we need to cancel)
-  const stopRecording = async () => {
-    setIsRecording(false);
-    setInterimTranscript('');
-    // Reset ALL refs to prevent stale data and buffer accumulation
-    lastProcessedTranscriptRef.current = '';
-    lastSpokenResultRef.current = '';
-    lastTranscriptRef.current = '';
-    // Ensure TTS state is cleared when stopping recording
-    isTTSSpeaking.current = false;
-    if (silenceTimerRef.current) {
-      clearInterval(silenceTimerRef.current);
-      silenceTimerRef.current = null;
-    }
-
-    if (Platform.OS === 'web') {
-      if (recognitionRef.current) {
-        recognitionRef.current.stop();
-      }
-    } else {
-      try {
-        if (speechModuleRef.current) {
-          const { ExpoSpeechRecognitionModule } = speechModuleRef.current;
-          await ExpoSpeechRecognitionModule.stop();
-        }
-        if (speechListenerRef.current) speechListenerRef.current.remove();
-        if (endListenerRef.current) endListenerRef.current.remove();
-        if (errorListenerRef.current) errorListenerRef.current.remove();
-      } catch (e) {
-        // console.error('Error stopping native speech recognition:', e);
-      }
-    }
-  };
-
-
-
-  // --- Load/Save Settings (Consolidated) ---
-  const SETTINGS_KEYS = {
-    URLS: 'webhookUrls',
-    SEND_EQUATION: 'sendEquation',
-    STREAM_RESULTS: 'streamResults',
-  };
-
-  const saveSettings = useCallback(async () => {
-    try {
-      await Promise.all([
-        AsyncStorage.setItem('webhookUrls', JSON.stringify(webhookUrls)),
-        AsyncStorage.setItem('sendEquation', JSON.stringify(sendEquation)),
-        AsyncStorage.setItem('streamResults', JSON.stringify(streamResults))
-      ]);
-    } catch (error) {
-      // Silent error handling
-      if (Platform.OS === 'android') {
-        ToastAndroid.show(t('mainApp.couldNotSaveSettings'), ToastAndroid.SHORT);
-      }
-    }
-  }, [webhookUrls, sendEquation, streamResults]);
-
-  // Consolidated settings loader - loads all settings on mount
+  // Load app preferences on mount (webhook settings are loaded by useWebhookManager hook)
   useEffect(() => {
-    const loadAllSettings = async () => {
+    const loadAppPreferences = async () => {
       try {
         const [
-          storedUrls, 
-          storedSendEquation, 
-          storedStreamResults,
           storedOpenInCalcMode, 
           storedSpeechMuted, 
           storedHistoryEnabled, 
           storedContinuousMode
         ] = await Promise.all([
-          AsyncStorage.getItem('webhookUrls'),
-          AsyncStorage.getItem('sendEquation'),
-          AsyncStorage.getItem('streamResults'),
           AsyncStorage.getItem('openInCalcMode'),
           AsyncStorage.getItem('speechMuted'),
           AsyncStorage.getItem('historyEnabled'),
           AsyncStorage.getItem('continuousMode')
         ]);
-
-        // Load webhook settings
-        let loadedWebhookItems: WebhookItem[] = [];
-        if (storedUrls) {
-          const parsedUrls = JSON.parse(storedUrls);
-          loadedWebhookItems = parsedUrls.map((url: string | WebhookItem) => {
-            if (typeof url === 'string') {
-              return { url, active: true };
-            }
-            return url;
-          });
-          setWebhookUrls(loadedWebhookItems);
-        }
-
-        if (storedSendEquation) {
-          const parsedSendEquation = JSON.parse(storedSendEquation);
-          setSendEquation(parsedSendEquation);
-        }
-
-        if (storedStreamResults) {
-          const parsedStreamResults = JSON.parse(storedStreamResults);
-          setStreamResults(parsedStreamResults);
-        }
-
-        setWebhookSettingsLoaded(true);
 
         // Load app preferences
         if (storedOpenInCalcMode !== null) {
@@ -1640,40 +1261,21 @@ const MainScreen: React.FC = () => {
         if (storedContinuousMode !== null) {
           setContinuousMode(JSON.parse(storedContinuousMode));
         }
-
-        // Process any pending webhook data after settings are loaded
-        if (pendingWebhookDataRef.current.length > 0 && loadedWebhookItems.length > 0) {
-          const activeWebhooks = loadedWebhookItems.filter((webhook: WebhookItem) => webhook.active);
-          
-          if (activeWebhooks.length > 0) {
-            for (const { equation, result } of pendingWebhookDataRef.current) {
-              const dataToSend = {
-                equation: storedSendEquation ? equation : undefined,
-                result
-              };
-              
-              try {
-                const promises = activeWebhooks.map((webhook: WebhookItem) => 
-                  sendWebhook(webhook.url, dataToSend)
-                );
-                await Promise.allSettled(promises);
-              } catch (error) {
-                // Silent error handling
-              }
-            }
-            
-            pendingWebhookDataRef.current = [];
-          }
-        }
       } catch (error) {
-        setWebhookSettingsLoaded(true);
         // Silent error handling
       }
     };
-    loadAllSettings();
+    loadAppPreferences();
   }, []);
 
-  // Save settings when they change (avoid redundant writes)
+  // Save webhook settings when they change
+  useEffect(() => {
+    if (webhookManager.webhookSettingsLoaded) {
+      webhookManager.saveSettings();
+    }
+  }, [webhookManager.webhookUrls, webhookManager.sendEquation, webhookManager.streamResults]);
+
+  // Save app preferences when they change (avoid redundant writes)
   const previousPrefsRef = useRef({
     openInCalcMode: undefined as undefined | boolean,
     isSpeechMuted: undefined as undefined | boolean,
@@ -1716,275 +1318,11 @@ const MainScreen: React.FC = () => {
   // Removed extra shortcuts listener; consolidated above
 
   // --- Webhook Logic Handlers ---
-  const handleAddWebhook = () => {
-    const trimmedUrl = newWebhookUrl.trim();
-    const trimmedTitle = newWebhookTitle.trim();
-    const urlExists = webhookUrls.some(webhook => webhook.url === trimmedUrl);
-    
-    if (trimmedUrl && !urlExists) {
-      // Basic URL validation (starts with http/https)
-      if (trimmedUrl.startsWith('http://') || trimmedUrl.startsWith('https://')) {
-         // Add new webhook with active state set to true by default and include the title
-         const newWebhook = { 
-           url: trimmedUrl, 
-           active: true,
-           title: trimmedTitle || undefined // Only include title if it's not empty
-         };
-         setWebhookUrls([...webhookUrls, newWebhook]);
-         setNewWebhookUrl(''); // Clear URL input
-         setNewWebhookTitle(''); // Clear title input
-      } else {
-        Alert.alert(t('mainApp.invalidUrl'), t('mainApp.invalidUrlMessage'));
-      }
-    } else if (urlExists) {
-      Alert.alert(t('mainApp.duplicate'), t('mainApp.duplicateUrlMessage'));
-    } else {
-      Alert.alert(t('mainApp.invalidUrl'), t('mainApp.invalidUrlMessage'));
-    }
-  };
-
-  const handleDeleteWebhook = (urlToDelete: string) => {
-    setWebhookUrls(webhookUrls.filter(webhook => webhook.url !== urlToDelete));
-  };
-  
-  // Handle toggling webhook activation
-  const handleToggleWebhook = (url: string, active: boolean) => {
-    setWebhookUrls(webhookUrls.map(webhook => 
-      webhook.url === url ? { ...webhook, active } : webhook
-    ));
-  };
-
-  // Implement handleSendBulkData to send bulk data to active webhooks
-  const handleSendBulkData = async () => {
-    if (bulkData.length === 0) {
-      Alert.alert(t('mainApp.noData'), t('mainApp.noDataMessage'));
-      return;
-    }
-    const activeWebhooks = webhookUrls.filter(webhook => webhook.active);
-    if (activeWebhooks.length === 0) {
-      Alert.alert(t('mainApp.noActiveUrls'), t('mainApp.noActiveUrlsMessage'));
-      return;
-    }
-
-    setIsSendingBulk(true);
-    let successCount = 0;
-    let failureCount = 0;
-
-    try {
-      // Create promises for sending each bulk item to all active URLs
-      const bulkSendPromises = bulkData.map(item => {
-        const itemData = { data: item.data }; // Structure expected by webhook
-        
-        // Create an array of promises for each active webhook URL
-        const urlPromises: Promise<any>[] = [];
-        
-        // Explicitly iterate over each active webhook
-        for (const webhook of activeWebhooks) {
-          // Extract the URL as a string to avoid type issues
-          const webhookUrl: string = webhook.url;
-          
-          // Create a promise for this webhook
-          const promise = sendWebhook(webhookUrl, itemData)
-          .then(response => {
-            // Return a simple object with string url
-            const successPayload = {
-              url: webhookUrl,
-              response: response
-            };
-            return successPayload;
-          })
-          .catch(error => {
-            // Create and throw a simple object with string url
-            const failurePayload = {
-              url: webhookUrl,
-              error: error
-            };
-            throw failurePayload;
-          });
-          
-          urlPromises.push(promise);
-        }
-        
-        // Return settled promises for all URLs for this item
-        return Promise.allSettled(urlPromises);
-      });
-
-      // Wait for all items to be sent (or fail)
-      const allItemsResults = await Promise.allSettled(bulkSendPromises);
-
-      // Process results for each item
-      for (let i = 0; i < allItemsResults.length; i++) {
-        const itemOutcome = allItemsResults[i];
-        const itemIndex = i;
-        
-        if (itemOutcome.status === 'fulfilled') {
-          // Explicitly type the array of promise results
-          const urlResults = itemOutcome.value;
-          
-          // Process each URL result using indexed for loop to avoid type issues
-          for (let j = 0; j < urlResults.length; j++) {
-            const urlOutcome = urlResults[j];
-            
-            if (urlOutcome.status === 'fulfilled') {
-              successCount++;
-            } else {
-              failureCount++;
-              // Explicitly cast the reason to our failure payload type
-              const failureInfo = urlOutcome.reason;
-              // Keep failure count; avoid noisy logs in production
-            }
-          }
-        } else {
-          // This means the Promise.allSettled for an item batch rejected
-          // Count as failures without logging
-          failureCount += activeWebhooks.length; // Assume failure for all URLs for this item
-        }
-      }
-
-      // Clear bulk data after attempting to send
-      setBulkData([]);
-
-      // Provide summary feedback
-      Alert.alert(
-        t('mainApp.bulkSendComplete'),
-        `Successfully sent data to ${successCount} endpoints.\nFailed to send data to ${failureCount} endpoints.`
-      );
-
-      } catch (error) {
-        // Silent error handling
-      Alert.alert(t('mainApp.bulkSendError'), t('mainApp.bulkSendErrorMessage'));
-      // Decide if bulkData should be cleared even on catastrophic failure
-      // setBulkData([]);
-    } finally {
-      setIsSendingBulk(false);
-    }
-  };
-
-  // Render chat bubble
-  const renderBubble = useCallback(({ item, index }: { item: ChatBubble, index: number }) => {
-    const isLastBubble = index === bubbles.length - 1;
-    const isCurrentUserBubble = item.type === 'user' && isLastBubble && item.content === keypadInput;
-
-    const copyToClipboard = (text: string) => {
-      if (Platform.OS === 'web') {
-        navigator.clipboard?.writeText(text).catch(() => {});
-      } else {
-        ExpoClipboard.setStringAsync(text).catch(() => {});
-      }
-      // Add vibration feedback
-      if (vibrationEnabled) {
-        Vibration.vibrate(50);
-      }
-
-      if (Platform.OS === 'android') {
-        ToastAndroid.showWithGravity(
-          'Answer copied to clipboard',
-          ToastAndroid.SHORT,
-          ToastAndroid.TOP
-        );
-      } else {
-        // For iOS and web, add a temporary bubble at the top
-        setBubbles(prev => [
-          { 
-            id: (bubbleIdRef.current++).toString(), 
-            type: 'calc', 
-            content: t('mainApp.answerCopiedToClipboard') 
-          },
-          ...prev
-        ]);
-        // Remove the notification bubble after 2 seconds
-        setTimeout(() => {
-          setBubbles(prev => prev.slice(1));
-        }, 2000);
-      }
-    };
-
-    if (item.type === 'result') {
-      return (
-        <Pressable 
-          style={styles.resultBubble}
-          onLongPress={() => copyToClipboard(item.content)}
-          delayLongPress={500}
-        >
-          <Text style={styles.resultText}>{item.content}</Text>
-        </Pressable>
-      );
-    }
-
-    if (item.type === 'error') {
-      // Special-case: show "No Equation Detected" like interim stream (gray text), not as a red error bubble
-      if (item.content === 'No Equation Detected') {
-        return (
-          <View style={styles.userBubble}>
-            <Text style={[styles.userText, { color: '#999' }]}>{item.content}</Text>
-          </View>
-        );
-      }
-      return (
-        <View style={styles.errorBubble}>
-          <Text style={styles.errorText}>{item.content}</Text>
-        </View>
-      );
-    }
-
-    // result-input (special case for result in input field)
-    if (item.type === 'result-input') {
-      return (
-        <View style={styles.currentUserBubbleContainer}>
-          <View style={styles.userBubble}>
-            <Text style={[styles.userText, {color: '#aaa'}]}>{item.content || ' '}</Text>
-          </View>
-        </View>
-      );
-    }
-    
-    // user
-    if (item.type === 'user') {
-      if (item.id === 'interim_speech') {
-        return (
-          <View style={styles.userBubble}>
-            <Text style={[styles.userText, { color: '#999' }]}>{item.content}</Text>
-          </View>
-        );
-      }
-      if (isCurrentUserBubble) {
-        return (
-          <View style={styles.currentUserBubbleContainer}>
-            <View style={styles.userBubble}>
-              <Text style={[styles.userText, interimTranscript ? { color: '#999' } : null]}>
-                {interimTranscript ? interimTranscript : (item.content || ' ')}
-              </Text>
-            </View>
-          </View>
-        );
-      } else {
-        // Check if the content contains an equals sign
-        const hasEquals = item.content.includes('=');
-        if (hasEquals) {
-          const parts = item.content.split('=');
-          const answer = parts[parts.length - 1].trim();
-          
-          return (
-            <Pressable 
-              style={styles.userBubble}
-              onLongPress={() => copyToClipboard(answer)}
-              delayLongPress={500}
-            >
-              <Text style={[styles.userText, { color: '#fff' }]}>{item.content}</Text>
-            </Pressable>
-          );
-        }
-        
-        return (
-          <View style={styles.userBubble}>
-            <Text style={styles.userText}>{item.content}</Text>
-          </View>
-        );
-      }
-    }
-
-    return null;
-  }, [bubbles.length, keypadInput, vibrationEnabled, interimTranscript]);
+  // Use webhook manager's handler functions
+  const handleAddWebhook = webhookManager.handleAddWebhook;
+  const handleDeleteWebhook = webhookManager.handleDeleteWebhook;
+  const handleToggleWebhook = webhookManager.handleToggleWebhook;
+  const handleSendBulkData = webhookManager.handleSendBulkData;
 
   // Log rendering outside of JSX to avoid TypeScript errors
   // console.log('CalculatorScreen rendering...');
@@ -2108,102 +1446,46 @@ const MainScreen: React.FC = () => {
       {/* Render Header Controls */}
       {renderHeaderControls()}
 
-      <FlatList
-        style={{ flex: 1 }}
+      <BubbleListComponent
         ref={flatListRef}
-        data={
-          interimTranscript
-            ? (() => {
-                return [...bubbles, { id: 'interim_speech', type: 'user' as const, content: interimTranscript }];
-              })()
-            : previewResult
-            ? [...bubbles, { id: 'preview', type: 'result' as const, content: previewResult }]
-            : bubbles
-        }
-        renderItem={renderBubble}
-        keyExtractor={item => item.id}
-        contentContainerStyle={styles.chatArea}
-        onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
-        ListEmptyComponent={emptyComponent}
-        getItemLayout={(data, index) => ({
-          length: 60, // Average height of a bubble
-          offset: 60 * index,
-          index
-        })}
-        windowSize={5}
-        maxToRenderPerBatch={10}
-        removeClippedSubviews={Platform.OS !== 'web'}
-        initialNumToRender={15}
+        bubbles={bubbles}
+        keypadInput={keypadInput}
+        interimTranscript={interimTranscript}
+        previewResult={previewResult}
+        vibrationEnabled={vibrationEnabled}
+        emptyComponent={emptyComponent}
+        t={t}
+        setBubbles={setBubbles}
+        bubbleIdRef={bubbleIdRef}
+        styles={{
+          chatArea: styles.chatArea,
+          userBubble: styles.userBubble,
+          userText: styles.userText,
+          resultBubble: styles.resultBubble,
+          resultText: styles.resultText,
+          errorBubble: styles.errorBubble,
+          errorText: styles.errorText,
+          currentUserBubbleContainer: styles.currentUserBubbleContainer,
+        }}
       />
 
       {showKeypad && (
-        <View style={isWebMobile ? styles.calculatorAreaMobileWeb : styles.calculatorArea}>
-          <TouchableOpacity
-            style={{
-              alignSelf: 'flex-end',
-              padding: 10,
-              marginRight: 20,
-              marginBottom: 0, // Consistent spacing
-            }}
-            onPress={() => onKeypadPress('⌫')}
-            activeOpacity={0.7}
-            delayPressIn={0}
-          >
-            <AppIcon name="backspace" size={28} color="#eee" />
-          </TouchableOpacity>
-          <View style={styles.keypadContainer}>
-            {KEYPAD.map((row, i) => (
-              <View key={i} style={styles.keypadRow}>
-                {row.map((key) => {
-                  // Determine the button style
-                  let buttonStyle;
-                  if (Platform.OS === 'web') {
-                    if (isWebMobile) {
-                      // WEB MOBILE: Apply native mobile styles directly
-                      if (key === 'CHECK_ICON') {
-                        buttonStyle = styles.keypadKeyEnter;
-                      } else if (['+', '-', '×', '÷', '()', '%', '^'].includes(key)) { // Comprehensive operator list
-                        buttonStyle = styles.keypadKeyOperator;
-                      } else {
-                        buttonStyle = styles.keypadKeyMobile;
-                      }
-                    } else {
-                      // DESKTOP WEB: Use transparent web style
-                      buttonStyle = styles.keypadKeyWeb;
-                    }
-                  } else {
-                    // NATIVE MOBILE: Existing logic (unchanged)
-                    if (key === 'CHECK_ICON') {
-                      buttonStyle = styles.keypadKeyEnter;
-                    } else if (['+', '-', '×', '÷'].includes(key)) { // Original, less comprehensive operator list for native
-                      buttonStyle = styles.keypadKeyOperator;
-                    } else {
-                      buttonStyle = styles.keypadKeyMobile;
-                    }
-                  }
-                  
-                  return (
-                    <TouchableOpacity
-                      key={key}
-                      style={[buttonStyle, isWebMobile && styles.keypadKeyWebMobile]}
-                      onPress={() => onKeypadPress(key)}
-                      activeOpacity={0.7}
-                      delayPressIn={0}
-                    >
-                      {key === '↺' ? (
-                        <AppIcon name="refresh" size={28} color="#eee" style={{ transform: [{ scaleX: -1 }] }} />
-                      ) : key === 'CHECK_ICON' ? (
-                        <AppIcon name="send" size={24} color="#eee" />
-                      ) : (
-                        <Text style={styles.keypadKeyText}>{key}</Text>
-                      )}
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            ))}
-          </View>
-        </View>
+        <KeypadComponent 
+          onKeypadPress={onKeypadPress}
+          isWebMobile={isWebMobile}
+          styles={{
+            calculatorArea: styles.calculatorArea,
+            calculatorAreaMobileWeb: styles.calculatorAreaMobileWeb,
+            keypadContainer: styles.keypadContainer,
+            keypadRow: styles.keypadRow,
+            keypadKeyWeb: styles.keypadKeyWeb,
+            keypadKeyMobile: styles.keypadKeyMobile,
+            keypadKeyOperator: styles.keypadKeyOperator,
+            keypadKeyEnter: styles.keypadKeyEnter,
+            keypadKeyWebMobile: styles.keypadKeyWebMobile,
+            keypadKeyText: styles.keypadKeyText,
+          }}
+        />
       )}
       
       {/* Settings Modal */}
@@ -2211,29 +1493,29 @@ const MainScreen: React.FC = () => {
         <Settings
           visible={isSettingsModalVisible}
           onClose={() => setIsSettingsModalVisible(false)}
-          webhookUrls={webhookUrls}
-          newWebhookUrl={newWebhookUrl}
-          setNewWebhookUrl={setNewWebhookUrl}
-          newWebhookTitle={newWebhookTitle}
-          setNewWebhookTitle={setNewWebhookTitle}
+          webhookUrls={webhookManager.webhookUrls}
+          newWebhookUrl={webhookManager.newWebhookUrl}
+          setNewWebhookUrl={webhookManager.setNewWebhookUrl}
+          newWebhookTitle={webhookManager.newWebhookTitle}
+          setNewWebhookTitle={webhookManager.setNewWebhookTitle}
           handleAddWebhook={handleAddWebhook}
           handleDeleteWebhook={handleDeleteWebhook}
           handleToggleWebhook={handleToggleWebhook}
-          sendEquation={sendEquation}
-          setSendEquation={setSendEquation}
-          streamResults={streamResults}
-          setStreamResults={setStreamResults}
-          bulkData={bulkData}
-          setBulkData={setBulkData}
-          isSendingBulk={isSendingBulk}
+          sendEquation={webhookManager.sendEquation}
+          setSendEquation={webhookManager.setSendEquation}
+          streamResults={webhookManager.streamResults}
+          setStreamResults={webhookManager.setStreamResults}
+          bulkData={webhookManager.bulkData}
+          setBulkData={webhookManager.setBulkData}
+          isSendingBulk={webhookManager.isSendingBulk}
           clearBulkData={() => {
-            setBulkData([]);
+            webhookManager.setBulkData([]);
           }}
           enterKeyNewLine={enterKeyNewLine}
           setEnterKeyNewLine={setEnterKeyNewLine}
           isSpeechMuted={isSpeechMuted}
           toggleSpeechMute={toggleSpeechMute}
-          setWebhookUrls={setWebhookUrls}
+          setWebhookUrls={webhookManager.setWebhookUrls}
           handleSendBulkData={handleSendBulkData}
           vibrationEnabled={vibrationEnabled}
           setVibrationEnabled={setVibrationEnabled}
@@ -2306,9 +1588,9 @@ const MainScreen: React.FC = () => {
           > 
             <View>
               <AppIcon name="cog" size={28} color="#ccc" />
-              {!streamResults && bulkData.length > 0 && (
+              {!webhookManager.streamResults && webhookManager.bulkData.length > 0 && (
                 <View style={styles.bulkBadge}>
-                  <Text style={styles.bulkBadgeText}>{bulkData.length}</Text>
+                  <Text style={styles.bulkBadgeText}>{webhookManager.bulkData.length}</Text>
                 </View>
               )}
             </View>
@@ -2318,13 +1600,13 @@ const MainScreen: React.FC = () => {
           {Platform.OS === 'web' && hoveredTooltip === 'webhook' && (
             <View style={styles.webhookTooltip}>
               {/* Active Webhooks Section */}
-              {webhookUrls.filter(webhook => webhook.active).length > 0 ? (
+              {webhookManager.webhookUrls.filter(webhook => webhook.active).length > 0 ? (
                 <View style={{ marginBottom: 10 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
                     <AppIcon name="webhook" size={16} color="#888" style={{ marginRight: 5 }} />
                     <Text style={[styles.tooltipText, { fontWeight: 'bold', fontSize: 16, color: '#888' }]}>{t('mainApp.activeWebhooks')}</Text>
                   </View>
-                  {webhookUrls.filter(webhook => webhook.active).map((webhook, index) => (
+                  {webhookManager.webhookUrls.filter(webhook => webhook.active).map((webhook, index) => (
                     <View key={index} style={styles.webhookTooltipItem}>
                       <Text style={[styles.webhookTooltipText, { fontSize: 13 }]} numberOfLines={1} ellipsizeMode="middle">
                         {webhook.title || webhook.url}
@@ -2343,10 +1625,10 @@ const MainScreen: React.FC = () => {
               )}
               
               {/* Bulk data info */}
-              {!streamResults && bulkData.length > 0 && (
+              {!webhookManager.streamResults && webhookManager.bulkData.length > 0 && (
                 <View>
                   <Text style={[styles.tooltipText, { fontWeight: 'bold', fontSize: 16, color: '#888', marginBottom: 8 }]}>{t('mainApp.dataQueue')}</Text>
-                  {bulkData.map((item, index) => (
+                  {webhookManager.bulkData.map((item, index) => (
                     <Text 
                       key={index} 
                       style={[styles.tooltipText, { 
