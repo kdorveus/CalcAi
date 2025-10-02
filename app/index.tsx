@@ -183,7 +183,6 @@ const MainScreen: React.FC = () => {
   // Refs
   const flatListRef = useRef<FlatList>(null);
   const bubbleIdRef = useRef<number>(1);
-  const keypadInputRef = useRef('');
   const speechModuleRef = useRef<any>(null); // Ref to store loaded speech module
   const speechInitializedRef = useRef(false); // Track if speech is ready
   const permissionsGrantedRef = useRef(false); // Track permissions status
@@ -274,39 +273,6 @@ const MainScreen: React.FC = () => {
 
   // Consolidated keyboard handling is defined after onKeypadPress
 
-  // Background initialization for speech recognition - runs immediately after app loads
-  useEffect(() => {
-    const initializeSpeech = async () => {
-      if (Platform.OS === 'web') {
-        // Web doesn't need pre-initialization
-        speechInitializedRef.current = true;
-        return;
-      }
-
-      try {
-        // 1. Pre-load speech module
-        if (!speechModuleRef.current) {
-          speechModuleRef.current = await import('expo-speech-recognition');
-        }
-
-        // 2. Request permissions immediately
-        const { granted: audioGranted } = await requestRecordingPermissionsAsync();
-        const { ExpoSpeechRecognitionModule } = speechModuleRef.current;
-        await ExpoSpeechRecognitionModule.requestPermissionsAsync();
-        
-        permissionsGrantedRef.current = audioGranted;
-        speechInitializedRef.current = true;
-      } catch (error) {
-        // Silent error handling - will fall back to old behavior
-        speechInitializedRef.current = false;
-        permissionsGrantedRef.current = false;
-      }
-    };
-
-    // Start initialization immediately after component mounts
-    initializeSpeech();
-  }, []);
-
   // Function to initialize speech recognition for native platforms
   const initializeSpeech = async () => {
     if (Platform.OS === 'web') {
@@ -334,6 +300,12 @@ const MainScreen: React.FC = () => {
       permissionsGrantedRef.current = false;
     }
   };
+
+  // Background initialization for speech recognition - runs immediately after app loads
+  useEffect(() => {
+    // Start initialization immediately after component mounts
+    initializeSpeech();
+  }, []);
 
   const [previewResult, setPreviewResult] = useState<string | null>(null);
   const [expectingFreshInput, setExpectingFreshInput] = useState(false);
@@ -837,6 +809,215 @@ const MainScreen: React.FC = () => {
     return result; // Return the calculated result or internal error constant
   }, [normalizeSpokenMath, formatNumber, language]); // Dependencies: normalizeSpokenMath (stable), formatNumber, language
 
+  // Helper function to sanitize user input
+  const sanitizeInput = (input: string): string => {
+    if (!input) return '';
+    
+    // Remove any HTML/script tags
+    let sanitized = input.replace(/<[^>]*>/g, '');
+    
+    // Encode special characters
+    sanitized = sanitized
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+      
+    // Limit the length to prevent DoS
+    return sanitized.substring(0, 1000);
+  };
+
+  // Helper function to validate webhook URLs
+  const validateWebhookUrl = (url: string): string | null => {
+    try {
+      // Basic URL validation
+      if (!url || typeof url !== 'string') return null;
+      
+      // Must start with http:// or https://
+      if (!url.startsWith('http://') && !url.startsWith('https://')) return null;
+      
+      // Create URL object to validate and parse
+      const parsedUrl = new URL(url);
+      
+      // Check for valid protocol (extra safety)
+      if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') return null;
+      
+      // Additional checks could be added here, e.g. blocklist of domains
+      
+      return url;
+    } catch (e) {
+      // If URL parsing fails, return null
+      return null;
+    }
+  };
+
+  // --- Send Data to Webhooks ---
+  const sendWebhookData = async (equation: string, result: string) => {
+    if (!webhookSettingsLoaded) {
+      // Store calculation for later without logging
+      pendingWebhookDataRef.current.push({ 
+        equation: sanitizeInput(equation), 
+        result: sanitizeInput(result) 
+      });
+      return;
+    }
+
+    const activeWebhooks = webhookUrls.filter(webhook => webhook.active);
+    
+    if (activeWebhooks.length === 0) {
+      // Store calculation for later without logging
+      pendingWebhookDataRef.current.push({ 
+        equation: sanitizeInput(equation), 
+        result: sanitizeInput(result) 
+      });
+      return;
+    }
+
+    // Sanitize input before sending to webhook
+    const sanitizedEquation = sanitizeInput(equation);
+    const sanitizedResult = sanitizeInput(result);
+
+    const dataToSend = {
+      equation: sendEquation ? sanitizedEquation : undefined,
+      result: sanitizedResult
+    };
+
+    if (streamResults) {
+      try {
+        const promises = activeWebhooks.map(webhook => {
+          // Additional validation of webhook URL
+          const validatedUrl = validateWebhookUrl(webhook.url);
+          if (!validatedUrl) {
+            console.warn('Invalid webhook URL detected:', webhook.url);
+            return Promise.resolve(); // Skip this webhook
+          }
+          
+          return axios.post(validatedUrl, dataToSend, {
+            headers: {
+              'Content-Type': 'application/json',
+              // Prevent CSRF
+              'X-Requested-With': 'XMLHttpRequest'
+            },
+            // Set timeout to prevent hanging requests
+            timeout: 5000
+          });
+        }).filter(Boolean); // Filter out any skipped webhooks
+        
+        await Promise.allSettled(promises);
+      } catch (error) {
+        // Silent error handling for production
+        if (Platform.OS === 'android') {
+          ToastAndroid.show(t('mainApp.couldNotSendData'), ToastAndroid.SHORT);
+        }
+      }
+    } else {
+      // Add to bulk queue without logging
+      const newItem = {
+        id: bubbleIdRef.current++,
+        timestamp: Date.now(),
+        data: JSON.stringify(dataToSend)
+      };
+      setBulkData(prev => [...prev, newItem]);
+    }
+  };
+
+  // Single TTS function to prevent duplicates
+  const speakSingleResult = useCallback((text: string) => {
+    if (isTTSSpeaking.current) {
+      Speech.stop(); // Cancel any ongoing speech
+    }
+
+    isTTSSpeaking.current = true;
+    Speech.speak(text, {
+      language: getSpeechRecognitionLanguage(language),
+      pitch: 1.0,
+      rate: 1.1,
+      onStart: () => {
+        isTTSSpeaking.current = true;
+      },
+      onDone: () => {
+        // Clear flag and reset ALL speech-related state immediately when TTS finishes
+        isTTSSpeaking.current = false;
+        setInterimTranscript(''); // Clear any buffered speech
+        lastProcessedTranscriptRef.current = ''; // Reset duplicate prevention
+      },
+      onStopped: () => {
+        // Clear flag and reset state when TTS is manually stopped
+        isTTSSpeaking.current = false;
+        setInterimTranscript(''); // Clear any buffered speech
+        lastProcessedTranscriptRef.current = ''; // Reset duplicate prevention
+      },
+      onError: () => {
+        // Clear flag and reset state on TTS error
+        isTTSSpeaking.current = false;
+        setInterimTranscript(''); // Clear any buffered speech
+        lastProcessedTranscriptRef.current = ''; // Reset duplicate prevention
+      }
+    });
+  }, [language]);
+
+  // Helper function to handle calculation results (DRY principle - used by both keypad and speech)
+  const handleCalculationResult = useCallback((equation: string, result: string, source: 'keypad' | 'speech') => {
+    // Create bubbles for display
+    const equationBubble: ChatBubble = {
+      id: (bubbleIdRef.current++).toString(),
+      type: 'user',
+      content: `${equation} = ${result}`
+    };
+    const resultBubble: ChatBubble = {
+      id: (bubbleIdRef.current++).toString(),
+      type: 'calc',
+      content: result
+    };
+
+    if (enterKeyNewLine) {
+      // New Line Mode: Create a new empty user bubble
+      const newEmptyBubble: ChatBubble = {
+        id: (bubbleIdRef.current++).toString(),
+        type: 'user',
+        content: ''
+      };
+
+      setBubbles(prev => {
+        const filteredBubbles = prev.filter(b => b.type !== 'user' || b.content !== keypadInput);
+        return [...filteredBubbles, equationBubble, resultBubble, newEmptyBubble];
+      });
+
+      setKeypadInput('');
+      setPreviewResult(null);
+    } else {
+      // Normal Mode: Show the result in the input field
+      const nextUserBubble: ChatBubble = {
+        id: (bubbleIdRef.current++).toString(),
+        type: 'result-input',
+        content: result
+      };
+
+      setBubbles(prev => {
+        const filteredBubbles = prev.filter(b => b.type !== 'user' || b.content !== keypadInput);
+        return [...filteredBubbles, equationBubble, resultBubble, nextUserBubble];
+      });
+
+      setKeypadInput(result);
+    }
+
+    // Single TTS call for speech input only
+    if (source === 'speech' && !speechMutedRef.current && result !== lastSpokenResultRef.current) {
+      lastSpokenResultRef.current = result;
+      speakSingleResult(result);
+    }
+
+    lastResultRef.current = result;
+    setExpectingFreshInput(true);
+
+    // Webhook and history
+    if (historyEnabled) {
+      addCalculation(equation, result);
+    }
+    sendWebhookData(equation, result);
+  }, [enterKeyNewLine, keypadInput, historyEnabled, speakSingleResult, addCalculation, sendWebhookData]);
+
   // Keypad buttons
   // const [advancedMode, setAdvancedMode] = useState(false); // Removed
   const [vibrationEnabled, setVibrationEnabled] = useState(true); // Add vibration state
@@ -1002,79 +1183,27 @@ const MainScreen: React.FC = () => {
     } else if (key === '%') {
       newInput += '%'; // Append percentage sign
     } else if (key === 'ok' || key === '=') { // Handle 'ok' and '=' for calculation
-      // --- New '=' logic --- 
-      // Determine bubble type based on how input was entered (assume keypad for now)
-      const inputTypeForBubble : ChatBubble['type'] = 'user'; // Could be 'speech' if triggered differently
       const expressionToCalc = keypadInput;
 
       // Perform calculation
       const result = handleInput(expressionToCalc, 'keypad'); 
 
-      // Create bubbles based on the calculation
       if (result !== MATH_ERROR) {
-        // Create a bubble showing the equation with equals sign
-        const equationBubble: ChatBubble = { id: (bubbleIdRef.current++).toString(), type: 'user', content: `${expressionToCalc} = ${result}` };
-        // Create the result bubble to show just the result
-        const resultBubble: ChatBubble = { id: (bubbleIdRef.current++).toString(), type: 'calc', content: result };
-        
-        if (enterKeyNewLine) {
-          // New Line Mode: Create a new empty user bubble instead of showing the result
-          const newEmptyBubble: ChatBubble = {
-            id: (bubbleIdRef.current++).toString(), 
-            type: 'user',
-            content: ''
-          };
-          
-          setBubbles(prev => {
-            // Remove the current equation bubble if it exists
-            const filteredBubbles = prev.filter(b => b.type !== 'user' || b.content !== keypadInput);
-            // Append the equation bubble, result bubble, and a new empty bubble
-            return [...filteredBubbles, equationBubble, resultBubble, newEmptyBubble];
-          });
-          
-          // Clear the input field for a fresh start
-          setKeypadInput('');
-        } else {
-          // Normal Mode: Show the result in the input field
-          const nextUserBubble: ChatBubble = { 
-            id: (bubbleIdRef.current++).toString(), 
-            type: 'result-input',
-            content: result 
-          };
-          
-          setBubbles(prev => {
-            // Remove the current equation bubble if it exists
-            const filteredBubbles = prev.filter(b => b.type !== 'user' || b.content !== keypadInput);
-            // Append the equation bubble, result bubble and the result input bubble
-            return [...filteredBubbles, equationBubble, resultBubble, nextUserBubble];
-          });
-          
-          // Set input to the result
-          setKeypadInput(result);
-        }
-        // Don't set preview result to null - we want to show the gray result-input bubble instead
-        setExpectingFreshInput(true); // Next '=' will clear
-        lastResultRef.current = result; // Set the ref here
-        
-        // Send data to webhook when OK/Enter is pressed
-        if (historyEnabled) {
-          addCalculation(expressionToCalc, result);
-        }
-        sendWebhookData(expressionToCalc, result);
+        // Use the consolidated helper function
+        handleCalculationResult(expressionToCalc, result, 'keypad');
         
         // Scroll to bottom after calculation
         setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 50);
       } else {
-        const errorBubble: ChatBubble = { id: (bubbleIdRef.current++).toString(), type: 'error', content: t('mainApp.mathErrors.error') }; // Or use a specific error message
-        setBubbles(prev => [...prev, errorBubble]); // Add only error bubble
-        setKeypadInput(''); // Clear input on error
+        const errorBubble: ChatBubble = { id: (bubbleIdRef.current++).toString(), type: 'error', content: t('mainApp.mathErrors.error') };
+        setBubbles(prev => [...prev, errorBubble]);
+        setKeypadInput('');
         setPreviewResult(null);
         setExpectingFreshInput(false);
         // Scroll to bottom after error
         setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 50);
       }
-      return; // End processing for '='
-      // --- End new '=' logic ---
+      return;
     } else {
       newInput += key; // Append digits, operators, dot
     }
@@ -1088,7 +1217,7 @@ const MainScreen: React.FC = () => {
     
     // Always scroll to bottom after any key press
     setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 50);
-  }, [keypadInput, handleInput, setKeypadInput, setBubbles, expectingFreshInput, vibrationEnabled]); // Dependencies: state and handlers
+  }, [keypadInput, handleInput, handleCalculationResult, expectingFreshInput, vibrationEnabled, t]);
 
   // Consolidated web keyboard handling (space to record, paste, keypad, mute, reset)
   const handleGlobalKeyDown = useCallback((e: KeyboardEvent) => {
@@ -1194,41 +1323,6 @@ const MainScreen: React.FC = () => {
     return () => clearTimeout(timeout);
   }, [keypadInput, formatNumber, language]);
 
-  // Single TTS function to prevent duplicates
-  const speakSingleResult = useCallback((text: string) => {
-    if (isTTSSpeaking.current) {
-      Speech.stop(); // Cancel any ongoing speech
-    }
-
-    isTTSSpeaking.current = true;
-    Speech.speak(text, {
-      language: getSpeechRecognitionLanguage(language),
-      pitch: 1.0,
-      rate: 1.1,
-      onStart: () => {
-        isTTSSpeaking.current = true;
-      },
-      onDone: () => {
-        // Clear flag and reset ALL speech-related state immediately when TTS finishes
-        isTTSSpeaking.current = false;
-        setInterimTranscript(''); // Clear any buffered speech
-        lastProcessedTranscriptRef.current = ''; // Reset duplicate prevention
-      },
-      onStopped: () => {
-        // Clear flag and reset state when TTS is manually stopped
-        isTTSSpeaking.current = false;
-        setInterimTranscript(''); // Clear any buffered speech
-        lastProcessedTranscriptRef.current = ''; // Reset duplicate prevention
-      },
-      onError: () => {
-        // Clear flag and reset state on TTS error
-        isTTSSpeaking.current = false;
-        setInterimTranscript(''); // Clear any buffered speech
-        lastProcessedTranscriptRef.current = ''; // Reset duplicate prevention
-      }
-    });
-  }, [language]);
-
   // Single unified speech result processor (DRY principle)
   const processSpeechResult = useCallback((transcript: string, source: 'web' | 'native') => {
     if (!transcript.trim()) return;
@@ -1262,61 +1356,8 @@ const MainScreen: React.FC = () => {
       // Clear interim transcript immediately on success so gray text disappears
       setInterimTranscript('');
 
-      // Create bubbles for display
-      const equationBubble: ChatBubble = {
-        id: (bubbleIdRef.current++).toString(),
-        type: 'user',
-        content: `${processedEquation} = ${result}`
-      };
-      const resultBubble: ChatBubble = {
-        id: (bubbleIdRef.current++).toString(),
-        type: 'calc',
-        content: result
-      };
-
-      if (enterKeyNewLine) {
-        const newEmptyBubble: ChatBubble = {
-          id: (bubbleIdRef.current++).toString(),
-          type: 'user',
-          content: ''
-        };
-
-        setBubbles(prev => {
-          const filteredBubbles = prev.filter(b => b.type !== 'user' || b.content !== keypadInput);
-          return [...filteredBubbles, equationBubble, resultBubble, newEmptyBubble];
-        });
-
-        setKeypadInput('');
-        setPreviewResult(null);
-      } else {
-        const nextUserBubble: ChatBubble = {
-          id: (bubbleIdRef.current++).toString(),
-          type: 'result-input',
-          content: result
-        };
-
-        setBubbles(prev => {
-          const filteredBubbles = prev.filter(b => b.type !== 'user' || b.content !== keypadInput);
-          return [...filteredBubbles, equationBubble, resultBubble, nextUserBubble];
-        });
-
-        setKeypadInput(result);
-      }
-
-      // Single TTS call point (no duplication)
-      if (!speechMutedRef.current && result !== lastSpokenResultRef.current) {
-        lastSpokenResultRef.current = result;
-        speakSingleResult(result);
-      }
-
-      lastResultRef.current = result;
-      setExpectingFreshInput(true);
-
-      // Webhook and history
-      if (historyEnabled) {
-        addCalculation(processedEquation, result);
-      }
-      sendWebhookData(processedEquation, result);
+      // Use the consolidated helper function
+      handleCalculationResult(processedEquation, result, 'speech');
     } else {
       // Clear interim transcript and show "No Equation Detected" bubble for MATH_ERROR
       setInterimTranscript('');
@@ -1333,7 +1374,7 @@ const MainScreen: React.FC = () => {
       setKeypadInput('');
       setExpectingFreshInput(false);
     }
-  }, [normalizeSpokenMath, handleInput, enterKeyNewLine, keypadInput, historyEnabled, speechMutedRef, lastResultRef, t, lastProcessedTranscriptRef, lastSpokenResultRef, speakSingleResult]);
+  }, [normalizeSpokenMath, handleInput, handleCalculationResult]);
 
 // Audio recording logic for speech-to-text
 // Platform-specific speech-to-text
@@ -1507,184 +1548,12 @@ const MainScreen: React.FC = () => {
 
 
 
-  // --- Send Data to Webhooks ---
-  const sendWebhookData = async (equation: string, result: string) => {
-    if (!webhookSettingsLoaded) {
-      // Store calculation for later without logging
-      pendingWebhookDataRef.current.push({ 
-        equation: sanitizeInput(equation), 
-        result: sanitizeInput(result) 
-      });
-      return;
-    }
-
-    const activeWebhooks = webhookUrls.filter(webhook => webhook.active);
-    
-    if (activeWebhooks.length === 0) {
-      // Store calculation for later without logging
-      pendingWebhookDataRef.current.push({ 
-        equation: sanitizeInput(equation), 
-        result: sanitizeInput(result) 
-      });
-      return;
-    }
-
-    // Sanitize input before sending to webhook
-    const sanitizedEquation = sanitizeInput(equation);
-    const sanitizedResult = sanitizeInput(result);
-
-    const dataToSend = {
-      equation: sendEquation ? sanitizedEquation : undefined,
-      result: sanitizedResult
-    };
-
-    if (streamResults) {
-      try {
-        const promises = activeWebhooks.map(webhook => {
-          // Additional validation of webhook URL
-          const validatedUrl = validateWebhookUrl(webhook.url);
-          if (!validatedUrl) {
-            console.warn('Invalid webhook URL detected:', webhook.url);
-            return Promise.resolve(); // Skip this webhook
-          }
-          
-          return axios.post(validatedUrl, dataToSend, {
-            headers: {
-              'Content-Type': 'application/json',
-              // Prevent CSRF
-              'X-Requested-With': 'XMLHttpRequest'
-            },
-            // Set timeout to prevent hanging requests
-            timeout: 5000
-          });
-        }).filter(Boolean); // Filter out any skipped webhooks
-        
-        await Promise.allSettled(promises);
-      } catch (error) {
-        // Silent error handling for production
-        if (Platform.OS === 'android') {
-          ToastAndroid.show(t('mainApp.couldNotSendData'), ToastAndroid.SHORT);
-        }
-      }
-    } else {
-      // Add to bulk queue without logging
-      const newItem = {
-        id: bubbleIdRef.current++,
-        timestamp: Date.now(),
-        data: JSON.stringify(dataToSend)
-      };
-      setBulkData(prev => [...prev, newItem]);
-    }
-  };
-
-  // Helper function to sanitize user input
-  const sanitizeInput = (input: string): string => {
-    if (!input) return '';
-    
-    // Remove any HTML/script tags
-    let sanitized = input.replace(/<[^>]*>/g, '');
-    
-    // Encode special characters
-    sanitized = sanitized
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
-      
-    // Limit the length to prevent DoS
-    return sanitized.substring(0, 1000);
-  };
-
-  // Helper function to validate webhook URLs
-  const validateWebhookUrl = (url: string): string | null => {
-    try {
-      // Basic URL validation
-      if (!url || typeof url !== 'string') return null;
-      
-      // Must start with http:// or https://
-      if (!url.startsWith('http://') && !url.startsWith('https://')) return null;
-      
-      // Create URL object to validate and parse
-      const parsedUrl = new URL(url);
-      
-      // Check for valid protocol (extra safety)
-      if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') return null;
-      
-      // Additional checks could be added here, e.g. blocklist of domains
-      
-      return url;
-    } catch (e) {
-      // If URL parsing fails, return null
-      return null;
-    }
-  };
-
-  // --- Load/Save Webhook Settings ---
+  // --- Load/Save Settings (Consolidated) ---
   const SETTINGS_KEYS = {
     URLS: 'webhookUrls',
     SEND_EQUATION: 'sendEquation',
     STREAM_RESULTS: 'streamResults',
   };
-
-  const loadSettings = useCallback(async () => {
-    try {
-      const [storedUrls, storedSendEquation, storedStreamResults] = await Promise.all([
-        AsyncStorage.getItem('webhookUrls'),
-        AsyncStorage.getItem('sendEquation'),
-        AsyncStorage.getItem('streamResults')
-      ]);
-
-      if (storedUrls) {
-        const parsedUrls = JSON.parse(storedUrls);
-        const webhookItems = parsedUrls.map((url: string | WebhookItem) => {
-          if (typeof url === 'string') {
-            return { url, active: true };
-          }
-          return url;
-        });
-        setWebhookUrls(webhookItems);
-      }
-
-      if (storedSendEquation) {
-        const parsedSendEquation = JSON.parse(storedSendEquation);
-        setSendEquation(parsedSendEquation);
-      }
-
-      if (storedStreamResults) {
-        const parsedStreamResults = JSON.parse(storedStreamResults);
-        setStreamResults(parsedStreamResults);
-      }
-
-      setWebhookSettingsLoaded(true);
-
-      // Process any pending data silently
-      const activeWebhooksExist = webhookUrls.some(webhook => webhook.active);
-      if (pendingWebhookDataRef.current.length > 0 && activeWebhooksExist) {
-        const activeWebhooks = webhookUrls.filter(webhook => webhook.active);
-        
-        for (const { equation, result } of pendingWebhookDataRef.current) {
-          const dataToSend = {
-            equation: sendEquation ? equation : undefined,
-            result
-          };
-          
-          try {
-            const promises = activeWebhooks.map(webhook => 
-              sendWebhook(webhook.url, dataToSend)
-            );
-            await Promise.allSettled(promises);
-          } catch (error) {
-            // Silent error handling
-          }
-        }
-        
-        pendingWebhookDataRef.current = [];
-      }
-    } catch (error) {
-      setWebhookSettingsLoaded(true);
-    }
-  }, [webhookUrls, sendEquation, streamResults]);
 
   const saveSettings = useCallback(async () => {
     try {
@@ -1701,18 +1570,54 @@ const MainScreen: React.FC = () => {
     }
   }, [webhookUrls, sendEquation, streamResults]);
 
-  // Load settings on mount
+  // Consolidated settings loader - loads all settings on mount
   useEffect(() => {
-    const loadSettings = async () => {
+    const loadAllSettings = async () => {
       try {
-        const [storedOpenInCalcMode, storedSpeechMuted, storedHistoryEnabled, storedContinuousMode] = await Promise.all([
+        const [
+          storedUrls, 
+          storedSendEquation, 
+          storedStreamResults,
+          storedOpenInCalcMode, 
+          storedSpeechMuted, 
+          storedHistoryEnabled, 
+          storedContinuousMode
+        ] = await Promise.all([
+          AsyncStorage.getItem('webhookUrls'),
+          AsyncStorage.getItem('sendEquation'),
+          AsyncStorage.getItem('streamResults'),
           AsyncStorage.getItem('openInCalcMode'),
           AsyncStorage.getItem('speechMuted'),
           AsyncStorage.getItem('historyEnabled'),
           AsyncStorage.getItem('continuousMode')
         ]);
 
-        // Initialize calculator mode
+        // Load webhook settings
+        let loadedWebhookItems: WebhookItem[] = [];
+        if (storedUrls) {
+          const parsedUrls = JSON.parse(storedUrls);
+          loadedWebhookItems = parsedUrls.map((url: string | WebhookItem) => {
+            if (typeof url === 'string') {
+              return { url, active: true };
+            }
+            return url;
+          });
+          setWebhookUrls(loadedWebhookItems);
+        }
+
+        if (storedSendEquation) {
+          const parsedSendEquation = JSON.parse(storedSendEquation);
+          setSendEquation(parsedSendEquation);
+        }
+
+        if (storedStreamResults) {
+          const parsedStreamResults = JSON.parse(storedStreamResults);
+          setStreamResults(parsedStreamResults);
+        }
+
+        setWebhookSettingsLoaded(true);
+
+        // Load app preferences
         if (storedOpenInCalcMode !== null) {
           const shouldOpenInCalcMode = JSON.parse(storedOpenInCalcMode);
           setOpenInCalcMode(shouldOpenInCalcMode);
@@ -1721,14 +1626,12 @@ const MainScreen: React.FC = () => {
           }
         }
 
-        // Initialize speech muted state
         if (storedSpeechMuted !== null) {
           const isMuted = JSON.parse(storedSpeechMuted);
           setIsSpeechMuted(isMuted);
           speechMutedRef.current = isMuted;
         }
         
-        // Initialize history enabled state
         if (storedHistoryEnabled !== null) {
           const isHistoryEnabled = JSON.parse(storedHistoryEnabled);
           setHistoryEnabled(isHistoryEnabled);
@@ -1737,11 +1640,37 @@ const MainScreen: React.FC = () => {
         if (storedContinuousMode !== null) {
           setContinuousMode(JSON.parse(storedContinuousMode));
         }
+
+        // Process any pending webhook data after settings are loaded
+        if (pendingWebhookDataRef.current.length > 0 && loadedWebhookItems.length > 0) {
+          const activeWebhooks = loadedWebhookItems.filter((webhook: WebhookItem) => webhook.active);
+          
+          if (activeWebhooks.length > 0) {
+            for (const { equation, result } of pendingWebhookDataRef.current) {
+              const dataToSend = {
+                equation: storedSendEquation ? equation : undefined,
+                result
+              };
+              
+              try {
+                const promises = activeWebhooks.map((webhook: WebhookItem) => 
+                  sendWebhook(webhook.url, dataToSend)
+                );
+                await Promise.allSettled(promises);
+              } catch (error) {
+                // Silent error handling
+              }
+            }
+            
+            pendingWebhookDataRef.current = [];
+          }
+        }
       } catch (error) {
+        setWebhookSettingsLoaded(true);
         // Silent error handling
       }
     };
-    loadSettings();
+    loadAllSettings();
   }, []);
 
   // Save settings when they change (avoid redundant writes)
