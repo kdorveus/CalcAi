@@ -292,14 +292,14 @@ const MainScreen: React.FC = () => {
           'million': '1000000', 'billion': '1000000000', 'trillion': '1000000000000'
         },
         operations: {
-          addition: ['plus', 'add', 'and'],
-          subtraction: ['minus', 'subtract', 'less', 'take away'],
-          multiplication: ['times', 'multiplied by', 'x', 'multiply'],
-          division: ['divided by', 'divided', 'divide', 'over'],
-          percentage: ['percent', 'percentage'],
-          percentOf: ['percent of', 'percentage of'],
-          power: ['power', 'raised to', 'to the power of', 'squared', 'cubed'],
-          sqrt: ['square root of', 'root of', 'square root'],
+          addition: ['plus', 'add', 'added', 'adding', 'and', 'sum', 'total', 'combine', 'combined'],
+          subtraction: ['minus', 'subtract', 'subtracted', 'subtracting', 'less', 'take away', 'remove', 'removed', 'decrease', 'decreased'],
+          multiplication: ['times', 'multiplied by', 'multiply', 'multiplying', 'x', 'product', 'product of'],
+          division: ['divided by', 'divided', 'divide', 'dividing', 'over', 'split', 'split by'],
+          percentage: ['percent', 'percentage', '%'],
+          percentOf: ['percent of', 'percentage of', '% of'],
+          power: ['power', 'raised to', 'to the power of', 'to the power', 'squared', 'cubed', 'exponent'],
+          sqrt: ['square root of', 'root of', 'square root', 'root'],
           parentheses: {
             open: ['open parenthesis', 'left parenthesis', 'open bracket'],
             close: ['close parenthesis', 'right parenthesis', 'close bracket']
@@ -324,14 +324,14 @@ const MainScreen: React.FC = () => {
           'millón': '1000000', 'mil millones': '1000000000', 'billón': '1000000000000'
         },
         operations: {
-          addition: ['más', 'sumar', 'y', 'suma'],
-          subtraction: ['menos', 'restar', 'quitar'],
-          multiplication: ['por', 'multiplicado por', 'veces', 'multiplicar', 'x'],
-          division: ['dividido por', 'dividir', 'sobre'],
-          percentage: ['por ciento', 'porciento'],
-          percentOf: ['por ciento de'],
-          power: ['elevado a', 'a la potencia de', 'al cuadrado', 'al cubo', 'potencia'],
-          sqrt: ['raíz cuadrada de', 'raíz de', 'raíz cuadrada'],
+          addition: ['más', 'sumar', 'suma', 'sumado', 'y', 'añadir', 'añade', 'añadido', 'agregar', 'agrega', 'agregado'],
+          subtraction: ['menos', 'restar', 'resta', 'restado', 'quitar', 'quita', 'quitado', 'sacar', 'saca', 'sacado', 'disminuir', 'disminuye', 'disminuido'],
+          multiplication: ['por', 'multiplicado por', 'multiplicar', 'multiplica', 'veces', 'x', 'producto', 'producto de'],
+          division: ['dividido por', 'dividir', 'divide', 'dividido', 'sobre', 'entre'],
+          percentage: ['por ciento', 'porciento', 'porcentaje', '%'],
+          percentOf: ['por ciento de', 'porciento de', 'porcentaje de'],
+          power: ['elevado a', 'elevado', 'a la potencia de', 'a la potencia', 'al cuadrado', 'al cubo', 'potencia', 'exponente'],
+          sqrt: ['raíz cuadrada de', 'raíz de', 'raíz cuadrada', 'raíz'],
           parentheses: {
             open: ['abrir paréntesis', 'paréntesis izquierdo', 'abrir corchete'],
             close: ['cerrar paréntesis', 'paréntesis derecho', 'cerrar corchete']
@@ -356,25 +356,25 @@ const MainScreen: React.FC = () => {
           'million': '1000000', 'milliard': '1000000000', 'trillion': '1000000000000'
         },
         operations: {
-          addition: ['plus', 'ajouter', 'et', 'additionner'],
-          subtraction: ['moins', 'soustraire', 'retirer'],
-          multiplication: ['fois', 'multiplié par', 'x', 'multiplier'],
-          division: ['divisé', 'divisé par', 'diviser', 'sur'],
-          percentage: ['pour cent', 'pourcent'],
-          percentOf: ['pour cent de', 'pourcent de'],
-          power: ['puissance', 'élevé à', 'à la puissance de', 'au carré', 'au cube'],
-          sqrt: ['racine carrée de', 'racine de', 'racine carrée'],
+          addition: ['plus', 'ajouter', 'ajoute', 'ajouté', 'et', 'additionner', 'additionne', 'additionné', 'somme', 'sommer', 'somme de', 'rajouter', 'rajoute', 'rajouté'],
+          subtraction: ['moins', 'soustraire', 'soustrait', 'soustraction', 'retirer', 'retire', 'retiré', 'enlever', 'enlève', 'enlevé', 'ôter', 'ôte', 'ôté', 'diminuer', 'diminue', 'diminué'],
+          multiplication: ['fois', 'multiplié par', 'multiplier', 'multiplie', 'multiplication', 'x', 'par', 'produit', 'produit de'],
+          division: ['divisé', 'divisé par', 'diviser', 'divise', 'division', 'sur', 'divisée par', 'divisée'],
+          percentage: ['pour cent', 'pourcent', 'pourcentage', '%'],
+          percentOf: ['pour cent de', 'pourcent de', 'pourcentage de'],
+          power: ['puissance', 'élevé à', 'élevé', 'à la puissance de', 'à la puissance', 'au carré', 'au cube', 'exposant'],
+          sqrt: ['racine carrée de', 'racine de', 'racine carrée', 'racine'],
           parentheses: {
-            open: ['ouvrir parenthèse', 'parenthèse gauche', 'ouvrir crochet'],
-            close: ['fermer parenthèse', 'parenthèse droite', 'fermer crochet']
+            open: ['ouvrir parenthèse', 'parenthèse gauche', 'ouvrir crochet', 'ouvre parenthèse'],
+            close: ['fermer parenthèse', 'parenthèse droite', 'fermer crochet', 'ferme parenthèse']
           },
-          decimal: ['virgule', 'point', 'décimal']
+          decimal: ['virgule', 'point', 'décimal', 'décimale']
         },
         specificPhrases: {
-          addTo: 'ajouter (\\d+(?:\\.\\d+)?) à (\\d+(?:\\.\\d+)?)',
-          subtractFrom: 'soustraire (\\d+(?:\\.\\d+)?) de (\\d+(?:\\.\\d+)?)',
-          multiplyBy: '(multiplier|multiplié) (\\d+(?:\\.\\d+)?) par (\\d+(?:\\.\\d+)?)',
-          divideBy: '(diviser|divisé) (\\d+(?:\\.\\d+)?) par (\\d+(?:\\.\\d+)?)'
+          addTo: '(ajouter|ajoute|additionner|additionne) (\\d+(?:\\.\\d+)?) (à|a) (\\d+(?:\\.\\d+)?)',
+          subtractFrom: '(soustraire|soustrait|retirer|retire|enlever|enlève|ôter|ôte) (\\d+(?:\\.\\d+)?) (de|à|a) (\\d+(?:\\.\\d+)?)',
+          multiplyBy: '(multiplier|multiplie|multiplié) (\\d+(?:\\.\\d+)?) par (\\d+(?:\\.\\d+)?)',
+          divideBy: '(diviser|divise|divisé|divisée) (\\d+(?:\\.\\d+)?) par (\\d+(?:\\.\\d+)?)'
         }
       },
       de: {
@@ -388,14 +388,14 @@ const MainScreen: React.FC = () => {
           'million': '1000000', 'milliarde': '1000000000', 'trillion': '1000000000000'
         },
         operations: {
-          addition: ['plus', 'addieren', 'und', 'hinzufügen'],
-          subtraction: ['minus', 'subtrahieren', 'weniger', 'abziehen'],
-          multiplication: ['mal', 'multipliziert mit', 'x', 'multiplizieren'],
-          division: ['geteilt durch', 'dividiert durch', 'teilen', 'über'],
-          percentage: ['prozent', 'vom hundert'],
-          percentOf: ['prozent von'],
-          power: ['hoch', 'zur potenz', 'quadrat', 'kubik', 'potenz'],
-          sqrt: ['quadratwurzel von', 'wurzel von', 'quadratwurzel'],
+          addition: ['plus', 'addieren', 'addiere', 'addiert', 'und', 'hinzufügen', 'hinzufüge', 'hinzugefügt', 'dazu', 'summieren', 'summe'],
+          subtraction: ['minus', 'subtrahieren', 'subtrahiere', 'subtrahiert', 'weniger', 'abziehen', 'ziehe ab', 'abgezogen', 'wegnehmen', 'nimm weg'],
+          multiplication: ['mal', 'multipliziert mit', 'multiplizieren', 'multipliziere', 'x', 'produkt', 'produkt von'],
+          division: ['geteilt durch', 'dividiert durch', 'teilen', 'teile', 'über', 'durch'],
+          percentage: ['prozent', 'vom hundert', '%'],
+          percentOf: ['prozent von', 'prozent des'],
+          power: ['hoch', 'zur potenz', 'zur potenz von', 'quadrat', 'kubik', 'potenz', 'exponent'],
+          sqrt: ['quadratwurzel von', 'wurzel von', 'quadratwurzel', 'wurzel'],
           parentheses: {
             open: ['klammer auf', 'linke klammer', 'öffnende klammer'],
             close: ['klammer zu', 'rechte klammer', 'schließende klammer']
@@ -420,14 +420,14 @@ const MainScreen: React.FC = () => {
           'milhão': '1000000', 'bilhão': '1000000000', 'trilhão': '1000000000000'
         },
         operations: {
-          addition: ['mais', 'somar', 'e', 'adicionar'],
-          subtraction: ['menos', 'subtrair', 'tirar'],
-          multiplication: ['vezes', 'multiplicado por', 'x', 'multiplicar'],
-          division: ['dividido por', 'dividir', 'sobre'],
-          percentage: ['por cento', 'porcento'],
-          percentOf: ['por cento de'],
-          power: ['elevado a', 'à potência de', 'ao quadrado', 'ao cubo', 'potência'],
-          sqrt: ['raiz quadrada de', 'raiz de', 'raiz quadrada'],
+          addition: ['mais', 'somar', 'soma', 'somado', 'e', 'adicionar', 'adiciona', 'adicionado', 'acrescentar', 'acrescenta', 'acrescentado'],
+          subtraction: ['menos', 'subtrair', 'subtrai', 'subtraído', 'tirar', 'tira', 'tirado', 'retirar', 'retira', 'retirado', 'diminuir', 'diminui', 'diminuído'],
+          multiplication: ['vezes', 'multiplicado por', 'multiplicar', 'multiplica', 'x', 'produto', 'produto de'],
+          division: ['dividido por', 'dividir', 'divide', 'dividido', 'sobre', 'por'],
+          percentage: ['por cento', 'porcento', 'percentagem', '%'],
+          percentOf: ['por cento de', 'porcento de', 'percentagem de'],
+          power: ['elevado a', 'elevado', 'à potência de', 'à potência', 'ao quadrado', 'ao cubo', 'potência', 'expoente'],
+          sqrt: ['raiz quadrada de', 'raiz de', 'raiz quadrada', 'raiz'],
           parentheses: {
             open: ['abrir parênteses', 'parênteses esquerdo', 'abrir colchetes'],
             close: ['fechar parênteses', 'parênteses direito', 'fechar colchetes']
@@ -452,14 +452,14 @@ const MainScreen: React.FC = () => {
           'milione': '1000000', 'miliardo': '1000000000', 'trillione': '1000000000000'
         },
         operations: {
-          addition: ['più', 'sommare', 'e', 'aggiungere'],
-          subtraction: ['meno', 'sottrarre', 'togliere'],
-          multiplication: ['per', 'moltiplicato per', 'x', 'moltiplicare'],
-          division: ['diviso per', 'dividere', 'sopra'],
-          percentage: ['per cento', 'percento'],
-          percentOf: ['per cento di'],
-          power: ['elevato a', 'alla potenza di', 'al quadrato', 'al cubo', 'potenza'],
-          sqrt: ['radice quadrata di', 'radice di', 'radice quadrata'],
+          addition: ['più', 'sommare', 'somma', 'sommato', 'e', 'aggiungere', 'aggiungi', 'aggiunto', 'addizionare', 'addiziona', 'addizionato'],
+          subtraction: ['meno', 'sottrarre', 'sottrai', 'sottratto', 'togliere', 'togli', 'tolto', 'levare', 'leva', 'levato', 'diminuire', 'diminuisci', 'diminuito'],
+          multiplication: ['per', 'moltiplicato per', 'moltiplicare', 'moltiplica', 'x', 'prodotto', 'prodotto di'],
+          division: ['diviso per', 'dividere', 'dividi', 'diviso', 'sopra', 'fratto'],
+          percentage: ['per cento', 'percento', 'percentuale', '%'],
+          percentOf: ['per cento di', 'percento di', 'percentuale di'],
+          power: ['elevato a', 'elevato', 'alla potenza di', 'alla potenza', 'al quadrato', 'al cubo', 'potenza', 'esponente'],
+          sqrt: ['radice quadrata di', 'radice di', 'radice quadrata', 'radice'],
           parentheses: {
             open: ['apri parentesi', 'parentesi sinistra', 'apri quadre'],
             close: ['chiudi parentesi', 'parentesi destra', 'chiudi quadre']
