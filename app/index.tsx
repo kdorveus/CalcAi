@@ -1332,12 +1332,11 @@ const MainScreen: React.FC = () => {
       <View style={styles.emptyStateContainer}>
         <View style={styles.logoContainer}>
           <Image 
-            source={require('../assets/images/LOGO.png')} 
+            source={require('../assets/images/LOGO.webp')} 
             style={{ width: 200, height: 80 }}
             resizeMode="contain"
-            fadeDuration={0}
             // Use default loading priority
-            defaultSource={require('../assets/images/LOGO.png')}
+            defaultSource={require('../assets/images/LOGO.webp')}
           />
           <Text style={styles.betaText}>BETA</Text>
         </View>
@@ -1363,12 +1362,12 @@ const MainScreen: React.FC = () => {
       <View style={styles.emptyStateContainer}>
         <View style={styles.logoContainer}>
           <Image 
-            source={require('../assets/images/LOGO.png')} 
+            source={require('../assets/images/LOGO.webp')} 
             style={{ width: 180, height: 72 }}
             resizeMode="contain"
             fadeDuration={0}
             // Use default loading priority
-            defaultSource={require('../assets/images/LOGO.png')}
+            defaultSource={require('../assets/images/LOGO.webp')}
           />
           <Text style={styles.betaText}>BETA</Text>
         </View>
@@ -1533,8 +1532,8 @@ const MainScreen: React.FC = () => {
           visible={showHistoryModal}
           onClose={() => setShowHistoryModal(false)}
           history={history}
-          onDelete={deleteCalculation} // FIX: Pass the actual delete function
-          onClearAll={clearAllCalculations} // FIX: Pass the actual clear all function
+          onDelete={deleteCalculation} // Pass the actual delete function
+          onClearAll={clearAllCalculations} // Pass the actual clear all function
           onSelect={(item) => {
             if (item.result) {
               setKeypadInput(item.result);

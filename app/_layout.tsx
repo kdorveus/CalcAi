@@ -217,7 +217,7 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
 
     // Preload critical assets
     const assetsToPreload: PreloadAsset[] = [
-      { href: require('../assets/images/LOGO.png').uri, as: 'image' },
+      { href: require('../assets/images/LOGO.webp').uri, as: 'image' },
       // Example for SVG if needed:
       // { href: require('../assets/icons/microphone.svg').uri, as: 'image', type: 'image/svg+xml' }, 
     ];

@@ -43,7 +43,7 @@ export default function Login() {
       <View style={styles.formContainer}>
         <View style={styles.logoContainer}>
           <Image 
-            source={require('../../assets/images/LOGO.png')} 
+            source={require('../../assets/images/LOGO.webp')} 
             style={styles.logo}
           />
           <Text style={styles.betaText}>BETA</Text>

@@ -22,7 +22,7 @@ interface PremiumPaymentModalProps {
   onSuccess?: () => void;
 }
 
-type PlanType = 'monthly' | 'yearly' | 'lifetime';
+type PlanType = 'yearly' | 'lifetime';
 
 const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
   visible,
@@ -35,7 +35,7 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
   const { captureEvent } = usePostHog();
   const [isLoading, setIsLoading] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState<PlanType>('yearly');
+  const [selectedPlan, setSelectedPlan] = useState<PlanType>('lifetime');
 
   // Track when the modal becomes visible
   React.useEffect(() => {
@@ -61,7 +61,7 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
     // User is logged in, proceed with payment
     captureEvent('payment_initiated', {
       plan: selectedPlan,
-      price: selectedPlan === 'monthly' ? '$5' : selectedPlan === 'yearly' ? '$50' : '$99',
+      price: selectedPlan === 'yearly' ? '$49' : '$89',
     });
     setIsLoading(true);
     await showPremiumPayment(selectedPlan);
@@ -93,8 +93,6 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
   const getPlanButtonText = () => {
     const prefix = !user ? 'Login & ' : '';
     switch (selectedPlan) {
-      case 'monthly':
-        return `${prefix}Get Monthly Access`;
       case 'yearly':
         return `${prefix}Get Yearly Access`;
       case 'lifetime':
@@ -131,24 +129,7 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
             </View>
 
             <View style={styles.pricingContainer}>
-              {/* Monthly Plan */}
-              <TouchableOpacity 
-                style={[
-                  styles.priceBox,
-                  selectedPlan === 'monthly' && styles.selectedBox
-                ]}
-                onPress={() => handlePlanSelection('monthly')}
-                activeOpacity={0.7}
-              >
-                <View style={styles.priceHeader}>
-                  <View style={{ height: 24 }} />
-                </View>
-                <Text style={styles.planName}>Monthly</Text>
-                <Text style={styles.planPrice}>$5</Text>
-                <Text style={styles.planBilling}>Cancel Anytime</Text>
-              </TouchableOpacity>
-
-              {/* Yearly Plan - Most Popular */}
+              {/* Yearly Plan */}
               <TouchableOpacity 
                 style={[
                   styles.priceBox,
@@ -157,15 +138,37 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
                 onPress={() => handlePlanSelection('yearly')}
                 activeOpacity={0.7}
               >
-                <View style={styles.popularBadge}>
-                  <Text style={styles.popularBadgeText}>MOST POPULAR</Text>
+                {selectedPlan === 'yearly' && <View style={styles.selectedBanner} />}
+                
+                <View style={styles.planHeader}>
+                  <Text style={styles.planName}>Pro</Text>
                 </View>
-                <View style={styles.priceHeader}>
-                  <View style={{ height: 24 }} />
+                
+                <View style={styles.priceSection}>
+                  <Text style={styles.planPrice}>$49</Text>
+                  <Text style={styles.planBilling}>/year</Text>
                 </View>
-                <Text style={styles.planName}>Yearly</Text>
-                <Text style={styles.planPrice}>$50</Text>
-                <Text style={styles.planBilling}>Cancel Anytime</Text>
+                
+                <Text style={styles.planSubtext}>Ideal for growing teams and businesses</Text>
+                
+                <View style={styles.benefitsList}>
+                  <View style={styles.benefitItem}>
+                    <AppIcon name="check" size={16} color="#ff9500" />
+                    <Text style={styles.benefitText}>Continuous Mode</Text>
+                  </View>
+                  <View style={styles.benefitItem}>
+                    <AppIcon name="check" size={16} color="#ff9500" />
+                    <Text style={styles.benefitText}>History & Sync</Text>
+                  </View>
+                  <View style={styles.benefitItem}>
+                    <AppIcon name="check" size={16} color="#ff9500" />
+                    <Text style={styles.benefitText}>Webhooks</Text>
+                  </View>
+                  <View style={styles.benefitItem}>
+                    <AppIcon name="check" size={16} color="#ff9500" />
+                    <Text style={styles.benefitText}>Priority Support</Text>
+                  </View>
+                </View>
               </TouchableOpacity>
 
               {/* Lifetime Plan */}
@@ -177,29 +180,39 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
                 onPress={() => handlePlanSelection('lifetime')}
                 activeOpacity={0.7}
               >
-                <View style={styles.priceHeader}>
-                  <AppIcon name="crown" size={24} color="#ff9500" />
+                {selectedPlan === 'lifetime' && <View style={styles.selectedBanner} />}
+                
+                <View style={styles.planHeader}>
+                  <AppIcon name="crown" size={20} color="#ff9500" />
+                  <Text style={styles.planName}>Lifetime</Text>
                 </View>
-                <Text style={styles.planName}>Lifetime</Text>
-                <Text style={styles.planPrice}>$99</Text>
-                <Text style={styles.planBilling}>Updates Forever</Text>
+                
+                <View style={styles.priceSection}>
+                  <Text style={styles.planPrice}>$89</Text>
+                  <Text style={styles.planBilling}> lifetime</Text>
+                </View>
+                
+                <Text style={styles.planSubtext}>One-time payment, yours forever</Text>
+                
+                <View style={styles.benefitsList}>
+                  <View style={styles.benefitItem}>
+                    <AppIcon name="check" size={16} color="#ff9500" />
+                    <Text style={styles.benefitText}>Continuous Mode</Text>
+                  </View>
+                  <View style={styles.benefitItem}>
+                    <AppIcon name="check" size={16} color="#ff9500" />
+                    <Text style={styles.benefitText}>History & Sync</Text>
+                  </View>
+                  <View style={styles.benefitItem}>
+                    <AppIcon name="check" size={16} color="#ff9500" />
+                    <Text style={styles.benefitText}>Webhooks</Text>
+                  </View>
+                  <View style={styles.benefitItem}>
+                    <AppIcon name="check" size={16} color="#ff9500" />
+                    <Text style={styles.benefitText}>Priority Support</Text>
+                  </View>
+                </View>
               </TouchableOpacity>
-            </View>
-
-            {/* Advantages List */}
-            <View style={styles.advantagesContainer}>
-              <View style={styles.advantageItem}>
-                <AppIcon name="microphone" size={16} color="#fff" />
-                <Text style={styles.advantageText}>Continuous Mode</Text>
-              </View>
-              <View style={styles.advantageItem}>
-                <AppIcon name="history" size={16} color="#fff" />
-                <Text style={styles.advantageText}>History & Sync</Text>
-              </View>
-              <View style={styles.advantageItem}>
-                <AppIcon name="webhook" size={16} color="#fff" />
-                <Text style={styles.advantageText}>Webhooks</Text>
-              </View>
             </View>
 
             <TouchableOpacity 
@@ -296,43 +309,25 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 8,
   },
-  advantagesContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: 16,
-    marginBottom: 24,
-    marginTop: 8,
-  },
-  advantageItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  advantageText: {
-    fontSize: 12,
-    color: '#fff',
-  },
   pricingContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 16,
-    gap: 8,
+    marginBottom: 24,
+    gap: Platform.OS === 'web' ? 16 : 12,
   },
   priceBox: {
     flex: 1,
     backgroundColor: '#2C2C2E',
     borderRadius: 16,
-    padding: 12,
+    padding: Platform.OS === 'web' ? 20 : 16,
     borderWidth: 2,
     borderColor: '#3C3C3E',
-    alignItems: 'center',
     minWidth: 0,
   },
   selectedBox: {
     borderColor: '#ff9500',
     borderWidth: 3,
-    backgroundColor: '#3C3C3E',
+    backgroundColor: '#2C2C2E',
   },
   popularBadge: {
     position: 'absolute',
@@ -340,36 +335,61 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     backgroundColor: '#ff9500',
-    paddingVertical: 6,
+    paddingVertical: Platform.OS === 'web' ? 6 : 5,
     borderTopLeftRadius: 14,
     borderTopRightRadius: 14,
   },
   popularBadgeText: {
     color: '#000',
-    fontSize: 10,
+    fontSize: Platform.OS === 'web' ? 10 : 9,
     fontWeight: 'bold',
     textAlign: 'center',
     letterSpacing: 0.5,
   },
-  priceHeader: {
-    marginBottom: 6,
-    marginTop: 4,
+  planHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: Platform.OS === 'web' ? 16 : 12,
+    marginTop: Platform.OS === 'web' ? 8 : 6,
   },
   planName: {
-    fontSize: 14,
+    fontSize: Platform.OS === 'web' ? 20 : 16,
     fontWeight: 'bold',
     color: '#fff',
-    marginBottom: 4,
+  },
+  priceSection: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    marginBottom: Platform.OS === 'web' ? 12 : 10,
   },
   planPrice: {
-    fontSize: 24,
+    fontSize: Platform.OS === 'web' ? 32 : 26,
     fontWeight: 'bold',
-    color: '#ff9500',
-    marginBottom: 4,
+    color: '#fff',
   },
   planBilling: {
-    fontSize: 9,
+    fontSize: Platform.OS === 'web' ? 16 : 13,
     color: '#999',
+  },
+  planSubtext: {
+    fontSize: Platform.OS === 'web' ? 13 : 11,
+    color: '#999',
+    marginBottom: Platform.OS === 'web' ? 20 : 16,
+    lineHeight: Platform.OS === 'web' ? 18 : 15,
+  },
+  benefitsList: {
+    gap: Platform.OS === 'web' ? 12 : 10,
+  },
+  benefitItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Platform.OS === 'web' ? 10 : 8,
+  },
+  benefitText: {
+    fontSize: Platform.OS === 'web' ? 14 : 12,
+    color: '#fff',
+    flex: 1,
   },
   paymentButton: {
     backgroundColor: '#ff9500',

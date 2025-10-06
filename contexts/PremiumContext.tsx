@@ -23,8 +23,7 @@ const GOOGLE_PLAY_PRODUCT_ID = 'YOUR_GOOGLE_PLAY_PRODUCT_ID';
 
 // Stripe Price IDs
 const STRIPE_PRICE_IDS = {
-  monthly: 'price_1SDR9XDmsyc2Q0HRnMKTqbyM',
-  yearly: 'price_1SDR9YDmsyc2Q0HRpwm7xVbE',
+  yearly: 'price_1SFIQ3Dmsyc2Q0HRcMlXlfI5',
   lifetime: 'price_1SDR9ZDmsyc2Q0HRCNYKpUvW',
 };
 
@@ -41,7 +40,7 @@ type ProductInfo = {
 type PremiumContextType = {
   isPremium: boolean;
   checkPremiumStatus: () => Promise<boolean>;
-  showPremiumPayment: (planType?: 'monthly' | 'yearly' | 'lifetime') => Promise<void>;
+  showPremiumPayment: (planType?: 'yearly' | 'lifetime') => Promise<void>;
   premiumLoading: boolean;
   stripePaymentUrl: string;
   isPremiumCached: boolean; // Added to indicate if we have a cached value
@@ -52,7 +51,7 @@ type PremiumContextType = {
 const PremiumContext = createContext<PremiumContextType>({
   isPremium: false,
   checkPremiumStatus: async () => false,
-  showPremiumPayment: async (planType?: 'monthly' | 'yearly' | 'lifetime') => {},
+  showPremiumPayment: async (planType?: 'yearly' | 'lifetime') => {},
   premiumLoading: false,
   stripePaymentUrl: '', // Deprecated - will be generated dynamically
   isPremiumCached: false,
@@ -238,7 +237,7 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
   };
 
   // Handle payments based on platform
-  const showPremiumPayment = async (planType: 'monthly' | 'yearly' | 'lifetime' = 'yearly'): Promise<void> => {
+  const showPremiumPayment = async (planType: 'yearly' | 'lifetime' = 'lifetime'): Promise<void> => {
     try {
       // For Android, use Google Play IAP
       if (Platform.OS === 'android') {
