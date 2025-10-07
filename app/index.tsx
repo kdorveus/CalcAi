@@ -212,7 +212,13 @@ const MainScreen: React.FC = () => {
     
     // Stop any ongoing speech when muted
     if (newMuteState) {
-      Speech.stop();
+      if (Platform.OS === 'web') {
+        if (typeof window !== 'undefined' && window.speechSynthesis) {
+          window.speechSynthesis.cancel();
+        }
+      } else {
+        Speech.stop();
+      }
     }
   }, []);
 
@@ -777,36 +783,78 @@ const MainScreen: React.FC = () => {
   // Single TTS function to prevent duplicates
   const speakSingleResult = useCallback((text: string) => {
     if (isTTSSpeaking.current) {
-      Speech.stop(); // Cancel any ongoing speech
+      if (Platform.OS === 'web') {
+        // Stop web speech synthesis
+        if (typeof window !== 'undefined' && window.speechSynthesis) {
+          window.speechSynthesis.cancel();
+        }
+      } else {
+        Speech.stop(); // Cancel any ongoing speech on native
+      }
     }
 
     isTTSSpeaking.current = true;
-    Speech.speak(text, {
-      language: getSpeechRecognitionLanguage(language),
-      pitch: 1.0,
-      rate: 1.1,
-      onStart: () => {
-        isTTSSpeaking.current = true;
-      },
-      onDone: () => {
-        // Clear flag and reset ALL speech-related state immediately when TTS finishes
+
+    if (Platform.OS === 'web') {
+      // Use Web Speech API for browser
+      if (typeof window !== 'undefined' && window.speechSynthesis) {
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = getSpeechRecognitionLanguage(language);
+        utterance.pitch = 1.0;
+        utterance.rate = 1.1;
+
+        utterance.onstart = () => {
+          isTTSSpeaking.current = true;
+        };
+
+        utterance.onend = () => {
+          // Clear flag and reset ALL speech-related state immediately when TTS finishes
+          isTTSSpeaking.current = false;
+          setInterimTranscript(''); // Clear any buffered speech
+          speechRecognition.lastProcessedTranscriptRef.current = ''; // Reset duplicate prevention
+        };
+
+        utterance.onerror = () => {
+          // Clear flag and reset state on TTS error
+          isTTSSpeaking.current = false;
+          setInterimTranscript(''); // Clear any buffered speech
+          speechRecognition.lastProcessedTranscriptRef.current = ''; // Reset duplicate prevention
+        };
+
+        window.speechSynthesis.speak(utterance);
+      } else {
+        // Fallback if speechSynthesis is not available
         isTTSSpeaking.current = false;
-        setInterimTranscript(''); // Clear any buffered speech
-        speechRecognition.lastProcessedTranscriptRef.current = ''; // Reset duplicate prevention
-      },
-      onStopped: () => {
-        // Clear flag and reset state when TTS is manually stopped
-        isTTSSpeaking.current = false;
-        setInterimTranscript(''); // Clear any buffered speech
-        speechRecognition.lastProcessedTranscriptRef.current = ''; // Reset duplicate prevention
-      },
-      onError: () => {
-        // Clear flag and reset state on TTS error
-        isTTSSpeaking.current = false;
-        setInterimTranscript(''); // Clear any buffered speech
-        speechRecognition.lastProcessedTranscriptRef.current = ''; // Reset duplicate prevention
       }
-    });
+    } else {
+      // Use expo-speech for native platforms
+      Speech.speak(text, {
+        language: getSpeechRecognitionLanguage(language),
+        pitch: 1.0,
+        rate: 1.1,
+        onStart: () => {
+          isTTSSpeaking.current = true;
+        },
+        onDone: () => {
+          // Clear flag and reset ALL speech-related state immediately when TTS finishes
+          isTTSSpeaking.current = false;
+          setInterimTranscript(''); // Clear any buffered speech
+          speechRecognition.lastProcessedTranscriptRef.current = ''; // Reset duplicate prevention
+        },
+        onStopped: () => {
+          // Clear flag and reset state when TTS is manually stopped
+          isTTSSpeaking.current = false;
+          setInterimTranscript(''); // Clear any buffered speech
+          speechRecognition.lastProcessedTranscriptRef.current = ''; // Reset duplicate prevention
+        },
+        onError: () => {
+          // Clear flag and reset state on TTS error
+          isTTSSpeaking.current = false;
+          setInterimTranscript(''); // Clear any buffered speech
+          speechRecognition.lastProcessedTranscriptRef.current = ''; // Reset duplicate prevention
+        }
+      });
+    }
   }, [language, speechRecognition.lastProcessedTranscriptRef]);
 
   // Helper function to handle calculation results (DRY principle - used by both keypad and speech)
