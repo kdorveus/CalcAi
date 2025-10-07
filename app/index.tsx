@@ -218,22 +218,16 @@ const MainScreen: React.FC = () => {
 
   // --- Settings State ---
   const [enterKeyNewLine, setEnterKeyNewLine] = useState<boolean>(false);
-  const [isWebhookManagerReady, setIsWebhookManagerReady] = useState<boolean>(false);
 
-  // Webhook Manager Hook - deferred initialization for performance
+  // Webhook Manager Hook - handles all webhook operations
   const webhookManager = useWebhookManager(t, bubbleIdRef);
 
-  // Defer webhook manager initialization to not block initial render
+  // Check for unsent data when webhook manager is ready
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsWebhookManagerReady(true);
-      // Show alert if there's unsent data
-      if (!webhookManager.streamResults && webhookManager.bulkData.length > 0) {
-        setIsUnsentDataModalVisible(true);
-      }
-    }, 100); // Defer by 100ms to allow initial render to complete
-    return () => clearTimeout(timer);
-  }, [webhookManager.streamResults, webhookManager.bulkData.length]);
+    if (webhookManager.webhookSettingsLoaded && !webhookManager.streamResults && webhookManager.bulkData.length > 0) {
+      setIsUnsentDataModalVisible(true);
+    }
+  }, [webhookManager.webhookSettingsLoaded, webhookManager.streamResults, webhookManager.bulkData.length]);
   
   // Function to check for unsent data and show modal if needed
   const checkUnsentData = useCallback(() => {
@@ -1224,7 +1218,7 @@ const MainScreen: React.FC = () => {
   // --- Load/Save Settings (App Preferences Only) ---
   // Note: Webhook settings are managed by useWebhookManager hook
 
-  // Load app preferences asynchronously without blocking render
+  // Load app preferences on mount
   useEffect(() => {
     const loadAppPreferences = async () => {
       try {
@@ -1240,32 +1234,29 @@ const MainScreen: React.FC = () => {
           AsyncStorage.getItem('continuousMode')
         ]);
 
-        // Use requestAnimationFrame to defer state updates and not block render
-        requestAnimationFrame(() => {
-          // Load app preferences
-          if (storedOpenInCalcMode !== null) {
-            const shouldOpenInCalcMode = JSON.parse(storedOpenInCalcMode);
-            setOpenInCalcMode(shouldOpenInCalcMode);
-            if (shouldOpenInCalcMode && Platform.OS !== 'web') {
-              setShowKeypad(true);
-            }
+        // Load app preferences
+        if (storedOpenInCalcMode !== null) {
+          const shouldOpenInCalcMode = JSON.parse(storedOpenInCalcMode);
+          setOpenInCalcMode(shouldOpenInCalcMode);
+          if (shouldOpenInCalcMode && Platform.OS !== 'web') {
+            setShowKeypad(true);
           }
+        }
 
-          if (storedSpeechMuted !== null) {
-            const isMuted = JSON.parse(storedSpeechMuted);
-            setIsSpeechMuted(isMuted);
-            speechMutedRef.current = isMuted;
-          }
-          
-          if (storedHistoryEnabled !== null) {
-            const isHistoryEnabled = JSON.parse(storedHistoryEnabled);
-            setHistoryEnabled(isHistoryEnabled);
-          }
+        if (storedSpeechMuted !== null) {
+          const isMuted = JSON.parse(storedSpeechMuted);
+          setIsSpeechMuted(isMuted);
+          speechMutedRef.current = isMuted;
+        }
+        
+        if (storedHistoryEnabled !== null) {
+          const isHistoryEnabled = JSON.parse(storedHistoryEnabled);
+          setHistoryEnabled(isHistoryEnabled);
+        }
 
-          if (storedContinuousMode !== null) {
-            setContinuousMode(JSON.parse(storedContinuousMode));
-          }
-        });
+        if (storedContinuousMode !== null) {
+          setContinuousMode(JSON.parse(storedContinuousMode));
+        }
       } catch (error) {
         // Silent error handling
       }

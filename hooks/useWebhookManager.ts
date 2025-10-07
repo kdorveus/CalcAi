@@ -49,7 +49,7 @@ export const useWebhookManager = (
   const [webhookSettingsLoaded, setWebhookSettingsLoaded] = useState<boolean>(false);
   const pendingWebhookDataRef = useRef<{ equation: string; result: string }[]>([]);
 
-  // Defer webhook settings loading to not block initial render
+  // Load webhook settings asynchronously without blocking render
   useEffect(() => {
     const loadWebhookSettings = async () => {
       try {
@@ -59,37 +59,32 @@ export const useWebhookManager = (
           AsyncStorage.getItem('streamResults'),
         ]);
 
-        // Use requestAnimationFrame to defer state updates
-        requestAnimationFrame(() => {
-          if (storedUrls) {
-            const parsedUrls = JSON.parse(storedUrls);
-            const webhookItems = parsedUrls.map((url: string | WebhookItem) => {
-              if (typeof url === 'string') {
-                return { url, active: true };
-              }
-              return url;
-            });
-            setWebhookUrls(webhookItems);
-          }
+        if (storedUrls) {
+          const parsedUrls = JSON.parse(storedUrls);
+          const webhookItems = parsedUrls.map((url: string | WebhookItem) => {
+            if (typeof url === 'string') {
+              return { url, active: true };
+            }
+            return url;
+          });
+          setWebhookUrls(webhookItems);
+        }
 
-          if (storedSendEquation) {
-            setSendEquation(JSON.parse(storedSendEquation));
-          }
+        if (storedSendEquation) {
+          setSendEquation(JSON.parse(storedSendEquation));
+        }
 
-          if (storedStreamResults) {
-            setStreamResults(JSON.parse(storedStreamResults));
-          }
+        if (storedStreamResults) {
+          setStreamResults(JSON.parse(storedStreamResults));
+        }
 
-          setWebhookSettingsLoaded(true);
-        });
+        setWebhookSettingsLoaded(true);
       } catch (error) {
         setWebhookSettingsLoaded(true);
       }
     };
 
-    // Defer loading by 150ms to prioritize initial render
-    const timer = setTimeout(loadWebhookSettings, 150);
-    return () => clearTimeout(timer);
+    loadWebhookSettings();
   }, []);
 
   // Helper function to sanitize user input

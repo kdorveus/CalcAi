@@ -231,19 +231,10 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
       if (asset.type) {
         link.type = asset.type;
       }
+      // Set fetchpriority to high for critical assets
+      link.setAttribute('fetchpriority', 'high');
       document.head.appendChild(link);
     });
-
-    // Preload logo as background image for instant caching
-    const logoPreloadDiv = document.createElement('div');
-    logoPreloadDiv.style.position = 'absolute';
-    logoPreloadDiv.style.width = '1px';
-    logoPreloadDiv.style.height = '1px';
-    logoPreloadDiv.style.overflow = 'hidden';
-    logoPreloadDiv.style.opacity = '0';
-    logoPreloadDiv.style.pointerEvents = 'none';
-    logoPreloadDiv.style.backgroundImage = `url(${require('../assets/images/LOGO.webp').uri})`;
-    document.body.appendChild(logoPreloadDiv);
 
     // Preload main JS bundle (heuristic)
     // This path might need adjustment based on actual build output
