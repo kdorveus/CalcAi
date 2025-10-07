@@ -101,15 +101,15 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
 
   const getPlanButtonText = () => {
     if (!user) {
-      return 'Continue with Google';
+      return t('premium.modal.continueWithGoogle');
     }
     switch (selectedPlan) {
       case 'yearly':
-        return 'Get Yearly Access';
+        return t('premium.modal.getYearlyAccess');
       case 'lifetime':
-        return 'Get Lifetime Access';
+        return t('premium.modal.getLifetimeAccess');
       default:
-        return 'Get Access';
+        return t('premium.modal.getAccess');
     }
   };
 
@@ -134,7 +134,7 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
                 <View style={styles.headerContainer}>
                   <View style={styles.titleWithIcon}>
                     <AppIcon name="crown" size={24} color="#ff9500" />
-                    <Text style={styles.mainTitle}>Unlock CalcAI Premium</Text>
+                    <Text style={styles.mainTitle}>{t('premium.modal.unlockCalcAIPremium')}</Text>
                   </View>
                 </View>
 
@@ -166,7 +166,7 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
                     <Text style={[
                       styles.planOptionText,
                       selectedPlan === 'yearly' && styles.planOptionTextSelected
-                    ]}>Yearly</Text>
+                    ]}>{t('premium.modal.yearly')}</Text>
                   </TouchableOpacity>
 
                   {/* Lifetime Option */}
@@ -187,12 +187,12 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
                     <Text style={[
                       styles.planOptionText,
                       selectedPlan === 'lifetime' && styles.planOptionTextSelected
-                    ]}>Lifetime</Text>
+                    ]}>{t('premium.modal.lifetime')}</Text>
                   </TouchableOpacity>
                 </View>
 
                 {/* Payment Frequency Text */}
-                <Text style={styles.paymentFrequency}>{selectedPlan === 'yearly' ? 'Once a year' : 'One-time payment'}</Text>
+                <Text style={styles.paymentFrequency}>{selectedPlan === 'yearly' ? t('premium.modal.onceAYear') : t('premium.modal.oneTimePayment')}</Text>
               </View>
             </View>
 
@@ -201,31 +201,31 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
               <View style={styles.benefitsList}>
                 <View style={styles.benefitItem}>
                   <AppIcon name="check" size={20} color="#ff9500" />
-                  <Text style={styles.benefitText}>Unlimited voice calculations</Text>
+                  <Text style={styles.benefitText}>{t('premium.modal.benefits.unlimitedVoice')}</Text>
                 </View>
                 <View style={styles.benefitItem}>
                   <AppIcon name="check" size={20} color="#ff9500" />
-                  <Text style={styles.benefitText}>Webhook integrations (Google Sheets, Notion, etc.)</Text>
+                  <Text style={styles.benefitText}>{t('premium.modal.benefits.webhookIntegrations')}</Text>
                 </View>
                 <View style={styles.benefitItem}>
                   <AppIcon name="check" size={20} color="#ff9500" />
-                  <Text style={styles.benefitText}>Early access to new features</Text>
+                  <Text style={styles.benefitText}>{t('premium.modal.benefits.earlyAccess')}</Text>
                 </View>
                 <View style={styles.benefitItem}>
                   <AppIcon name="check" size={20} color="#ff9500" />
-                  <Text style={styles.benefitText}>Ad-free experience</Text>
+                  <Text style={styles.benefitText}>{t('premium.modal.benefits.adFree')}</Text>
                 </View>
                 <View style={styles.benefitItem}>
                   <AppIcon name="check" size={20} color="#ff9500" />
-                  <Text style={styles.benefitText}>Export calculation history</Text>
+                  <Text style={styles.benefitText}>{t('premium.modal.benefits.exportHistory')}</Text>
                 </View>
                 <View style={styles.benefitItem}>
                   <AppIcon name="check" size={20} color="#ff9500" />
-                  <Text style={styles.benefitText}>Advanced voice commands</Text>
+                  <Text style={styles.benefitText}>{t('premium.modal.benefits.advancedVoice')}</Text>
                 </View>
                 <View style={styles.benefitItem}>
                   <AppIcon name="check" size={20} color="#ff9500" />
-                  <Text style={styles.benefitText}>Priority support</Text>
+                  <Text style={styles.benefitText}>{t('premium.modal.benefits.prioritySupport')}</Text>
                 </View>
               </View>
             </View>
@@ -260,7 +260,7 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
               ) : (
                 <>
                   <AppIcon name="refresh" size={16} color="#999" />
-                  <Text style={styles.restoreButtonText}>RESTORE PURCHASE</Text>
+                  <Text style={styles.restoreButtonText}>{t('premium.modal.restorePurchase')}</Text>
                 </>
               )}
             </TouchableOpacity>

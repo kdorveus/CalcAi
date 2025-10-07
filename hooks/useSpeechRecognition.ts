@@ -97,7 +97,6 @@ export const useSpeechRecognition = ({
       recognition.interimResults = true;
       recognition.continuous = continuousMode;
       recognition.maxAlternatives = 1;
-      recognition.serviceURI = '';
 
       recognition.onresult = (event: any) => {
         if (isTTSSpeaking.current) return;
