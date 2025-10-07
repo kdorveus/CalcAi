@@ -3,15 +3,16 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
+import { useEffect, lazy, Suspense } from 'react';
 import 'react-native-reanimated';
 import * as Linking from 'expo-linking';
 import { AuthProvider, useProtectedRoute } from '../contexts/AuthContext';
-import { PremiumProvider } from '../contexts/PremiumContext';
-import { CalculationHistoryProvider } from '../contexts/CalculationHistoryContext';
 import { LanguageProvider } from '../contexts/LanguageContext';
 import { PostHogProvider } from '../contexts/PostHogContext';
-import { Platform } from 'react-native';
+import { Platform, View } from 'react-native';
+
+const PremiumProvider = lazy(() => import('../contexts/PremiumContext').then(m => ({ default: m.PremiumProvider })));
+const CalculationHistoryProvider = lazy(() => import('../contexts/CalculationHistoryContext').then(m => ({ default: m.CalculationHistoryProvider })));
 // import { router } from 'expo-router'; // No longer directly needed here
 
 import { useColorScheme } from 'react-native';
@@ -233,6 +234,17 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
       document.head.appendChild(link);
     });
 
+    // Preload logo as background image for instant caching
+    const logoPreloadDiv = document.createElement('div');
+    logoPreloadDiv.style.position = 'absolute';
+    logoPreloadDiv.style.width = '1px';
+    logoPreloadDiv.style.height = '1px';
+    logoPreloadDiv.style.overflow = 'hidden';
+    logoPreloadDiv.style.opacity = '0';
+    logoPreloadDiv.style.pointerEvents = 'none';
+    logoPreloadDiv.style.backgroundImage = `url(${require('../assets/images/LOGO.webp').uri})`;
+    document.body.appendChild(logoPreloadDiv);
+
     // Preload main JS bundle (heuristic)
     // This path might need adjustment based on actual build output
     const mainBundleLink = document.createElement('link');
@@ -262,20 +274,9 @@ export const unstable_settings = {
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
-  // Force load MaterialIcons immediately before any other assets
-  if (Platform.OS === 'web') {
-    try {
-      // This will be no-op on non-web
-      require('@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/MaterialIcons.ttf');
-    } catch (e) {
-      // Silent error handling
-    }
-  }
-
   const [loaded, error] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
     ...FontAwesome.font,
-    // Add Material Icons with higher priority
     'MaterialIcons': require('@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/MaterialIcons.ttf'),
   });
 
@@ -313,11 +314,13 @@ export default function RootLayout() {
       <PostHogProvider>
         <LanguageProvider>
           <AuthProvider>
-            <PremiumProvider>
-              <CalculationHistoryProvider>
-                <RootLayoutNav />
-              </CalculationHistoryProvider>
-            </PremiumProvider>
+            <Suspense fallback={<View style={{ flex: 1, backgroundColor: '#121212' }} />}>
+              <PremiumProvider>
+                <CalculationHistoryProvider>
+                  <RootLayoutNav />
+                </CalculationHistoryProvider>
+              </PremiumProvider>
+            </Suspense>
           </AuthProvider>
         </LanguageProvider>
       </PostHogProvider>

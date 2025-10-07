@@ -73,6 +73,7 @@ export const TRANSLATIONS: Record<string, Translations> = {
       resetCtrlBackspace: 'Reset (Ctrl+Backspace)',
       none: 'None',
       // Math and Speech Error Messages
+      noEquationDetected: 'No Equation Detected',
       mathErrors: {
         sorryTryAgain: 'Sorry, please try again',
         error: 'Error',
@@ -255,6 +256,7 @@ export const TRANSLATIONS: Record<string, Translations> = {
       resetCtrlBackspace: 'Resetear (Ctrl+Retroceso)',
       none: 'Ninguno',
       // Math and Speech Error Messages
+      noEquationDetected: 'No se Detectó Ecuación',
       mathErrors: {
         sorryTryAgain: 'Lo siento, inténtalo de nuevo',
         error: 'Error',
@@ -437,6 +439,7 @@ export const TRANSLATIONS: Record<string, Translations> = {
       resetCtrlBackspace: 'Réinitialiser (Ctrl+Retour arrière)',
       none: 'Aucun',
       // Math and Speech Error Messages
+      noEquationDetected: 'Aucune Équation Détectée',
       mathErrors: {
         sorryTryAgain: 'Désolé, veuillez réessayer',
         error: 'Erreur',
@@ -619,6 +622,7 @@ export const TRANSLATIONS: Record<string, Translations> = {
       resetCtrlBackspace: 'Zurücksetzen (Strg+Rücktaste)',
       none: 'Keine',
       // Math and Speech Error Messages
+      noEquationDetected: 'Keine Gleichung Erkannt',
       mathErrors: {
         sorryTryAgain: 'Entschuldigung, bitte versuchen Sie es erneut',
         error: 'Fehler',
@@ -801,6 +805,7 @@ export const TRANSLATIONS: Record<string, Translations> = {
       resetCtrlBackspace: 'Resetar (Ctrl+Backspace)',
       none: 'Nenhum',
       // Math and Speech Error Messages
+      noEquationDetected: 'Nenhuma Equação Detectada',
       mathErrors: {
         sorryTryAgain: 'Desculpe, tente novamente',
         error: 'Erro',
@@ -982,6 +987,7 @@ export const TRANSLATIONS: Record<string, Translations> = {
       resetCtrlBackspace: 'Ripristina (Ctrl+Backspace)',
       none: 'Nessuno',
       // Math and Speech Error Messages
+      noEquationDetected: 'Nessuna Equazione Rilevata',
       mathErrors: {
         sorryTryAgain: 'Scusa, riprova',
         error: 'Errore',

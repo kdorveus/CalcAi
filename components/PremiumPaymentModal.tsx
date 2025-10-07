@@ -8,9 +8,11 @@ import {
   ActivityIndicator,
   Platform,
   ScrollView,
+  Switch,
 } from 'react-native';
 // Using our bundled AppIcon component instead of MaterialCommunityIcons
 import AppIcon from './AppIcon';
+import GoogleLogo from '../app/components/GoogleLogo';
 import { usePremium } from '../contexts/PremiumContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useTranslation } from '../hooks/useTranslation';
@@ -49,8 +51,15 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
     if (!user) {
       setIsLoading(true);
       try {
-        await signInWithGoogle();
-        // After login, the payment flow will continue
+        const loginResult = await signInWithGoogle();
+        // After successful login, redirect to payment
+        if (loginResult) {
+          captureEvent('payment_initiated', {
+            plan: selectedPlan,
+            price: selectedPlan === 'yearly' ? '$49' : '$89',
+          });
+          await showPremiumPayment(selectedPlan);
+        }
       } catch (error) {
         console.error('Login failed:', error);
       }
@@ -91,14 +100,16 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
   };
 
   const getPlanButtonText = () => {
-    const prefix = !user ? 'Login & ' : '';
+    if (!user) {
+      return 'Continue with Google';
+    }
     switch (selectedPlan) {
       case 'yearly':
-        return `${prefix}Get Yearly Access`;
+        return 'Get Yearly Access';
       case 'lifetime':
-        return `${prefix}Get Lifetime Access`;
+        return 'Get Lifetime Access';
       default:
-        return `${prefix}Get Access`;
+        return 'Get Access';
     }
   };
 
@@ -115,115 +126,126 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
             <AppIcon name="close" size={24} color="#fff" />
           </TouchableOpacity>
 
-          {/* Premium Header */}
-          <View style={styles.premiumHeader}>
-            <AppIcon name="crown" size={16} color="#ff9500" />
-            <Text style={styles.premiumHeaderText}>PREMIUM</Text>
-          </View>
-          <View style={styles.headerSeparator} />
-
           <ScrollView contentContainerStyle={styles.scrollContent}>
-            <View style={styles.headerContainer}>
-              <Text style={styles.mainTitle}>World's Most Advanced</Text>
-              <Text style={styles.mainTitle}>Voice Calculator</Text>
+            {/* Single Price Display with Header */}
+            <View style={styles.priceDisplayContainer}>
+              <View style={styles.priceBox}>
+                {/* Header with Crown */}
+                <View style={styles.headerContainer}>
+                  <View style={styles.titleWithIcon}>
+                    <AppIcon name="crown" size={24} color="#ff9500" />
+                    <Text style={styles.mainTitle}>Unlock CalcAI Premium</Text>
+                  </View>
+                </View>
+
+                {/* Price Display */}
+                <View style={styles.priceSection}>
+                  <View style={styles.priceRow}>
+                    <Text style={styles.oldPrice}>{selectedPlan === 'yearly' ? '$69' : '$129'}</Text>
+                    <Text style={styles.planPrice}>{selectedPlan === 'yearly' ? '$49' : '$89'}</Text>
+                  </View>
+                </View>
+
+                {/* Plan Selection Buttons */}
+                <View style={styles.planSelectionContainer}>
+                  {/* Yearly Option */}
+                  <TouchableOpacity
+                    style={[
+                      styles.planOption,
+                      selectedPlan === 'yearly' && styles.planOptionSelected
+                    ]}
+                    onPress={() => handlePlanSelection('yearly')}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[
+                      styles.radioButton,
+                      selectedPlan === 'yearly' && styles.radioButtonSelected
+                    ]}>
+                      {selectedPlan === 'yearly' && <View style={styles.radioButtonInner} />}
+                    </View>
+                    <Text style={[
+                      styles.planOptionText,
+                      selectedPlan === 'yearly' && styles.planOptionTextSelected
+                    ]}>Yearly</Text>
+                  </TouchableOpacity>
+
+                  {/* Lifetime Option */}
+                  <TouchableOpacity
+                    style={[
+                      styles.planOption,
+                      selectedPlan === 'lifetime' && styles.planOptionSelected
+                    ]}
+                    onPress={() => handlePlanSelection('lifetime')}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[
+                      styles.radioButton,
+                      selectedPlan === 'lifetime' && styles.radioButtonSelected
+                    ]}>
+                      {selectedPlan === 'lifetime' && <View style={styles.radioButtonInner} />}
+                    </View>
+                    <Text style={[
+                      styles.planOptionText,
+                      selectedPlan === 'lifetime' && styles.planOptionTextSelected
+                    ]}>Lifetime</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Payment Frequency Text */}
+                <Text style={styles.paymentFrequency}>{selectedPlan === 'yearly' ? 'Once a year' : 'One-time payment'}</Text>
+              </View>
             </View>
 
-            <View style={styles.pricingContainer}>
-              {/* Yearly Plan */}
-              <TouchableOpacity 
-                style={[
-                  styles.priceBox,
-                  selectedPlan === 'yearly' && styles.selectedBox
-                ]}
-                onPress={() => handlePlanSelection('yearly')}
-                activeOpacity={0.7}
-              >
-                {selectedPlan === 'yearly' && <View style={styles.selectedBanner} />}
-                
-                <View style={styles.planHeader}>
-                  <Text style={styles.planName}>Pro</Text>
+            {/* Benefits Section */}
+            <View style={styles.benefitsSection}>
+              <View style={styles.benefitsList}>
+                <View style={styles.benefitItem}>
+                  <AppIcon name="check" size={20} color="#ff9500" />
+                  <Text style={styles.benefitText}>Unlimited voice calculations</Text>
                 </View>
-                
-                <View style={styles.priceSection}>
-                  <Text style={styles.planPrice}>$49</Text>
-                  <Text style={styles.planBilling}>/year</Text>
+                <View style={styles.benefitItem}>
+                  <AppIcon name="check" size={20} color="#ff9500" />
+                  <Text style={styles.benefitText}>Webhook integrations (Google Sheets, Notion, etc.)</Text>
                 </View>
-                
-                <Text style={styles.planSubtext}>Ideal for growing teams and businesses</Text>
-                
-                <View style={styles.benefitsList}>
-                  <View style={styles.benefitItem}>
-                    <AppIcon name="check" size={16} color="#ff9500" />
-                    <Text style={styles.benefitText}>Continuous Mode</Text>
-                  </View>
-                  <View style={styles.benefitItem}>
-                    <AppIcon name="check" size={16} color="#ff9500" />
-                    <Text style={styles.benefitText}>History & Sync</Text>
-                  </View>
-                  <View style={styles.benefitItem}>
-                    <AppIcon name="check" size={16} color="#ff9500" />
-                    <Text style={styles.benefitText}>Webhooks</Text>
-                  </View>
-                  <View style={styles.benefitItem}>
-                    <AppIcon name="check" size={16} color="#ff9500" />
-                    <Text style={styles.benefitText}>Priority Support</Text>
-                  </View>
+                <View style={styles.benefitItem}>
+                  <AppIcon name="check" size={20} color="#ff9500" />
+                  <Text style={styles.benefitText}>Early access to new features</Text>
                 </View>
-              </TouchableOpacity>
-
-              {/* Lifetime Plan */}
-              <TouchableOpacity 
-                style={[
-                  styles.priceBox,
-                  selectedPlan === 'lifetime' && styles.selectedBox
-                ]}
-                onPress={() => handlePlanSelection('lifetime')}
-                activeOpacity={0.7}
-              >
-                {selectedPlan === 'lifetime' && <View style={styles.selectedBanner} />}
-                
-                <View style={styles.planHeader}>
-                  <AppIcon name="crown" size={20} color="#ff9500" />
-                  <Text style={styles.planName}>Lifetime</Text>
+                <View style={styles.benefitItem}>
+                  <AppIcon name="check" size={20} color="#ff9500" />
+                  <Text style={styles.benefitText}>Ad-free experience</Text>
                 </View>
-                
-                <View style={styles.priceSection}>
-                  <Text style={styles.planPrice}>$89</Text>
-                  <Text style={styles.planBilling}> lifetime</Text>
+                <View style={styles.benefitItem}>
+                  <AppIcon name="check" size={20} color="#ff9500" />
+                  <Text style={styles.benefitText}>Export calculation history</Text>
                 </View>
-                
-                <Text style={styles.planSubtext}>One-time payment, yours forever</Text>
-                
-                <View style={styles.benefitsList}>
-                  <View style={styles.benefitItem}>
-                    <AppIcon name="check" size={16} color="#ff9500" />
-                    <Text style={styles.benefitText}>Continuous Mode</Text>
-                  </View>
-                  <View style={styles.benefitItem}>
-                    <AppIcon name="check" size={16} color="#ff9500" />
-                    <Text style={styles.benefitText}>History & Sync</Text>
-                  </View>
-                  <View style={styles.benefitItem}>
-                    <AppIcon name="check" size={16} color="#ff9500" />
-                    <Text style={styles.benefitText}>Webhooks</Text>
-                  </View>
-                  <View style={styles.benefitItem}>
-                    <AppIcon name="check" size={16} color="#ff9500" />
-                    <Text style={styles.benefitText}>Priority Support</Text>
-                  </View>
+                <View style={styles.benefitItem}>
+                  <AppIcon name="check" size={20} color="#ff9500" />
+                  <Text style={styles.benefitText}>Advanced voice commands</Text>
                 </View>
-              </TouchableOpacity>
+                <View style={styles.benefitItem}>
+                  <AppIcon name="check" size={20} color="#ff9500" />
+                  <Text style={styles.benefitText}>Priority support</Text>
+                </View>
+              </View>
             </View>
 
             <TouchableOpacity 
-              style={styles.paymentButton}
+              style={!user ? styles.googleButton : styles.paymentButton}
               onPress={handlePayment}
               disabled={isLoading || premiumLoading}
             >
               {isLoading || premiumLoading ? (
-                <ActivityIndicator color="#fff" />
+                <ActivityIndicator color={!user ? "#4285F4" : "#000"} />
               ) : (
-                <Text style={styles.paymentButtonText}>{getPlanButtonText()}</Text>
+                <View style={styles.buttonContentWrapper}>
+                  {!user && (
+                    <View style={styles.googleIconWrapper}>
+                      <GoogleLogo size={20} />
+                    </View>
+                  )}
+                  <Text style={!user ? styles.googleButtonText : styles.paymentButtonText}>{getPlanButtonText()}</Text>
+                </View>
               )}
             </TouchableOpacity>
 
@@ -237,7 +259,7 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
                 <ActivityIndicator color="#fff" size="small" />
               ) : (
                 <>
-                  <AppIcon name="refresh" size={16} color="#fff" />
+                  <AppIcon name="refresh" size={16} color="#999" />
                   <Text style={styles.restoreButtonText}>RESTORE PURCHASE</Text>
                 </>
               )}
@@ -263,8 +285,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#1C1C1E',
     borderRadius: 20,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#333',
+    borderWidth: 2,
+    borderColor: '#ff9500',
   },
   scrollContent: {
     padding: Platform.OS === 'web' ? 24 : 16,
@@ -279,138 +301,179 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderRadius: 20,
   },
-  premiumHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
-    gap: 8,
-  },
-  premiumHeaderText: {
-    fontSize: 14,
-    fontWeight: 'normal',
-    color: '#fff',
-    letterSpacing: 1.5,
-  },
-  headerSeparator: {
-    height: 1,
-    backgroundColor: '#333',
-    marginHorizontal: 0,
-  },
   headerContainer: {
     alignItems: 'center',
-    marginBottom: 32,
-    marginTop: 8,
-  },
-  mainTitle: {
-    fontSize: Platform.OS === 'web' ? 28 : 22,
-    fontWeight: 'bold',
-    color: '#fff',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  pricingContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
     marginBottom: 24,
-    gap: Platform.OS === 'web' ? 16 : 12,
   },
-  priceBox: {
-    flex: 1,
-    backgroundColor: '#2C2C2E',
-    borderRadius: 16,
-    padding: Platform.OS === 'web' ? 20 : 16,
-    borderWidth: 2,
-    borderColor: '#3C3C3E',
-    minWidth: 0,
-  },
-  selectedBox: {
-    borderColor: '#ff9500',
-    borderWidth: 3,
-    backgroundColor: '#2C2C2E',
-  },
-  popularBadge: {
-    position: 'absolute',
-    top: -2,
-    left: 0,
-    right: 0,
-    backgroundColor: '#ff9500',
-    paddingVertical: Platform.OS === 'web' ? 6 : 5,
-    borderTopLeftRadius: 14,
-    borderTopRightRadius: 14,
-  },
-  popularBadgeText: {
-    color: '#000',
-    fontSize: Platform.OS === 'web' ? 10 : 9,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    letterSpacing: 0.5,
-  },
-  planHeader: {
+  titleWithIcon: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginBottom: Platform.OS === 'web' ? 16 : 12,
-    marginTop: Platform.OS === 'web' ? 8 : 6,
+    gap: 12,
   },
-  planName: {
-    fontSize: Platform.OS === 'web' ? 20 : 16,
+  mainTitle: {
+    fontSize: Platform.OS === 'web' ? 28 : 24,
     fontWeight: 'bold',
-    color: '#fff',
+    color: '#ff9500',
+  },
+  planSelectionContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 12,
+  },
+  planOption: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+    borderWidth: 2,
+    borderColor: '#3C3C3E',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    gap: 10,
+  },
+  planOptionSelected: {
+    borderColor: '#ff9500',
+    backgroundColor: 'transparent',
+  },
+  planOptionText: {
+    fontSize: Platform.OS === 'web' ? 16 : 14,
+    color: '#999',
+    fontWeight: '500',
+  },
+  planOptionTextSelected: {
+    color: '#ff9500',
+    fontWeight: 'bold',
+  },
+  radioButton: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: '#3C3C3E',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  radioButtonSelected: {
+    borderColor: '#ff9500',
+  },
+  radioButtonInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#ff9500',
+  },
+  priceDisplayContainer: {
+    marginBottom: 32,
+  },
+  priceBox: {
+    backgroundColor: '#2C2C2E',
+    borderRadius: 20,
+    padding: Platform.OS === 'web' ? 32 : 24,
+    paddingTop: Platform.OS === 'web' ? 24 : 20,
+    alignItems: 'center',
   },
   priceSection: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  priceRow: {
     flexDirection: 'row',
-    alignItems: 'baseline',
-    marginBottom: Platform.OS === 'web' ? 12 : 10,
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 8,
+  },
+  oldPrice: {
+    fontSize: Platform.OS === 'web' ? 24 : 20,
+    fontWeight: '500',
+    color: '#999',
+    textDecorationLine: 'line-through',
   },
   planPrice: {
-    fontSize: Platform.OS === 'web' ? 32 : 26,
+    fontSize: Platform.OS === 'web' ? 48 : 40,
     fontWeight: 'bold',
     color: '#fff',
   },
-  planBilling: {
-    fontSize: Platform.OS === 'web' ? 16 : 13,
-    color: '#999',
+  paymentFrequency: {
+    fontSize: Platform.OS === 'web' ? 14 : 12,
+    color: '#666',
+    textAlign: 'center',
   },
-  planSubtext: {
-    fontSize: Platform.OS === 'web' ? 13 : 11,
-    color: '#999',
-    marginBottom: Platform.OS === 'web' ? 20 : 16,
-    lineHeight: Platform.OS === 'web' ? 18 : 15,
+  discountText: {
+    color: '#000',
+    fontSize: Platform.OS === 'web' ? 14 : 12,
+    fontWeight: 'bold',
+  },
+  benefitsSection: {
+    marginBottom: 24,
   },
   benefitsList: {
-    gap: Platform.OS === 'web' ? 12 : 10,
+    gap: Platform.OS === 'web' ? 14 : 12,
   },
   benefitItem: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: Platform.OS === 'web' ? 10 : 8,
+    alignItems: 'flex-start',
+    gap: Platform.OS === 'web' ? 12 : 10,
   },
   benefitText: {
-    fontSize: Platform.OS === 'web' ? 14 : 12,
+    fontSize: Platform.OS === 'web' ? 15 : 14,
     color: '#fff',
     flex: 1,
+    lineHeight: Platform.OS === 'web' ? 22 : 20,
+  },
+  googleButton: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#747775',
+    borderRadius: 20,
+    height: 40,
+    paddingHorizontal: 12,
+    marginTop: 8,
+  },
+  buttonContentWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: '100%',
+  },
+  googleIconWrapper: {
+    height: 20,
+    width: 20,
+    marginRight: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  googleButtonText: {
+    fontWeight: '500',
+    fontSize: 14,
+    color: '#1f1f1f',
+    letterSpacing: 0.25,
   },
   paymentButton: {
     backgroundColor: '#ff9500',
     borderRadius: 30,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
     paddingVertical: 16,
     paddingHorizontal: 32,
     marginTop: 8,
-    shadowColor: '#ff9500',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 8,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#ff9500',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.4,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 8,
+      },
+      web: {
+        boxShadow: '0 4px 8px rgba(255, 149, 0, 0.4)',
+      }
+    }),
   },
   paymentButtonText: {
     color: '#000',
     fontSize: 18,
     fontWeight: 'bold',
-    marginLeft: 8,
   },
   restoreButton: {
     flexDirection: 'row',
@@ -422,7 +485,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   restoreButtonText: {
-    color: '#fff',
+    color: '#999',
     fontSize: 12,
     fontWeight: 'normal',
     letterSpacing: 0.5,

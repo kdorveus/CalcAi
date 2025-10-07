@@ -30,9 +30,6 @@ import { evaluate } from 'mathjs';
 import AppIcon from '../components/AppIcon';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
-import KeypadComponent from '../components/KeypadComponent';
-import BubbleListComponent from '../components/BubbleListComponent';
-// import Settings from './components/Settings'; // Remove this line
 import { useAuth } from '../contexts/AuthContext';
 import { useCalculationHistory } from '../contexts/CalculationHistoryContext';
 import HistoryButton from '../components/HistoryButton';
@@ -41,11 +38,12 @@ import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useWebhookManager } from '../hooks/useWebhookManager';
 import { LOCALE_MAP, SPEECH_RECOGNITION_LANG_MAP } from '../constants/Languages';
 import { sendWebhook } from '../utils/webhookService';
-// import HistoryModal from '../components/HistoryModal'; // Remove this line
 
-// Dynamically import components
+// Dynamically import heavy components for code splitting
 const Settings = React.lazy(() => import('./components/Settings'));
 const HistoryModal = React.lazy(() => import('../components/HistoryModal'));
+const KeypadComponent = React.lazy(() => import('../components/KeypadComponent'));
+const BubbleListComponent = React.lazy(() => import('../components/BubbleListComponent'));
 
 // Import SVG icons directly
 // This eliminates the need to load icons from Google Fonts
@@ -220,17 +218,22 @@ const MainScreen: React.FC = () => {
 
   // --- Settings State ---
   const [enterKeyNewLine, setEnterKeyNewLine] = useState<boolean>(false);
+  const [isWebhookManagerReady, setIsWebhookManagerReady] = useState<boolean>(false);
 
-  // Webhook Manager Hook - handles all webhook operations
+  // Webhook Manager Hook - deferred initialization for performance
   const webhookManager = useWebhookManager(t, bubbleIdRef);
 
-  // Check for unsent data when page loads or refreshes
+  // Defer webhook manager initialization to not block initial render
   useEffect(() => {
-    // Show alert if there's unsent data
-    if (!webhookManager.streamResults && webhookManager.bulkData.length > 0) {
-      setIsUnsentDataModalVisible(true);
-    }
-  }, []); // Empty dependency array means this runs once on mount
+    const timer = setTimeout(() => {
+      setIsWebhookManagerReady(true);
+      // Show alert if there's unsent data
+      if (!webhookManager.streamResults && webhookManager.bulkData.length > 0) {
+        setIsUnsentDataModalVisible(true);
+      }
+    }, 100); // Defer by 100ms to allow initial render to complete
+    return () => clearTimeout(timer);
+  }, [webhookManager.streamResults, webhookManager.bulkData.length]);
   
   // Function to check for unsent data and show modal if needed
   const checkUnsentData = useCallback(() => {
@@ -1201,7 +1204,7 @@ const MainScreen: React.FC = () => {
       const errorBubble: ChatBubble = {
         id: (bubbleIdRef.current++).toString(),
         type: 'error',
-        content: 'No Equation Detected'
+        content: t('mainApp.noEquationDetected')
       };
       
       setBubbles(prev => [...prev, errorBubble]);
@@ -1221,7 +1224,7 @@ const MainScreen: React.FC = () => {
   // --- Load/Save Settings (App Preferences Only) ---
   // Note: Webhook settings are managed by useWebhookManager hook
 
-  // Load app preferences on mount (webhook settings are loaded by useWebhookManager hook)
+  // Load app preferences asynchronously without blocking render
   useEffect(() => {
     const loadAppPreferences = async () => {
       try {
@@ -1237,29 +1240,32 @@ const MainScreen: React.FC = () => {
           AsyncStorage.getItem('continuousMode')
         ]);
 
-        // Load app preferences
-        if (storedOpenInCalcMode !== null) {
-          const shouldOpenInCalcMode = JSON.parse(storedOpenInCalcMode);
-          setOpenInCalcMode(shouldOpenInCalcMode);
-          if (shouldOpenInCalcMode && Platform.OS !== 'web') {
-            setShowKeypad(true);
+        // Use requestAnimationFrame to defer state updates and not block render
+        requestAnimationFrame(() => {
+          // Load app preferences
+          if (storedOpenInCalcMode !== null) {
+            const shouldOpenInCalcMode = JSON.parse(storedOpenInCalcMode);
+            setOpenInCalcMode(shouldOpenInCalcMode);
+            if (shouldOpenInCalcMode && Platform.OS !== 'web') {
+              setShowKeypad(true);
+            }
           }
-        }
 
-        if (storedSpeechMuted !== null) {
-          const isMuted = JSON.parse(storedSpeechMuted);
-          setIsSpeechMuted(isMuted);
-          speechMutedRef.current = isMuted;
-        }
-        
-        if (storedHistoryEnabled !== null) {
-          const isHistoryEnabled = JSON.parse(storedHistoryEnabled);
-          setHistoryEnabled(isHistoryEnabled);
-        }
+          if (storedSpeechMuted !== null) {
+            const isMuted = JSON.parse(storedSpeechMuted);
+            setIsSpeechMuted(isMuted);
+            speechMutedRef.current = isMuted;
+          }
+          
+          if (storedHistoryEnabled !== null) {
+            const isHistoryEnabled = JSON.parse(storedHistoryEnabled);
+            setHistoryEnabled(isHistoryEnabled);
+          }
 
-        if (storedContinuousMode !== null) {
-          setContinuousMode(JSON.parse(storedContinuousMode));
-        }
+          if (storedContinuousMode !== null) {
+            setContinuousMode(JSON.parse(storedContinuousMode));
+          }
+        });
       } catch (error) {
         // Silent error handling
       }
@@ -1329,17 +1335,7 @@ const MainScreen: React.FC = () => {
   // Wrapper component for Web Empty State
   const WebEmptyState = () => {
     return (
-      <View style={styles.emptyStateContainer}>
-        <View style={styles.logoContainer}>
-          <Image 
-            source={require('../assets/images/LOGO.webp')} 
-            style={{ width: 200, height: 80 }}
-            resizeMode="contain"
-            // Use default loading priority
-            defaultSource={require('../assets/images/LOGO.webp')}
-          />
-          <Text style={styles.betaText}>BETA</Text>
-        </View>
+      <>
         <View style={styles.emptyStateItem}>
           <AppIcon name="keyboard-space" size={24} color="#ffffff" />
           <Text style={styles.emptyStateText}>{t('mainApp.pressSpaceToRecord')}</Text>
@@ -1352,25 +1348,14 @@ const MainScreen: React.FC = () => {
           <AppIcon name="webhook" size={24} color="#ffffff" />
           <Text style={styles.emptyStateText}>{t('mainApp.useWebhookForSheets')}</Text>
         </View>
-      </View>
+      </>
     );
   };
 
   // Wrapper component for Mobile Empty State
   const MobileEmptyState = () => {
     return (
-      <View style={styles.emptyStateContainer}>
-        <View style={styles.logoContainer}>
-          <Image 
-            source={require('../assets/images/LOGO.webp')} 
-            style={{ width: 180, height: 72 }}
-            resizeMode="contain"
-            fadeDuration={0}
-            // Use default loading priority
-            defaultSource={require('../assets/images/LOGO.webp')}
-          />
-          <Text style={styles.betaText}>BETA</Text>
-        </View>
+      <>
         <View style={styles.emptyStateItem}>
           <AppIcon name="microphone" size={24} color="#ffffff" />
           <Text style={styles.emptyStateText}>{t('mainApp.pressRecordIcon')}</Text>
@@ -1383,7 +1368,7 @@ const MainScreen: React.FC = () => {
           <AppIcon name="webhook" size={24} color="#ffffff" />
           <Text style={styles.emptyStateText}>{t('mainApp.useWebhookToSend')}</Text>
         </View>
-      </View>
+      </>
     );
   };
 
@@ -1444,46 +1429,66 @@ const MainScreen: React.FC = () => {
       {/* Render Header Controls */}
       {renderHeaderControls()}
 
-      <BubbleListComponent
-        ref={flatListRef}
-        bubbles={bubbles}
-        keypadInput={keypadInput}
-        interimTranscript={interimTranscript}
-        previewResult={previewResult}
-        vibrationEnabled={vibrationEnabled}
-        emptyComponent={emptyComponent}
-        t={t}
-        setBubbles={setBubbles}
-        bubbleIdRef={bubbleIdRef}
-        styles={{
-          chatArea: styles.chatArea,
-          userBubble: styles.userBubble,
-          userText: styles.userText,
-          resultBubble: styles.resultBubble,
-          resultText: styles.resultText,
-          errorBubble: styles.errorBubble,
-          errorText: styles.errorText,
-          currentUserBubbleContainer: styles.currentUserBubbleContainer,
-        }}
-      />
+      {/* Instant Logo Render - Independent of lazy loading */}
+      {!showKeypad && bubbles.length === 0 ? (
+        <View style={styles.centeredEmptyStateWrapper}>
+          <View style={styles.logoContainer}>
+            <Image 
+              source={require('../assets/images/LOGO.webp')} 
+              style={{ width: Platform.OS === 'web' ? 200 : 180, height: Platform.OS === 'web' ? 80 : 72 }}
+              resizeMode="contain"
+              fadeDuration={0}
+            />
+            <Text style={styles.betaText}>BETA</Text>
+          </View>
+          {Platform.OS === 'web' ? <WebEmptyState /> : <MobileEmptyState />}
+        </View>
+      ) : (
+        <Suspense fallback={<View style={styles.chatArea} />}>
+          <BubbleListComponent
+            ref={flatListRef}
+            bubbles={bubbles}
+            keypadInput={keypadInput}
+            interimTranscript={interimTranscript}
+            previewResult={previewResult}
+            vibrationEnabled={vibrationEnabled}
+            emptyComponent={null}
+            t={t}
+            setBubbles={setBubbles}
+            bubbleIdRef={bubbleIdRef}
+            styles={{
+              chatArea: styles.chatArea,
+              userBubble: styles.userBubble,
+              userText: styles.userText,
+              resultBubble: styles.resultBubble,
+              resultText: styles.resultText,
+              errorBubble: styles.errorBubble,
+              errorText: styles.errorText,
+              currentUserBubbleContainer: styles.currentUserBubbleContainer,
+            }}
+          />
+        </Suspense>
+      )}
 
       {showKeypad && (
-        <KeypadComponent 
-          onKeypadPress={onKeypadPress}
-          isWebMobile={isWebMobile}
-          styles={{
-            calculatorArea: styles.calculatorArea,
-            calculatorAreaMobileWeb: styles.calculatorAreaMobileWeb,
-            keypadContainer: styles.keypadContainer,
-            keypadRow: styles.keypadRow,
-            keypadKeyWeb: styles.keypadKeyWeb,
-            keypadKeyMobile: styles.keypadKeyMobile,
-            keypadKeyOperator: styles.keypadKeyOperator,
-            keypadKeyEnter: styles.keypadKeyEnter,
-            keypadKeyWebMobile: styles.keypadKeyWebMobile,
-            keypadKeyText: styles.keypadKeyText,
-          }}
-        />
+        <Suspense fallback={<View style={styles.calculatorArea} />}>
+          <KeypadComponent 
+            onKeypadPress={onKeypadPress}
+            isWebMobile={isWebMobile}
+            styles={{
+              calculatorArea: styles.calculatorArea,
+              calculatorAreaMobileWeb: styles.calculatorAreaMobileWeb,
+              keypadContainer: styles.keypadContainer,
+              keypadRow: styles.keypadRow,
+              keypadKeyWeb: styles.keypadKeyWeb,
+              keypadKeyMobile: styles.keypadKeyMobile,
+              keypadKeyOperator: styles.keypadKeyOperator,
+              keypadKeyEnter: styles.keypadKeyEnter,
+              keypadKeyWebMobile: styles.keypadKeyWebMobile,
+              keypadKeyText: styles.keypadKeyText,
+            }}
+          />
+        </Suspense>
       )}
       
       {/* Settings Modal */}
@@ -1681,6 +1686,7 @@ interface ComponentStyles {
   inputPreviewContainer: ViewStyle;
   inputStyle: TextStyle;
   previewStyle: TextStyle;
+  centeredEmptyStateWrapper: ViewStyle;
   emptyStateContainer: ViewStyle;
   emptyStateTitle: TextStyle;
   emptyStateItem: ViewStyle;
@@ -1731,7 +1737,7 @@ const styles = StyleSheet.create<ComponentStyles>({
     flexGrow: 1,
     paddingHorizontal: 10,
     paddingBottom: 10,
-    paddingTop: 32,
+    paddingTop: 10,
   },
   bottomBar: {
     flexDirection: 'row',
@@ -1792,14 +1798,10 @@ const styles = StyleSheet.create<ComponentStyles>({
     ...(Platform.OS === 'web' 
       ? {
           backgroundColor: 'transparent',
-          boxShadow: '0px 2px 3px rgba(0,0,0,0.3)',
+          boxShadow: '0px 2px 3px rgba(0,0,0,0.3)'
         } 
       : {
           backgroundColor: '#1C1C1E',
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.3,
-          shadowRadius: 3,
           elevation: 3,
         }),
   },
@@ -1881,11 +1883,14 @@ const styles = StyleSheet.create<ComponentStyles>({
     color: '#ccc',
     marginLeft: 8,
   },
-  emptyStateContainer: {
+  centeredEmptyStateWrapper: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    paddingHorizontal: 20,
+  },
+  emptyStateContainer: {
+    alignItems: 'center',
   },
   logoContainer: {
     position: 'relative',
@@ -1989,10 +1994,6 @@ const styles = StyleSheet.create<ComponentStyles>({
     ...(Platform.select({
       web: { boxShadow: '0px 2px 4px rgba(0,0,0,0.25)' },
       default: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
     elevation: 5,
       },
     }) as any),
@@ -2065,10 +2066,6 @@ const styles = StyleSheet.create<ComponentStyles>({
     ...(Platform.select({
       web: { boxShadow: '0px 2px 3px rgba(0,0,0,0.3)' },
       default: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
     elevation: 3,
       },
     }) as any),
@@ -2088,10 +2085,6 @@ const styles = StyleSheet.create<ComponentStyles>({
     ...(Platform.select({
       web: { boxShadow: '0px 2px 3px rgba(0,0,0,0.3)' },
       default: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
     elevation: 3,
       },
     }) as any),
@@ -2111,10 +2104,6 @@ const styles = StyleSheet.create<ComponentStyles>({
     ...(Platform.select({
       web: { boxShadow: '0px 2px 3px rgba(0,0,0,0.3)' },
       default: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
     elevation: 3,
       },
     }) as any),
@@ -2139,10 +2128,7 @@ const styles = StyleSheet.create<ComponentStyles>({
     ...(Platform.select({
       web: { boxShadow: '0px -2px 4px rgba(0,0,0,0.3)' },
       default: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
+    elevation: 4,
       },
     }) as any),
     paddingBottom: Platform.OS === 'web' ? 0 : 15, // Add padding for mobile safe area

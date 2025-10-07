@@ -1546,11 +1546,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
-    shadowColor: '#FFD700',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
-    elevation: 3,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#FFD700',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 3,
+      },
+      web: {
+        boxShadow: '0 2px 3px rgba(255, 215, 0, 0.3)',
+      }
+    }),
   },
   premiumTryText: {
     color: '#121212',
