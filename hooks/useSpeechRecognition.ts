@@ -58,6 +58,15 @@ export const useSpeechRecognition = ({
 
   const initializeSpeech = useCallback(async () => {
     if (Platform.OS === 'web') {
+      // Pre-initialize the Web Speech API object to reduce delay on first use.
+      const WebSpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (WebSpeechRecognition) {
+        recognitionRef.current = new WebSpeechRecognition();
+        // Set properties that don't change, but leave listeners for startRecording
+        // because they might close over state that changes.
+        recognitionRef.current.interimResults = true;
+        recognitionRef.current.maxAlternatives = 1;
+      }
       speechInitializedRef.current = true;
       return;
     }
@@ -84,20 +93,21 @@ export const useSpeechRecognition = ({
     setIsRecording(true);
 
     if (Platform.OS === 'web') {
-      const WebSpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      if (!WebSpeechRecognition) {
+      // The recognition object should be pre-initialized by initializeSpeech.
+      if (!recognitionRef.current) {
+        // If it's not available, it means the browser doesn't support the API.
         Alert.alert(t('mainApp.speechNotSupported'));
         setIsRecording(false);
         return;
       }
 
-      recognitionRef.current = new WebSpeechRecognition();
       const recognition = recognitionRef.current;
-      recognition.lang = getSpeechRecognitionLanguage(language);
-      recognition.interimResults = true;
-      recognition.continuous = continuousMode;
-      recognition.maxAlternatives = 1;
 
+      // Configure properties that might have changed since initialization.
+      recognition.lang = getSpeechRecognitionLanguage(language);
+      recognition.continuous = continuousMode;
+
+      // (Re)assign event listeners to ensure they capture the latest state.
       recognition.onresult = (event: any) => {
         if (isTTSSpeaking.current) return;
 
