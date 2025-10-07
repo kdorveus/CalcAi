@@ -257,17 +257,10 @@ const MainScreen: React.FC = () => {
     t,
   });
 
-  // Background initialization for speech recognition - async for web, immediate for native
+  // Background initialization for speech recognition - runs immediately after app loads
   useEffect(() => {
-    if (Platform.OS === 'web') {
-      // Defer speech initialization on web to not block initial render
-      Promise.resolve().then(() => {
-        speechRecognition.initializeSpeech();
-      });
-    } else {
-      // Native: initialize immediately
-      speechRecognition.initializeSpeech();
-    }
+    // Start initialization immediately after component mounts
+    speechRecognition.initializeSpeech();
   }, []);
 
   const [previewResult, setPreviewResult] = useState<string | null>(null);
