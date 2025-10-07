@@ -93,23 +93,15 @@ export const useSpeechRecognition = ({
     setIsRecording(true);
 
     if (Platform.OS === 'web') {
-      // Check browser support directly, not just whether recognitionRef was pre-initialized.
-      const WebSpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      if (!WebSpeechRecognition) {
+      // The recognition object should be pre-initialized by initializeSpeech.
+      if (!recognitionRef.current) {
+        // If it's not available, it means the browser doesn't support the API.
         Alert.alert(t('mainApp.speechNotSupported'));
         setIsRecording(false);
         return;
       }
 
-      // Initialize if not already done
-      if (!recognitionRef.current) {
-        recognitionRef.current = new WebSpeechRecognition();
-        recognitionRef.current.interimResults = true;
-        recognitionRef.current.maxAlternatives = 1;
-      }
-
       const recognition = recognitionRef.current;
-      
       // Configure properties that might have changed since initialization.
       recognition.lang = getSpeechRecognitionLanguage(language);
       recognition.continuous = continuousMode;

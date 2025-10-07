@@ -1,0 +1,48 @@
+[33mbc1e2de[m feat: Pre-initialize WebSpeechRecognition to reduce delay
+[1mdiff --git a/hooks/useSpeechRecognition.ts b/hooks/useSpeechRecognition.ts[m
+[1mindex 3f7190f..d9fa700 100644[m
+[1m--- a/hooks/useSpeechRecognition.ts[m
+[1m+++ b/hooks/useSpeechRecognition.ts[m
+[36m@@ -58,6 +58,15 @@[m [mexport const useSpeechRecognition = ({[m
+ [m
+   const initializeSpeech = useCallback(async () => {[m
+     if (Platform.OS === 'web') {[m
+[32m+[m[32m      // Pre-initialize the Web Speech API object to reduce delay on first use.[m
+[32m+[m[32m      const WebSpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;[m
+[32m+[m[32m      if (WebSpeechRecognition) {[m
+[32m+[m[32m        recognitionRef.current = new WebSpeechRecognition();[m
+[32m+[m[32m        // Set properties that don't change, but leave listeners for startRecording[m
+[32m+[m[32m        // because they might close over state that changes.[m
+[32m+[m[32m        recognitionRef.current.interimResults = true;[m
+[32m+[m[32m        recognitionRef.current.maxAlternatives = 1;[m
+[32m+[m[32m      }[m
+       speechInitializedRef.current = true;[m
+       return;[m
+     }[m
+[36m@@ -84,20 +93,21 @@[m [mexport const useSpeechRecognition = ({[m
+     setIsRecording(true);[m
+ [m
+     if (Platform.OS === 'web') {[m
+[31m-      const WebSpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;[m
+[31m-      if (!WebSpeechRecognition) {[m
+[32m+[m[32m      // The recognition object should be pre-initialized by initializeSpeech.[m
+[32m+[m[32m      if (!recognitionRef.current) {[m
+[32m+[m[32m        // If it's not available, it means the browser doesn't support the API.[m
+         Alert.alert(t('mainApp.speechNotSupported'));[m
+         setIsRecording(false);[m
+         return;[m
+       }[m
+ [m
+[31m-      recognitionRef.current = new WebSpeechRecognition();[m
+       const recognition = recognitionRef.current;[m
+[32m+[m
+[32m+[m[32m      // Configure properties that might have changed since initialization.[m
+       recognition.lang = getSpeechRecognitionLanguage(language);[m
+[31m-      recognition.interimResults = true;[m
+       recognition.continuous = continuousMode;[m
+[31m-      recognition.maxAlternatives = 1;[m
+ [m
+[32m+[m[32m      // (Re)assign event listeners to ensure they capture the latest state.[m
+       recognition.onresult = (event: any) => {[m
+         if (isTTSSpeaking.current) return;[m
+ [m
