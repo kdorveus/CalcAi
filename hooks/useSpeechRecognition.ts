@@ -58,6 +58,15 @@ export const useSpeechRecognition = ({
 
   const initializeSpeech = useCallback(async () => {
     if (Platform.OS === 'web') {
+      // Pre-initialize the Web Speech API object to reduce delay on first use.
+      const WebSpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (WebSpeechRecognition) {
+        recognitionRef.current = new WebSpeechRecognition();
+        // Set properties that don't change, but leave listeners for startRecording
+        // because they might close over state that changes.
+        recognitionRef.current.interimResults = true;
+        recognitionRef.current.maxAlternatives = 1;
+      }
       speechInitializedRef.current = true;
       return;
     }
@@ -84,6 +93,7 @@ export const useSpeechRecognition = ({
     setIsRecording(true);
 
     if (Platform.OS === 'web') {
+      // Check browser support directly, not just whether recognitionRef was pre-initialized.
       const WebSpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       if (!WebSpeechRecognition) {
         Alert.alert(t('mainApp.speechNotSupported'));
@@ -91,13 +101,20 @@ export const useSpeechRecognition = ({
         return;
       }
 
-      recognitionRef.current = new WebSpeechRecognition();
-      const recognition = recognitionRef.current;
-      recognition.lang = getSpeechRecognitionLanguage(language);
-      recognition.interimResults = true;
-      recognition.continuous = continuousMode;
-      recognition.maxAlternatives = 1;
+      // Initialize if not already done
+      if (!recognitionRef.current) {
+        recognitionRef.current = new WebSpeechRecognition();
+        recognitionRef.current.interimResults = true;
+        recognitionRef.current.maxAlternatives = 1;
+      }
 
+      const recognition = recognitionRef.current;
+      
+      // Configure properties that might have changed since initialization.
+      recognition.lang = getSpeechRecognitionLanguage(language);
+      recognition.continuous = continuousMode;
+
+      // (Re)assign event listeners to ensure they capture the latest state.
       recognition.onresult = (event: any) => {
         if (isTTSSpeaking.current) return;
 
@@ -128,6 +145,11 @@ export const useSpeechRecognition = ({
         }
       };
 
+      recognition.onerror = () => {
+        setIsRecording(false);
+        setInterimTranscript('');
+      };
+
       recognition.start();
     } else {
       try {
@@ -146,6 +168,7 @@ export const useSpeechRecognition = ({
           if (isTTSSpeaking.current) return;
           if (event.results && event.results.length > 0) {
             const transcript = event.results[0].transcript;
+            lastTranscriptRef.current = transcript;
             setInterimTranscript(transcript);
 
             if (!continuousMode && event.isFinal) {
@@ -170,6 +193,11 @@ export const useSpeechRecognition = ({
           setInterimTranscript('');
         };
 
+        // Remove existing listeners before adding new ones to prevent memory leaks
+        if (speechListenerRef.current) speechListenerRef.current.remove();
+        if (endListenerRef.current) endListenerRef.current.remove();
+        if (errorListenerRef.current) errorListenerRef.current.remove();
+
         speechListenerRef.current = ExpoSpeechRecognitionModule.addListener('result', handleResult);
         endListenerRef.current = ExpoSpeechRecognitionModule.addListener('end', handleEnd);
         errorListenerRef.current = ExpoSpeechRecognitionModule.addListener('error', handleError);
@@ -181,17 +209,18 @@ export const useSpeechRecognition = ({
         });
 
         if (continuousMode) {
-          let lastTranscript = '';
+          let previousTranscript = '';
           silenceTimerRef.current = setInterval(() => {
             if (isTTSSpeaking.current) return;
 
-            if (interimTranscript && interimTranscript === lastTranscript && interimTranscript.trim()) {
-              const finalTranscript = interimTranscript.trim();
+            const currentTranscript = lastTranscriptRef.current;
+            if (currentTranscript && currentTranscript === previousTranscript && currentTranscript.trim()) {
+              const finalTranscript = currentTranscript.trim();
               if (finalTranscript) {
                 processSpeechResult(finalTranscript, 'native');
               }
             }
-            lastTranscript = interimTranscript;
+            previousTranscript = currentTranscript;
           }, 500);
         }
       } catch (e) {
@@ -218,7 +247,6 @@ export const useSpeechRecognition = ({
     lastProcessedTranscriptRef.current = '';
     lastSpokenResultRef.current = '';
     lastTranscriptRef.current = '';
-    isTTSSpeaking.current = false;
     
     if (silenceTimerRef.current) {
       clearInterval(silenceTimerRef.current);
@@ -242,7 +270,7 @@ export const useSpeechRecognition = ({
         // Silent error handling
       }
     }
-  }, [setIsRecording, setInterimTranscript, isTTSSpeaking]);
+  }, [setIsRecording, setInterimTranscript]);
 
   return {
     startRecording,
