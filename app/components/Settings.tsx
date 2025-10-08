@@ -1418,7 +1418,7 @@ const styles = StyleSheet.create({
   signOutButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#0F0F0F',
+    backgroundColor: 'transparent',
     padding: 12,
     borderRadius: 8,
     justifyContent: 'center',
@@ -1426,8 +1426,8 @@ const styles = StyleSheet.create({
   },
   signOutButtonText: {
     color: '#888',
-    fontSize: 16,
-    fontWeight: '500',
+    fontSize: 12,
+    fontWeight: 'normal',
   },
   loadingContainer: {
     flex: 1,

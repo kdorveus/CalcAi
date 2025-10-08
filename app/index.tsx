@@ -171,6 +171,7 @@ const MainScreen: React.FC = () => {
   const flatListRef = useRef<FlatList>(null);
   const bubbleIdRef = useRef<number>(1);
   const isTTSSpeaking = useRef(false);
+  const cachedVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
   
   // State variables
   const [bubbles, setBubbles] = useState<ChatBubble[]>([]);
@@ -268,6 +269,65 @@ const MainScreen: React.FC = () => {
     speechRecognition.initializeSpeech();
   }, []);
 
+  // Initialize and cache the Google female voice on component mount (Web only)
+  useEffect(() => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && window.speechSynthesis) {
+      const selectBestVoice = () => {
+        const voices = window.speechSynthesis.getVoices();
+        if (voices.length === 0) return; // Voices not loaded yet
+
+        const targetLang = getSpeechRecognitionLanguage(language);
+        
+        // ONLY Google female voices - fastest TTS rendering
+        const googleVoiceNames: { [key: string]: string[] } = {
+          'en-US': ['Google US English Female'],
+          'en-GB': ['Google UK English Female'],
+          'es-ES': ['Google español Female'],
+          'es-MX': ['Google español de Estados Unidos Female'],
+          'fr-FR': ['Google français Female'],
+          'de-DE': ['Google Deutsch Female'],
+          'pt-BR': ['Google português do Brasil Female'],
+          'it-IT': ['Google italiano Female'],
+        };
+
+        const langBase = targetLang.split('-')[0];
+        const preferredNames = googleVoiceNames[targetLang] || googleVoiceNames[`${langBase}-${langBase.toUpperCase()}`] || [];
+
+        // Find the first available Google female voice
+        for (const name of preferredNames) {
+          const voice = voices.find(v => v.name === name || v.name.includes(name));
+          if (voice) {
+            cachedVoiceRef.current = voice;
+            return;
+          }
+        }
+
+        // If no Google voice found, try any Google voice for the language
+        const anyGoogleVoice = voices.find(v => 
+          v.name.toLowerCase().includes('google') && 
+          v.lang.startsWith(langBase)
+        );
+        if (anyGoogleVoice) {
+          cachedVoiceRef.current = anyGoogleVoice;
+        }
+      };
+
+      // Try to select voice immediately
+      selectBestVoice();
+
+      // Listen for voices to load (handles async voice loading)
+      const handleVoicesChanged = () => {
+        selectBestVoice();
+      };
+
+      window.speechSynthesis.addEventListener('voiceschanged', handleVoicesChanged);
+
+      return () => {
+        window.speechSynthesis.removeEventListener('voiceschanged', handleVoicesChanged);
+      };
+    }
+  }, [language]);
+
   const [previewResult, setPreviewResult] = useState<string | null>(null);
   const [expectingFreshInput, setExpectingFreshInput] = useState(false);
 
@@ -283,7 +343,7 @@ const MainScreen: React.FC = () => {
           'eleven': '11', 'twelve': '12', 'thirteen': '13', 'fourteen': '14', 'fifteen': '15',
           'sixteen': '16', 'seventeen': '17', 'eighteen': '18', 'nineteen': '19', 'twenty': '20',
           'thirty': '30', 'forty': '40', 'fifty': '50', 'sixty': '60', 'seventy': '70',
-          'eighty': '80', 'ninety': '90', 'hundred': '100',
+          'eighty': '80', 'ninety': '90', 'hundred': '100', 'thousand': '1000',
           'million': '1000000', 'billion': '1000000000', 'trillion': '1000000000000'
         },
         operations: {
@@ -315,7 +375,7 @@ const MainScreen: React.FC = () => {
           'once': '11', 'doce': '12', 'trece': '13', 'catorce': '14', 'quince': '15',
           'dieciséis': '16', 'diecisiete': '17', 'dieciocho': '18', 'diecinueve': '19', 'veinte': '20',
           'treinta': '30', 'cuarenta': '40', 'cincuenta': '50', 'sesenta': '60', 'setenta': '70',
-          'ochenta': '80', 'noventa': '90', 'cien': '100',
+          'ochenta': '80', 'noventa': '90', 'cien': '100', 'mil': '1000',
           'millón': '1000000', 'mil millones': '1000000000', 'billón': '1000000000000'
         },
         operations: {
@@ -347,7 +407,7 @@ const MainScreen: React.FC = () => {
           'onze': '11', 'douze': '12', 'treize': '13', 'quatorze': '14', 'quinze': '15',
           'seize': '16', 'dix-sept': '17', 'dix-huit': '18', 'dix-neuf': '19', 'vingt': '20',
           'trente': '30', 'quarante': '40', 'cinquante': '50', 'soixante': '60', 'soixante-dix': '70',
-          'quatre-vingts': '80', 'quatre-vingt-dix': '90', 'cent': '100',
+          'quatre-vingts': '80', 'quatre-vingt-dix': '90', 'cent': '100', 'mille': '1000',
           'million': '1000000', 'milliard': '1000000000', 'trillion': '1000000000000'
         },
         operations: {
@@ -379,7 +439,7 @@ const MainScreen: React.FC = () => {
           'elf': '11', 'zwölf': '12', 'dreizehn': '13', 'vierzehn': '14', 'fünfzehn': '15',
           'sechzehn': '16', 'siebzehn': '17', 'achtzehn': '18', 'neunzehn': '19', 'zwanzig': '20',
           'dreißig': '30', 'vierzig': '40', 'fünfzig': '50', 'sechzig': '60', 'siebzig': '70',
-          'achtzig': '80', 'neunzig': '90', 'hundert': '100',
+          'achtzig': '80', 'neunzig': '90', 'hundert': '100', 'tausend': '1000',
           'million': '1000000', 'milliarde': '1000000000', 'trillion': '1000000000000'
         },
         operations: {
@@ -411,7 +471,7 @@ const MainScreen: React.FC = () => {
           'onze': '11', 'doze': '12', 'treze': '13', 'quatorze': '14', 'quinze': '15',
           'dezesseis': '16', 'dezessete': '17', 'dezoito': '18', 'dezenove': '19', 'vinte': '20',
           'trinta': '30', 'quarenta': '40', 'cinquenta': '50', 'sessenta': '60', 'setenta': '70',
-          'oitenta': '80', 'noventa': '90', 'cem': '100',
+          'oitenta': '80', 'noventa': '90', 'cem': '100', 'mil': '1000',
           'milhão': '1000000', 'bilhão': '1000000000', 'trilhão': '1000000000000'
         },
         operations: {
@@ -443,7 +503,7 @@ const MainScreen: React.FC = () => {
           'undici': '11', 'dodici': '12', 'tredici': '13', 'quattordici': '14', 'quindici': '15',
           'sedici': '16', 'diciassette': '17', 'diciotto': '18', 'diciannove': '19', 'venti': '20',
           'trenta': '30', 'quaranta': '40', 'cinquanta': '50', 'sessanta': '60', 'settanta': '70',
-          'ottanta': '80', 'novanta': '90', 'cento': '100',
+          'ottanta': '80', 'novanta': '90', 'cento': '100', 'mille': '1000',
           'milione': '1000000', 'miliardo': '1000000000', 'trillione': '1000000000000'
         },
         operations: {
@@ -804,40 +864,9 @@ const MainScreen: React.FC = () => {
         utterance.pitch = 1.0;
         utterance.rate = 1.1;
         
-        // Select SPECIFIC local female voice for each language (fastest & consistent)
-        const voices = window.speechSynthesis.getVoices();
-        const targetLang = getSpeechRecognitionLanguage(language);
-        
-        // Hardcoded best female voices per language (fastest local voices)
-        const preferredVoiceNames: { [key: string]: string[] } = {
-          'en-US': ['Samantha', 'Microsoft Zira', 'Google US English Female', 'Karen'],
-          'en-GB': ['Google UK English Female', 'Microsoft Hazel', 'Kate'],
-          'es-ES': ['Google español Female', 'Microsoft Helena', 'Monica'],
-          'es-MX': ['Google español de Estados Unidos Female', 'Microsoft Sabina', 'Paulina'],
-          'fr-FR': ['Google français Female', 'Microsoft Hortense', 'Amelie'],
-          'de-DE': ['Google Deutsch Female', 'Microsoft Hedda', 'Anna'],
-          'pt-BR': ['Google português do Brasil Female', 'Microsoft Maria', 'Luciana'],
-          'it-IT': ['Google italiano Female', 'Microsoft Elsa', 'Alice'],
-        };
-        
-        // Get preferred voice names for this language
-        const langBase = targetLang.split('-')[0];
-        const preferredNames = preferredVoiceNames[targetLang] || preferredVoiceNames[`${langBase}-${langBase.toUpperCase()}`] || [];
-        
-        // Try to find preferred voice in order
-        let selectedVoice = null;
-        for (const name of preferredNames) {
-          selectedVoice = voices.find(v => v.name.includes(name));
-          if (selectedVoice) break;
-        }
-        
-        // Fallback: Any local female voice
-        if (!selectedVoice) {
-          selectedVoice = voices.find(v => v.localService && v.name.toLowerCase().includes('female'));
-        }
-        
-        if (selectedVoice) {
-          utterance.voice = selectedVoice;
+        // Use cached Google female voice for consistency and speed
+        if (cachedVoiceRef.current) {
+          utterance.voice = cachedVoiceRef.current;
         }
 
         utterance.onend = () => {
@@ -1278,14 +1307,14 @@ const MainScreen: React.FC = () => {
       // Use the consolidated helper function
       handleCalculationResult(processedEquation, result, 'speech');
     } else {
-      // Clear interim transcript and show "No Equation Detected" bubble for MATH_ERROR
+      // Clear interim transcript and show "Speech detected" bubble for MATH_ERROR
       setInterimTranscript('');
       
       // Add error bubble with original transcript shown
       const errorBubble: ChatBubble = {
         id: (bubbleIdRef.current++).toString(),
         type: 'error',
-        content: `${t('mainApp.noEquationDetected')}... : ${transcript}`
+        content: `Speech detected: ${transcript}`
       };
       
       setBubbles(prev => [...prev, errorBubble]);
@@ -1917,22 +1946,21 @@ const styles = StyleSheet.create<ComponentStyles>({
     textAlign: 'center',
   },
   errorBubble: {
-    backgroundColor: '#8B0000',
+    backgroundColor: '#121212',
     paddingHorizontal: 14,
     paddingVertical: 9,
     borderRadius: 18,
     alignSelf: 'flex-start',
-    marginBottom: 8,
-    maxWidth: '80%',
   },
   errorText: {
     fontSize: 20,
-    color: '#FF3B30', 
+    color: '#999',
   },
   fixedRightDeleteButton: {
     paddingLeft: 35, // Increased from 15 to 35 (added 20px margin)
     paddingRight: 5,
     paddingVertical: 10, 
+    marginBottom: 8,
   },
   inputPreviewContainer: {
     paddingVertical: 10,
