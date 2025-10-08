@@ -803,6 +803,42 @@ const MainScreen: React.FC = () => {
         utterance.lang = getSpeechRecognitionLanguage(language);
         utterance.pitch = 1.0;
         utterance.rate = 1.1;
+        
+        // Select SPECIFIC local female voice for each language (fastest & consistent)
+        const voices = window.speechSynthesis.getVoices();
+        const targetLang = getSpeechRecognitionLanguage(language);
+        
+        // Hardcoded best female voices per language (fastest local voices)
+        const preferredVoiceNames: { [key: string]: string[] } = {
+          'en-US': ['Samantha', 'Microsoft Zira', 'Google US English Female', 'Karen'],
+          'en-GB': ['Google UK English Female', 'Microsoft Hazel', 'Kate'],
+          'es-ES': ['Google español Female', 'Microsoft Helena', 'Monica'],
+          'es-MX': ['Google español de Estados Unidos Female', 'Microsoft Sabina', 'Paulina'],
+          'fr-FR': ['Google français Female', 'Microsoft Hortense', 'Amelie'],
+          'de-DE': ['Google Deutsch Female', 'Microsoft Hedda', 'Anna'],
+          'pt-BR': ['Google português do Brasil Female', 'Microsoft Maria', 'Luciana'],
+          'it-IT': ['Google italiano Female', 'Microsoft Elsa', 'Alice'],
+        };
+        
+        // Get preferred voice names for this language
+        const langBase = targetLang.split('-')[0];
+        const preferredNames = preferredVoiceNames[targetLang] || preferredVoiceNames[`${langBase}-${langBase.toUpperCase()}`] || [];
+        
+        // Try to find preferred voice in order
+        let selectedVoice = null;
+        for (const name of preferredNames) {
+          selectedVoice = voices.find(v => v.name.includes(name));
+          if (selectedVoice) break;
+        }
+        
+        // Fallback: Any local female voice
+        if (!selectedVoice) {
+          selectedVoice = voices.find(v => v.localService && v.name.toLowerCase().includes('female'));
+        }
+        
+        if (selectedVoice) {
+          utterance.voice = selectedVoice;
+        }
 
         utterance.onend = () => {
           // Clear flag and reset ALL speech-related state immediately when TTS finishes
@@ -1212,6 +1248,14 @@ const MainScreen: React.FC = () => {
 
     let processedEquation = normalizeSpokenMath(transcript);
     processedEquation = processedEquation.trim();
+    
+    // Natural language: "what's X% of that" or "X percent of that" applies to last result
+    const percentOfThatPattern = /(?:what'?s?|whats|calculate|find|get)?\s*(\d+(?:\.\d+)?)\s*(?:percent|%|percentage)\s*(?:of)?\s*(?:that|it|the last|previous|result)/i;
+    const percentMatch = transcript.match(percentOfThatPattern);
+    if (percentMatch && lastResultRef.current !== null) {
+      const percentage = parseFloat(percentMatch[1]);
+      processedEquation = `${lastResultRef.current} * ${percentage} / 100`;
+    }
 
     // Check if input starts with an operator and prepend last result if applicable
     const startsWithOperator = ['+', '-', '*', '/', '%'].some(op =>
@@ -1237,11 +1281,11 @@ const MainScreen: React.FC = () => {
       // Clear interim transcript and show "No Equation Detected" bubble for MATH_ERROR
       setInterimTranscript('');
       
-      // Add error bubble for invalid equations
+      // Add error bubble with original transcript shown
       const errorBubble: ChatBubble = {
         id: (bubbleIdRef.current++).toString(),
         type: 'error',
-        content: t('mainApp.noEquationDetected')
+        content: `${t('mainApp.noEquationDetected')}... : ${transcript}`
       };
       
       setBubbles(prev => [...prev, errorBubble]);

@@ -90,8 +90,16 @@ const BubbleListComponent = React.forwardRef<FlatList, BubbleListComponentProps>
         }
 
         if (item.type === 'error') {
-          // Special-case: show "No Equation Detected" like interim stream (gray text), not as a red error bubble
-          if (item.content === 'No Equation Detected') {
+          // Special-case: show "No Equation Detected" messages like interim stream (gray text), not as a red error bubble
+          // Check if content starts with any language version of "No Equation Detected"
+          const isNoEquationError = item.content.startsWith('No Equation Detected') ||
+                                    item.content.startsWith('No se Detectó Ecuación') ||
+                                    item.content.startsWith('Aucune Équation Détectée') ||
+                                    item.content.startsWith('Keine Gleichung Erkannt') ||
+                                    item.content.startsWith('Nenhuma Equação Detectada') ||
+                                    item.content.startsWith('Nessuna Equazione Rilevata');
+          
+          if (isNoEquationError) {
             return (
               <View style={styles.userBubble}>
                 <Text style={[styles.userText, { color: '#999' }]}>{item.content}</Text>

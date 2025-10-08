@@ -80,9 +80,6 @@ export default function AuthCallbackScreen() {
           resizeMode="contain"
           fadeDuration={0}
         />
-        <Text style={styles.welcomeText}>
-          {t('auth.settingUpAccount')}
-        </Text>
       </Animated.View>
     </View>
   );
@@ -98,12 +95,5 @@ const styles = StyleSheet.create({
   icon: {
     width: 120,
     height: 120,
-    marginBottom: 24,
-  },
-  welcomeText: {
-    color: '#ffffff',
-    fontSize: 22,
-    fontWeight: '500',
-    textAlign: 'center',
   },
 }); 
