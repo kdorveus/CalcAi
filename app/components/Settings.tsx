@@ -916,7 +916,7 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
               {/* Button */}
               {user ? (
                 <TouchableOpacity
-                  style={[styles.signOutButton, { marginTop: 12 }]}
+                  style={[styles.signOutButton, { marginTop: 4 }]}
                   onPress={handleSignOut}
                 >
                   <AppIcon name="logout" size={18} color="#888" style={{ marginRight: 8 }} />

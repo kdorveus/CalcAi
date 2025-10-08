@@ -21,12 +21,6 @@ import { useColorScheme } from 'react-native';
 if (Platform.OS === 'web' && typeof document !== 'undefined') {
   // Immediate execution to ensure fastest possible loading
   (function() {
-    // Add Google Search Console verification meta tag
-    const googleVerification = document.createElement('meta');
-    googleVerification.setAttribute('name', 'google-site-verification');
-    googleVerification.setAttribute('content', 'wOCaX0XbPQ8ml7YSi8hkyjnZ2h_y_P0VWSUpBSt0Pic');
-    document.head.appendChild(googleVerification);
-    
     // Force Material Icons to load first - highest priority
     const materialIconsStyle = document.createElement('style');
     materialIconsStyle.id = 'critical-material-icons';
