@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, Text, ActivityIndicator, Platform, Alert } from 'react-native';
+import { View, Text, ActivityIndicator, Platform, Alert, Image, StyleSheet } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from '../../hooks/useTranslation';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -72,11 +72,34 @@ export default function AuthCallbackScreen() {
   }, [router, params, errorParam, errorDescription, token, t]);
 
   return (
-    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#121212' }}>
-      <ActivityIndicator size="large" color="#1E90FF" />
-      <Text style={{ color: 'white', marginTop: 20 }}>
-        {t('auth.signInToContinue')}...
+    <View style={styles.container}>
+      <Image 
+        source={require('../../assets/images/icon.png')} 
+        style={styles.icon}
+        resizeMode="contain"
+      />
+      <Text style={styles.welcomeText}>
+        {t('auth.settingUpAccount')}
       </Text>
     </View>
   );
-} 
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#121212',
+  },
+  icon: {
+    width: 120,
+    height: 120,
+    marginBottom: 24,
+  },
+  welcomeText: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: '500',
+  },
+}); 
