@@ -4,6 +4,8 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from '../../hooks/useTranslation';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { STORAGE_KEYS } from '../../constants/Config';
+import * as authService from '../../utils/authService';
+import { useAuth } from '../../contexts/AuthContext';
 
 export default function AuthCallbackScreen() {
   const router = useRouter();
@@ -12,6 +14,7 @@ export default function AuthCallbackScreen() {
   const errorDescription = params.error_description as string;
   const token = params.token as string;
   const { t } = useTranslation();
+  const { user, setUser, setSession } = useAuth() as any; // Force type to access setters
 
   useEffect(() => {
     const handleCallback = async () => {
@@ -28,13 +31,32 @@ export default function AuthCallbackScreen() {
       // Handle success with token
       if (token) {
         try {
-          console.log("[AuthCallback] Received token, storing and redirecting...");
+          console.log("[AuthCallback] Received token, storing and rehydrating user...");
           
           // Store the token
           await AsyncStorage.setItem(STORAGE_KEYS.SESSION_TOKEN, token);
           
-          // Redirect to home
-          router.replace('/');
+          // Verify session and get user data to rehydrate the context
+          const { user: verifiedUser, error } = await authService.verifySession();
+          
+          if (error || !verifiedUser) {
+            console.error("[AuthCallback] Failed to verify session:", error);
+            Alert.alert(t('auth.authError'), 'Failed to verify session');
+            router.replace('/auth/login');
+            return;
+          }
+          
+          // Store user data
+          await AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(verifiedUser));
+          
+          // Force immediate rehydration by reloading the page on web or navigating on native
+          if (Platform.OS === 'web') {
+            // On web, reload to trigger AuthContext reinitialization
+            window.location.href = '/';
+          } else {
+            // On native, redirect to home (AuthContext will pick up the stored user)
+            router.replace('/');
+          }
         } catch (error) {
           console.error("[AuthCallback] Error storing token:", error);
           Alert.alert(t('auth.authError'), 'Failed to save session');
