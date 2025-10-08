@@ -1,5 +1,5 @@
-import React, { useEffect, useRef } from 'react';
-import { View, Text, Platform, Alert, Image, StyleSheet, Animated } from 'react-native';
+import React, { useEffect } from 'react';
+import { View, Platform, Alert, Image, StyleSheet } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from '../../hooks/useTranslation';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -11,22 +11,12 @@ export default function AuthCallbackScreen() {
   const params = useLocalSearchParams();
   const { t } = useTranslation();
   
-  // Animated values for fade-in (initialized to 0 for instant start)
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  
   // Extract params once
   const errorParam = params.error as string;
   const errorDescription = params.error_description as string;
   const token = params.token as string;
 
   useEffect(() => {
-    // Start fade-in animation immediately
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 400,
-      useNativeDriver: true,
-    }).start();
-
     // Handle authentication callback
     const processCallback = async () => {
       // Error handling
@@ -69,18 +59,16 @@ export default function AuthCallbackScreen() {
     };
 
     processCallback();
-  }, [errorParam, errorDescription, token, router, t, fadeAnim]);
+  }, [errorParam, errorDescription, token, router, t]);
 
   return (
     <View style={styles.container}>
-      <Animated.View style={{ opacity: fadeAnim }}>
-        <Image 
-          source={require('../../assets/images/icon.png')} 
-          style={styles.icon}
-          resizeMode="contain"
-          fadeDuration={0}
-        />
-      </Animated.View>
+      <Image 
+        source={require('../../assets/images/icon.png')} 
+        style={styles.icon}
+        resizeMode="contain"
+        fadeDuration={0}
+      />
     </View>
   );
 }
