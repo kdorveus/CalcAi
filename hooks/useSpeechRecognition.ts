@@ -237,7 +237,6 @@ export const useSpeechRecognition = ({
     setIsRecording(false);
     setInterimTranscript('');
     lastProcessedTranscriptRef.current = '';
-    lastSpokenResultRef.current = '';
     lastTranscriptRef.current = '';
     
     if (silenceTimerRef.current) {
