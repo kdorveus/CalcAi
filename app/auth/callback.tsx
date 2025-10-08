@@ -1,86 +1,89 @@
-import React, { useEffect } from 'react';
-import { View, Text, ActivityIndicator, Platform, Alert, Image, StyleSheet } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, Text, Platform, Alert, Image, StyleSheet, Animated } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from '../../hooks/useTranslation';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { STORAGE_KEYS } from '../../constants/Config';
 import * as authService from '../../utils/authService';
-import { useAuth } from '../../contexts/AuthContext';
 
 export default function AuthCallbackScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
+  const { t } = useTranslation();
+  
+  // Animated values for fade-in (initialized to 0 for instant start)
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  
+  // Extract params once
   const errorParam = params.error as string;
   const errorDescription = params.error_description as string;
   const token = params.token as string;
-  const { t } = useTranslation();
-  const { user, setUser, setSession } = useAuth() as any; // Force type to access setters
 
   useEffect(() => {
-    const handleCallback = async () => {
-      console.log("[AuthCallback] Mounted. Params:", params);
+    // Start fade-in animation immediately
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 400,
+      useNativeDriver: true,
+    }).start();
 
-      // Handle error
+    // Handle authentication callback
+    const processCallback = async () => {
+      // Error handling
       if (errorParam) {
-        console.error(`[AuthCallback] Error from URL: ${errorParam} - ${errorDescription}`);
         Alert.alert(t('auth.authError'), errorDescription || errorParam);
         router.replace('/auth/login');
         return;
       }
 
-      // Handle success with token
+      // Token processing
       if (token) {
         try {
-          console.log("[AuthCallback] Received token, storing and rehydrating user...");
+          // Parallel operations for speed
+          const [, verifyResult] = await Promise.all([
+            AsyncStorage.setItem(STORAGE_KEYS.SESSION_TOKEN, token),
+            authService.verifySession()
+          ]);
           
-          // Store the token
-          await AsyncStorage.setItem(STORAGE_KEYS.SESSION_TOKEN, token);
-          
-          // Verify session and get user data to rehydrate the context
-          const { user: verifiedUser, error } = await authService.verifySession();
+          const { user: verifiedUser, error } = verifyResult;
           
           if (error || !verifiedUser) {
-            console.error("[AuthCallback] Failed to verify session:", error);
             Alert.alert(t('auth.authError'), 'Failed to verify session');
             router.replace('/auth/login');
             return;
           }
           
-          // Store user data
+          // Store user and redirect
           await AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(verifiedUser));
           
-          // Force immediate rehydration by reloading the page on web or navigating on native
           if (Platform.OS === 'web') {
-            // On web, reload to trigger AuthContext reinitialization
             window.location.href = '/';
           } else {
-            // On native, redirect to home (AuthContext will pick up the stored user)
             router.replace('/');
           }
         } catch (error) {
-          console.error("[AuthCallback] Error storing token:", error);
           Alert.alert(t('auth.authError'), 'Failed to save session');
           router.replace('/auth/login');
         }
-        return;
       }
-
-      console.log("[AuthCallback] No token or error. Waiting...");
     };
 
-    handleCallback();
-  }, [router, params, errorParam, errorDescription, token, t]);
+    processCallback();
+  }, [errorParam, errorDescription, token, router, t, fadeAnim]);
 
   return (
     <View style={styles.container}>
-      <Image 
-        source={require('../../assets/images/icon.png')} 
-        style={styles.icon}
-        resizeMode="contain"
-      />
-      <Text style={styles.welcomeText}>
-        {t('auth.settingUpAccount')}
-      </Text>
+      <Animated.View style={{ opacity: fadeAnim }}>
+        <Image 
+          source={require('../../assets/images/icon.png')} 
+          style={styles.icon}
+          resizeMode="contain"
+          fadeDuration={0}
+        />
+        <Text style={styles.welcomeText}>
+          {t('auth.settingUpAccount')}
+        </Text>
+      </Animated.View>
     </View>
   );
 }
@@ -98,8 +101,9 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   welcomeText: {
-    color: 'white',
-    fontSize: 18,
+    color: '#ffffff',
+    fontSize: 22,
     fontWeight: '500',
+    textAlign: 'center',
   },
 }); 
