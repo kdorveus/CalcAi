@@ -483,7 +483,8 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
   };
 
   const ScrollViewContent = (
-    <ScrollView style={styles.scrollableArea} contentContainerStyle={styles.contentContainer}>
+    <View style={{ flex: 1 }}>
+      <ScrollView style={styles.scrollableArea} contentContainerStyle={styles.contentContainer}>
           {/* Settings Section */}
           <View style={styles.sectionCard}>
             <TouchableOpacity
@@ -608,16 +609,24 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
                   {SUPPORTED_LANGUAGES.map((lang) => (
                     <TouchableOpacity
                       key={lang.code}
-                      style={styles.languageOption}
+                      style={[
+                        styles.languageOption,
+                        language === lang.code && styles.languageOptionSelected
+                      ]}
                       onPress={() => handleLanguageSelect(lang.code)}
                       activeOpacity={0.7}
                     >
                       <View style={styles.languageOptionContent}>
                         <Text style={styles.languageName}>{lang.nativeName}</Text>
                       </View>
-                      {language === lang.code && (
-                        <AppIcon name="check" size={20} color="#fff" />
-                      )}
+                      <View style={[
+                        styles.radioButton,
+                        language === lang.code && styles.radioButtonSelected
+                      ]}>
+                        {language === lang.code && (
+                          <View style={styles.radioButtonInner} />
+                        )}
+                      </View>
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -941,41 +950,42 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
             </View>
           </View>
 
-          {/* Legal Links at the bottom of ScrollView */}
-          <View style={styles.legalLinksContainer}>
-            <TouchableOpacity 
-              onPress={() => {
-                onClose();
-                router.push('/privacy');
-              }}
-            >
-              <Text style={styles.legalLinkText}>{t('common.privacyPolicy')}</Text>
-            </TouchableOpacity>
-            <Text style={styles.legalLinkSeparator}> • </Text>
-            <TouchableOpacity 
-              onPress={() => {
-                onClose();
-                router.push('/terms');
-              }}
-            >
-              <Text style={styles.legalLinkText}>{t('common.termsOfService')}</Text>
-            </TouchableOpacity>
-            {user && (
-              <>
-                <Text style={styles.legalLinkSeparator}> • </Text>
-                <TouchableOpacity 
-                  onPress={() => {
-                    onClose();
-                    router.push('/contact');
-                  }}
-                >
-                  <Text style={styles.legalLinkText}>Contact Us</Text>
-                </TouchableOpacity>
-              </>
-            )}
-          </View>
-
         </ScrollView>
+        
+        {/* Legal Links at absolute bottom */}
+        <View style={styles.legalLinksContainer}>
+          <TouchableOpacity 
+            onPress={() => {
+              onClose();
+              router.push('/privacy');
+            }}
+          >
+            <Text style={styles.legalLinkText}>{t('common.privacyPolicy')}</Text>
+          </TouchableOpacity>
+          <Text style={styles.legalLinkSeparator}> • </Text>
+          <TouchableOpacity 
+            onPress={() => {
+              onClose();
+              router.push('/terms');
+            }}
+          >
+            <Text style={styles.legalLinkText}>{t('common.termsOfService')}</Text>
+          </TouchableOpacity>
+          {user && (
+            <>
+              <Text style={styles.legalLinkSeparator}> • </Text>
+              <TouchableOpacity 
+                onPress={() => {
+                  onClose();
+                  router.push('/contact');
+                }}
+              >
+                <Text style={styles.legalLinkText}>Contact Us</Text>
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
+      </View>
   );
   
   return (
@@ -1630,13 +1640,15 @@ const styles = StyleSheet.create({
   },
   // Legal Links Styles
   legalLinksContainer: {
-    marginTop: 24,
-    marginBottom: 16, 
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     flexWrap: 'wrap',
     paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#333',
+    backgroundColor: '#121212',
   },
   legalLinkText: {
     fontSize: 13,
@@ -1667,6 +1679,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     borderRadius: 8,
     marginBottom: 4,
+  },
+  languageOptionSelected: {
+    backgroundColor: '#333',
+  },
+  radioButton: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: '#888',
+    backgroundColor: 'transparent',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  radioButtonSelected: {
+    borderColor: '#ff9500',
+  },
+  radioButtonInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#ff9500',
   },
   languageOptionContent: {
     flexDirection: 'row',

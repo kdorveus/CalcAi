@@ -10,6 +10,7 @@ import {
   Alert,
   SafeAreaView,
   Platform,
+  Pressable,
 } from 'react-native';
 // Using our bundled AppIcon component instead of MaterialCommunityIcons
 import AppIcon from './AppIcon';
@@ -46,6 +47,7 @@ const HistoryModal: React.FC<HistoryModalProps> = ({
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [webhookModalVisible, setWebhookModalVisible] = useState(false);
   const [selectedItem, setSelectedItem] = useState<CalculationHistoryItem | null>(null);
+  const [hoveredTooltip, setHoveredTooltip] = useState<string | null>(null);
 
   // Handle refreshing the history
   const handleRefresh = async () => {
@@ -94,14 +96,12 @@ const HistoryModal: React.FC<HistoryModalProps> = ({
   const formatDate = (dateString: string) => {
     try {
       const date = new Date(dateString);
-      const days = t('history.dayNames');
-      const months = t('history.monthNames');
       
-      // Format: Day, Month DD, YYYY at HH:MM AM/PM
-      const dayName = days[date.getDay()];
-      const monthName = months[date.getMonth()];
+      // Format: Month Day at HH:MM AM/PM (e.g., "October 6 at 2:45 PM")
+      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                          'July', 'August', 'September', 'October', 'November', 'December'];
+      const monthName = monthNames[date.getMonth()];
       const day = date.getDate();
-      const year = date.getFullYear();
       
       let hours = date.getHours();
       const minutes = String(date.getMinutes()).padStart(2, '0');
@@ -109,7 +109,7 @@ const HistoryModal: React.FC<HistoryModalProps> = ({
       hours = hours % 12;
       hours = hours ? hours : 12; // the hour '0' should be '12'
       
-      return `${dayName}, ${monthName} ${day}, ${year} at ${hours}:${minutes} ${ampm}`;
+      return `${monthName} ${day} at ${hours}:${minutes} ${ampm}`;
     } catch (error) {
       return t('history.unknownDate');
     }
@@ -159,23 +159,34 @@ const HistoryModal: React.FC<HistoryModalProps> = ({
       >
         <SafeAreaView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
+            <TouchableOpacity 
+              style={styles.backButton}
+              onPress={onClose}
+            >
+              <AppIcon name="arrow-left" size={24} color="#fff" />
+            </TouchableOpacity>
+            
             <Text style={styles.modalTitle}>{t('history.calculationHistory')}</Text>
-            <View style={styles.headerButtons}>
-              {history.length > 0 && (
-                <TouchableOpacity 
+            
+            {history.length > 0 ? (
+              <View style={styles.tooltipContainer}>
+                <Pressable 
                   style={styles.clearButton}
                   onPress={handleClearAll}
+                  onHoverIn={() => Platform.OS === 'web' && setHoveredTooltip('clearAll')}
+                  onHoverOut={() => Platform.OS === 'web' && setHoveredTooltip(null)}
                 >
-                  <Text style={styles.clearButtonText}>{t('history.clearAll')}</Text>
-                </TouchableOpacity>
-              )}
-              <TouchableOpacity 
-                style={styles.closeButton}
-                onPress={onClose}
-              >
-                <AppIcon name="close" size={24} color="#fff" />
-              </TouchableOpacity>
-            </View>
+                  <AppIcon name="refresh" size={24} color="#888" style={{ transform: [{ scaleX: -1 }] }} />
+                </Pressable>
+                {hoveredTooltip === 'clearAll' && Platform.OS === 'web' && (
+                  <View style={styles.tooltip}>
+                    <Text style={styles.tooltipText}>{t('history.clearAll')}</Text>
+                  </View>
+                )}
+              </View>
+            ) : (
+              <View style={styles.headerRightPlaceholder} />
+            )}
           </View>
 
           {isLoading && !isRefreshing ? (
@@ -224,20 +235,48 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     color: '#fff',
+    textAlign: 'center',
+    flex: 1,
   },
-  headerButtons: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  backButton: {
+    padding: 8,
   },
   clearButton: {
-    marginRight: 16,
+    padding: 8,
   },
   clearButtonText: {
     color: '#888',
     fontWeight: '600',
   },
-  closeButton: {
-    padding: 4,
+  headerRightPlaceholder: {
+    width: 40,
+  },
+  tooltipContainer: {
+    position: 'relative',
+  },
+  tooltip: {
+    position: 'absolute',
+    backgroundColor: '#2A2A2A',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    top: 40,
+    right: 0,
+    minWidth: 120,
+    alignItems: 'center',
+    ...(Platform.select({
+      web: { boxShadow: '0px 2px 4px rgba(0,0,0,0.25)' },
+      default: {
+        elevation: 5,
+      },
+    }) as any),
+    zIndex: 9999,
+  },
+  tooltipText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '500',
+    textAlign: 'center',
   },
   loadingContainer: {
     flex: 1,

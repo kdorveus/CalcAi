@@ -78,6 +78,12 @@ const RefreshIcon = (props: SvgProps) => (
   </Svg>
 );
 
+const RefreshCcwIcon = (props: SvgProps) => (
+  <Svg viewBox="0 0 24 24" {...props}>
+    <Path d="M6.35,6.35C7.8,4.9 9.79,4 12,4c4.42,0 7.99,3.58 7.99,8s-3.57,8-7.99,8c-3.73,0-6.84-2.55-7.73-6h2.08c0.82,2.33 3.04,4 5.65,4c3.31,0 6-2.69 6-6s-2.69-6-6-6c-1.66,0-3.14,0.69-4.22,1.78L11,11H4V4L6.35,6.35z" />
+  </Svg>
+);
+
 
 // Map icon names to their components
 const iconMap: Record<string, React.FC<SvgProps>> = {
@@ -105,6 +111,7 @@ const iconMap: Record<string, React.FC<SvgProps>> = {
   'crown-outline': CrownOutlineIcon,
   'backspace': BackspaceIcon,
   'refresh': RefreshIcon,
+  'refresh-ccw': RefreshCcwIcon,
   'language': LanguageIcon
 };
 
