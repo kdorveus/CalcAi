@@ -179,7 +179,6 @@ const MainScreen: React.FC = () => {
   const [showKeypad, setShowKeypad] = useState(false);
   // const [recording, setRecording] = useState<Audio.Recording | null>(null); // Removed Audio.Recording type usage here
   const [isRecording, setIsRecording] = useState(false);
-  const [isTranscribing, setIsTranscribing] = useState(false);
   const [keypadInput, setKeypadInput] = useState('');
   const lastResultRef = useRef<string | null>(null);
   const [isSettingsModalVisible, setIsSettingsModalVisible] = useState(false); // State for modal
@@ -782,19 +781,28 @@ const MainScreen: React.FC = () => {
 
   // Single TTS function to prevent duplicates
   const speakSingleResult = useCallback((text: string) => {
+    if (isTTSSpeaking.current) {
+      if (Platform.OS === 'web') {
+        if (typeof window !== 'undefined' && window.speechSynthesis) {
+          window.speechSynthesis.cancel();
+        }
+      } else {
+        Speech.stop();
+      }
+    }
+
     isTTSSpeaking.current = true;
 
     if (Platform.OS === 'web') {
       // Use Web Speech API for browser
       if (typeof window !== 'undefined' && window.speechSynthesis) {
+        // Always cancel any queued speech for zero-queue guarantee
+        window.speechSynthesis.cancel();
+        
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.lang = getSpeechRecognitionLanguage(language);
         utterance.pitch = 1.0;
         utterance.rate = 1.1;
-
-        utterance.onstart = () => {
-          isTTSSpeaking.current = true;
-        };
 
         utterance.onend = () => {
           // Clear flag and reset ALL speech-related state immediately when TTS finishes
@@ -821,9 +829,6 @@ const MainScreen: React.FC = () => {
         language: getSpeechRecognitionLanguage(language),
         pitch: 1.0,
         rate: 1.1,
-        onStart: () => {
-          isTTSSpeaking.current = true;
-        },
         onDone: () => {
           // Clear flag and reset ALL speech-related state immediately when TTS finishes
           isTTSSpeaking.current = false;
@@ -848,7 +853,7 @@ const MainScreen: React.FC = () => {
 
   // Helper function to handle calculation results (DRY principle - used by both keypad and speech)
   const handleCalculationResult = useCallback((equation: string, result: string, source: 'keypad' | 'speech') => {
-    // PRIORITY: Speak result IMMEDIATELY for speech input (before any UI operations)
+    // Prioritize TTS: speak immediately for speech source before any UI work
     if (source === 'speech' && !speechMutedRef.current) {
       speakSingleResult(result);
     }
@@ -895,6 +900,8 @@ const MainScreen: React.FC = () => {
 
       setKeypadInput(result);
     }
+
+    // Speech already triggered at the start of this function for speech source
 
     lastResultRef.current = result;
     setExpectingFreshInput(true);
@@ -1089,8 +1096,8 @@ const MainScreen: React.FC = () => {
 
   // Consolidated web keyboard handling (space to record, paste, keypad, mute, reset)
   const handleGlobalKeyDown = useCallback((e: KeyboardEvent) => {
-    // Spacebar toggles recording when not transcribing
-    if (e.code === 'Space' && !isTranscribing) {
+    // Spacebar toggles recording
+    if (e.code === 'Space') {
       e.preventDefault();
       if (!isRecording) {
         startRecording();
@@ -1143,7 +1150,7 @@ const MainScreen: React.FC = () => {
       }
       e.preventDefault();
     }
-  }, [isTranscribing, isRecording, onKeypadPress, toggleSpeechMute]);
+  }, [isRecording, onKeypadPress, toggleSpeechMute]);
 
   useEffect(() => {
     if (Platform.OS !== 'web') return;
@@ -1191,10 +1198,6 @@ const MainScreen: React.FC = () => {
     return () => clearTimeout(timeout);
   }, [keypadInput, formatNumber, language]);
 
-  // Use the hook's startRecording and stopRecording functions
-  const startRecording = speechRecognition.startRecording;
-  const stopRecording = speechRecognition.stopRecording;
-
   // Single unified speech result processor (DRY principle)
   const processSpeechResult = useCallback((transcript: string, source: 'web' | 'native') => {
     if (!transcript.trim()) return;
@@ -1204,12 +1207,6 @@ const MainScreen: React.FC = () => {
       return;
     }
     speechRecognition.lastProcessedTranscriptRef.current = transcript;
-
-    // CRITICAL: Stop speech recognition BEFORE processing to prevent audio conflicts
-    // This ensures microphone is released before TTS starts
-    if (isRecording && !continuousMode) {
-      stopRecording();
-    }
 
     // Keep interim transcript visible during processing
 
@@ -1252,10 +1249,14 @@ const MainScreen: React.FC = () => {
       setKeypadInput('');
       setExpectingFreshInput(false);
     }
-  }, [normalizeSpokenMath, handleInput, handleCalculationResult, speechRecognition.lastProcessedTranscriptRef, isRecording, continuousMode, stopRecording]);
+  }, [normalizeSpokenMath, handleInput, handleCalculationResult, speechRecognition.lastProcessedTranscriptRef]);
 
   // Assign processSpeechResult to the ref so the hook can use it
   processSpeechResultRef.current = processSpeechResult;
+
+  // Use the hook's startRecording and stopRecording functions
+  const startRecording = speechRecognition.startRecording;
+  const stopRecording = speechRecognition.stopRecording;
 
   // --- Load/Save Settings (App Preferences Only) ---
   // Note: Webhook settings are managed by useWebhookManager hook
@@ -1606,13 +1607,8 @@ const MainScreen: React.FC = () => {
               startRecording();
             }
           }}
-          disabled={isTranscribing && !continuousMode}
         >
-          {isTranscribing && !continuousMode ? (
-            <ActivityIndicator color="#eee" />
-          ) : (
-            <AppIcon name={isRecording ? "microphone-off" : "microphone"} size={isWebMobile ? 40 : 60} color={"#eee"} />
-          )}
+          <AppIcon name={isRecording ? "microphone-off" : "microphone"} size={isWebMobile ? 40 : 60} color={"#eee"} />
         </TouchableOpacity>
         {/* Webhook Icon with tooltip */}
         <View style={styles.tooltipContainer}>

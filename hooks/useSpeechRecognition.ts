@@ -29,7 +29,6 @@ interface UseSpeechRecognitionReturn {
   lastTranscriptRef: React.MutableRefObject<string>;
   silenceTimerRef: React.MutableRefObject<NodeJS.Timeout | number | null>;
   lastProcessedTranscriptRef: React.MutableRefObject<string>;
-  lastSpokenResultRef: React.MutableRefObject<string>;
 }
 
 export const useSpeechRecognition = ({
@@ -54,7 +53,6 @@ export const useSpeechRecognition = ({
   const lastTranscriptRef = useRef('');
   const silenceTimerRef = useRef<NodeJS.Timeout | number | null>(null);
   const lastProcessedTranscriptRef = useRef<string>('');
-  const lastSpokenResultRef = useRef<string>('');
 
   const initializeSpeech = useCallback(async () => {
     if (Platform.OS === 'web') {
@@ -277,6 +275,5 @@ export const useSpeechRecognition = ({
     lastTranscriptRef,
     silenceTimerRef,
     lastProcessedTranscriptRef,
-    lastSpokenResultRef,
   };
 };
