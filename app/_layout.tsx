@@ -13,6 +13,7 @@ import { Platform, View } from 'react-native';
 
 const PremiumProvider = lazy(() => import('../contexts/PremiumContext').then(m => ({ default: m.PremiumProvider })));
 const CalculationHistoryProvider = lazy(() => import('../contexts/CalculationHistoryContext').then(m => ({ default: m.CalculationHistoryProvider })));
+const GoogleOneTapProvider = lazy(() => import('../components/GoogleOneTapProvider').then(m => ({ default: m.GoogleOneTapProvider })));
 // import { router } from 'expo-router'; // No longer directly needed here
 
 import { useColorScheme } from 'react-native';
@@ -305,13 +306,15 @@ export default function RootLayout() {
       <PostHogProvider>
         <LanguageProvider>
           <AuthProvider>
-            <Suspense fallback={<View style={{ flex: 1, backgroundColor: '#121212' }} />}>
-              <PremiumProvider>
-                <CalculationHistoryProvider>
-                  <RootLayoutNav />
-                </CalculationHistoryProvider>
-              </PremiumProvider>
-            </Suspense>
+            <GoogleOneTapProvider>
+              <Suspense fallback={<View style={{ flex: 1, backgroundColor: '#121212' }} />}>
+                <PremiumProvider>
+                  <CalculationHistoryProvider>
+                    <RootLayoutNav />
+                  </CalculationHistoryProvider>
+                </PremiumProvider>
+              </Suspense>
+            </GoogleOneTapProvider>
           </AuthProvider>
         </LanguageProvider>
       </PostHogProvider>

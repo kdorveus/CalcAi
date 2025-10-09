@@ -146,10 +146,16 @@ export const WebhookSettingsComponent: React.FC<WebhookSettingsProps> = ({
   const [editingItemId, setEditingItemId] = useState<string | number | null>(null);
   const [editingItemValue, setEditingItemValue] = useState('');
   const [sendingItemId, setSendingItemId] = useState<string | number | null>(null);
-  const [optionsOpen, setOptionsOpen] = useState<boolean>(false);
-  const [languageSectionOpen, setLanguageSectionOpen] = useState<boolean>(false);
-  const [webhookTitleOpen, setWebhookTitleOpen] = useState<boolean>(false);
-  const [authSectionOpen, setAuthSectionOpen] = useState<boolean>(!user); // Only open for non-logged in users
+  
+  // Single state for accordion - only one section can be open at a time
+  type SectionName = 'general' | 'language' | 'webhooks' | null;
+  const [openSection, setOpenSection] = useState<SectionName>(null);
+  
+  const handleToggleSection = (sectionName: SectionName) => {
+    setOpenSection(prevOpenSection => 
+      prevOpenSection === sectionName ? null : sectionName
+    );
+  };
   
   // Sync local state with parent component
   useEffect(() => {
@@ -481,34 +487,37 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
     setEditingItemId(null);
     setEditingItemValue('');
   };
-
   const ScrollViewContent = (
     <View style={{ flex: 1 }}>
       <ScrollView style={styles.scrollableArea} contentContainerStyle={styles.contentContainer}>
-          {/* Settings Section */}
-          <View style={styles.sectionCard}>
-            <TouchableOpacity
-              style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 4 }}
-              onPress={() => setOptionsOpen((prev) => !prev)}
-              activeOpacity={0.7}
-            >
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <AppIcon name="cog" size={20} color="#888" style={{ marginRight: 8 }} />
-                <Text style={styles.subHeader}>{t('settings.general.title')}</Text>
-              </View>
-              <View style={{ flex: 1 }} />
-              <AppIcon
-                name={optionsOpen ? 'chevron-up' : 'chevron-down'}
-                size={24}
-                color="#fff"
-                style={{ marginLeft: 8 }}
-              />
-            </TouchableOpacity>
-            {optionsOpen && (
-              <View>
-                <View style={styles.optionsDropdownMenu}>
+        {/* Settings Section */}
+        <View style={[styles.sectionCard, openSection === 'general' && styles.sectionCardOpen, { position: 'relative', zIndex: 3 }]}>
+          <TouchableOpacity
+            style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 4 }}
+            onPress={() => handleToggleSection('general')}
+            activeOpacity={0.7}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <AppIcon name="cog" size={20} color="#888" style={{ marginRight: 8 }} />
+              <Text style={styles.subHeader}>{t('settings.general.title')}</Text>
+            </View>
+            <View style={{ flex: 1 }} />
+            <AppIcon
+              name={openSection === 'general' ? 'chevron-up' : 'chevron-down'}
+              size={24}
+              color="#fff"
+              style={{ marginLeft: 8 }}
+            />
+          </TouchableOpacity>
+            {openSection === 'general' && (
+                <View style={styles.dropdownContent}>
+                  <View style={styles.optionsDropdownMenu}>
                   <Text style={[styles.settingLabel, { color: '#888', fontSize: 14, marginBottom: 8 }]}>{t('settings.general.inputBehavior')}</Text>
-                  <View style={styles.settingRowCompact}>
+                  <TouchableOpacity 
+                    style={styles.settingRowCompact}
+                    onPress={() => toggleSpeechMute?.()}
+                    activeOpacity={0.7}
+                  >
                     <Text style={styles.settingLabel}>{t('settings.general.muteVoiceOutput')}</Text>
                     <Switch
                       value={isSpeechMuted}
@@ -516,8 +525,13 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
                       trackColor={{ false: "#333", true: "#0066cc" }}
                       thumbColor={isSpeechMuted ? "#0066cc" : "#f4f3f4"}
                     />
-                  </View>
-                  <View style={styles.settingRowCompact}>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={styles.settingRowCompact}
+                    onPress={() => requirePremium(() => setContinuousMode?.(!continuousMode))}
+                    activeOpacity={0.7}
+                    disabled={loading}
+                  >
                     <Text style={styles.settingLabel}>Continuous Mode</Text>
                     <Switch
                       value={continuousMode}
@@ -526,8 +540,12 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
                       thumbColor={continuousMode ? "#0066cc" : "#f4f3f4"}
                       disabled={loading}
                     />
-                  </View>
-                  <View style={styles.settingRowCompact}>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={styles.settingRowCompact}
+                    onPress={() => setEnterKeyNewLine?.(!enterKeyNewLine)}
+                    activeOpacity={0.7}
+                  >
                     <Text style={styles.settingLabel}>{t('settings.general.newLineOnSend')}</Text>
                     <Switch
                       value={enterKeyNewLine}
@@ -535,9 +553,13 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
                       trackColor={{ false: "#333", true: "#0066cc" }}
                       thumbColor={enterKeyNewLine ? "#0066cc" : "#f4f3f4"}
                     />
-                  </View>
+                  </TouchableOpacity>
                   {Platform.OS !== 'web' && (
-                    <View style={styles.settingRowCompact}>
+                    <TouchableOpacity 
+                      style={styles.settingRowCompact}
+                      onPress={() => setVibrationEnabled?.(!vibrationEnabled)}
+                      activeOpacity={0.7}
+                    >
                       <Text style={styles.settingLabel}>{t('settings.general.enableVibration')}</Text>
                       <Switch
                         value={vibrationEnabled}
@@ -545,10 +567,14 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
                         trackColor={{ false: "#333", true: "#0066cc" }}
                         thumbColor={vibrationEnabled ? "#0066cc" : "#f4f3f4"}
                       />
-                    </View>
+                    </TouchableOpacity>
                   )}
                   {Platform.OS !== 'web' && (
-                    <View style={styles.settingRowCompact}>
+                    <TouchableOpacity 
+                      style={styles.settingRowCompact}
+                      onPress={() => setOpenInCalcMode?.(!openInCalcMode)}
+                      activeOpacity={0.7}
+                    >
                       <Text style={styles.settingLabel}>{t('settings.general.openInCalcMode')}</Text>
                       <Switch
                         value={openInCalcMode}
@@ -556,12 +582,16 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
                         trackColor={{ false: "#333", true: "#0066cc" }}
                         thumbColor={openInCalcMode ? "#0066cc" : "#f4f3f4"}
                       />
-                    </View>
+                    </TouchableOpacity>
                   )}
                   <View style={{ marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: '#333' }}>
                     <Text style={[styles.settingLabel, { color: '#888', fontSize: 14, marginBottom: 8 }]}>{t('settings.general.webhooksSection')}</Text>
                   </View>
-                  <View style={styles.settingRowCompact}>
+                  <TouchableOpacity 
+                    style={styles.settingRowCompact}
+                    onPress={() => requirePremium(() => setSendEquation(sendEquation))}
+                    activeOpacity={0.7}
+                  >
                     <Text style={styles.settingLabel}>{t('settings.general.sendAnswerWithoutEquation')}</Text>
                     <Switch
                       value={!sendEquation}
@@ -569,8 +599,12 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
                       trackColor={{ false: "#333", true: "#0066cc" }}
                       thumbColor={!sendEquation ? "#0066cc" : "#f4f3f4"}
                     />
-                  </View>
-                  <View style={styles.settingRowCompact}>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={styles.settingRowCompact}
+                    onPress={() => requirePremium(() => setStreamResults(streamResults))}
+                    activeOpacity={0.7}
+                  >
                     <Text style={styles.settingLabel}>{t('settings.general.queueResultsForManualSending')}</Text>
                     <Switch
                       value={!streamResults}
@@ -578,17 +612,17 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
                       trackColor={{ false: "#333", true: "#0066cc" }}
                       thumbColor={!streamResults ? "#0066cc" : "#f4f3f4"}
                     />
+                  </TouchableOpacity>
                   </View>
-                </View>
               </View>
             )}
           </View>
 
           {/* Language Section */}
-          <View style={styles.sectionCard}>
+          <View style={[styles.sectionCard, openSection === 'language' && styles.sectionCardOpen, { position: 'relative', zIndex: 2 }]}>
             <TouchableOpacity
               style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 4 }}
-              onPress={() => setLanguageSectionOpen((prev) => !prev)}
+              onPress={() => handleToggleSection('language')}
               activeOpacity={0.7}
             >
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -597,15 +631,15 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
               </View>
               <View style={{ flex: 1 }} />
               <AppIcon
-                name={languageSectionOpen ? 'chevron-up' : 'chevron-down'}
+                name={openSection === 'language' ? 'chevron-up' : 'chevron-down'}
                 size={24}
                 color="#fff"
                 style={{ marginLeft: 8 }}
               />
             </TouchableOpacity>
-            {languageSectionOpen && (
-              <View>
-                <View style={styles.optionsDropdownMenu}>
+            {openSection === 'language' && (
+                <View style={styles.dropdownContent}>
+                  <View style={styles.optionsDropdownMenu}>
                   {SUPPORTED_LANGUAGES.map((lang) => (
                     <TouchableOpacity
                       key={lang.code}
@@ -614,7 +648,7 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
                         language === lang.code && styles.languageOptionSelected
                       ]}
                       onPress={() => handleLanguageSelect(lang.code)}
-                      activeOpacity={0.7}
+                      activeOpacity={0.6}
                     >
                       <View style={styles.languageOptionContent}>
                         <Text style={styles.languageName}>{lang.nativeName}</Text>
@@ -629,16 +663,16 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
                       </View>
                     </TouchableOpacity>
                   ))}
-                </View>
+                  </View>
               </View>
             )}
           </View>
           
           {/* Webhook Section */}
-          <View style={styles.sectionCard}>
+          <View style={[styles.sectionCard, openSection === 'webhooks' && styles.sectionCardOpen, { position: 'relative', zIndex: 1 }]}>
             <TouchableOpacity
               style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 4 }}
-              onPress={() => setWebhookTitleOpen((prev) => !prev)}
+              onPress={() => handleToggleSection('webhooks')}
               activeOpacity={0.7}
             >
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -647,16 +681,15 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
               </View>
               <View style={{ flex: 1 }} />
               <AppIcon
-                name={webhookTitleOpen ? 'chevron-up' : 'chevron-down'}
+                name={openSection === 'webhooks' ? 'chevron-up' : 'chevron-down'}
                 size={24}
                 color="#fff"
                 style={{ marginLeft: 8 }}
               />
             </TouchableOpacity>
             
-            {webhookTitleOpen && (
-              <View>
-                <View>
+            {openSection === 'webhooks' && (
+                <View style={styles.dropdownContent}>
                   <Text style={styles.sectionSubtitle}>{t('settings.webhooks.createNew')}</Text>
                   <View style={[styles.addWebhookContainer, styles.sectionPadding]}>
                     <TextInput
@@ -684,9 +717,14 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
                       onPress={handleAddWebhookLocal}
                       disabled={!isPremium || !/^https?:\/\//.test(localWebhookUrl.trim())}
                     >
-                      <Text style={styles.addButtonText}>
-                        {!isPremium ? t('common.pro') : t('settings.webhooks.add')}
-                      </Text>
+                      {!isPremium ? (
+                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                          <AppIcon name="crown" size={16} color="#fff" style={{ marginRight: 6 }} />
+                          <Text style={styles.addButtonText}>{t('common.pro')}</Text>
+                        </View>
+                      ) : (
+                        <Text style={styles.addButtonText}>{t('settings.webhooks.add')}</Text>
+                      )}
                     </TouchableOpacity>
                   </View>
                   
@@ -779,9 +817,10 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
                       ))}
                     </View>
                   ) : (
-                    <Text style={styles.emptyListText}>{t('settings.webhooks.noWebhooksYet')}</Text>
+                    <View>
+                      <Text style={styles.emptyListText}>{t('settings.webhooks.noWebhooksYet')}</Text>
+                    </View>
                   )}
-                </View>
               </View>
             )}
           </View>
@@ -1045,6 +1084,26 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
 };
 
 const styles = StyleSheet.create({
+  sectionCardOpen: {
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
+  },
+  dropdownContent: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    backgroundColor: '#1C1C1E',
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
+    borderBottomLeftRadius: 12,
+    borderBottomRightRadius: 12,
+    borderWidth: 1,
+    borderTopWidth: 0,
+    borderColor: '#222',
+    zIndex: 10,
+    overflow: 'hidden',
+  },
   optionsDropdownMenu: {
     // backgroundColor: '#0F0F0F', // Removed to blend with sectionCard
     borderRadius: 8,
@@ -1714,7 +1773,7 @@ const styles = StyleSheet.create({
   languageName: {
     fontSize: 16,
     color: '#fff',
-    fontWeight: '500',
+    fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'sans-serif',
   },
   languageEnglishName: {
     fontSize: 14,

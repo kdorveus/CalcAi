@@ -11,6 +11,8 @@ export const PLATFORM = 'mobile'; // Will be detected at runtime
 // Auth endpoints
 export const AUTH_ENDPOINTS = {
   GOOGLE_AUTH: `${WORKER_URL}/auth/google`,
+  GOOGLE_ONE_TAP: `${WORKER_URL}/auth/google-one-tap`,
+  GOOGLE_CLIENT_ID: `${WORKER_URL}/auth/google-client-id`,
   CALLBACK: `${WORKER_URL}/auth/callback`,
   VERIFY: `${WORKER_URL}/auth/verify`,
   REFRESH: `${WORKER_URL}/auth/refresh`,

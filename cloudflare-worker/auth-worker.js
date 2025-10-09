@@ -11,7 +11,7 @@ export default {
 
     // CORS headers for mobile/web app
     const corsHeaders = {
-      'Access-Control-Allow-Origin': '*', // TODO: Restrict to your domain in production
+      'Access-Control-Allow-Origin': env.ALLOWED_ORIGIN || '*', // Use env var for production, fallback to wildcard
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     };
@@ -25,6 +25,8 @@ export default {
       // Route handling
       if (path === '/auth/google') {
         return handleGoogleAuth(request, env, corsHeaders, ctx);
+      } else if (path === '/auth/google-one-tap') {
+        return handleGoogleOneTap(request, env, corsHeaders, ctx);
       } else if (path === '/auth/callback') {
         return handleGoogleCallback(request, env, corsHeaders, ctx);
       } else if (path === '/auth/verify') {
@@ -43,6 +45,8 @@ export default {
         return handleStripeWebhook(request, env, corsHeaders);
       } else if (path === '/contact/send') {
         return handleContactForm(request, env, corsHeaders, ctx);
+      } else if (path === '/auth/google-client-id') {
+        return handleGetGoogleClientId(request, env, corsHeaders);
       } else if (path === '/health') {
         return new Response(JSON.stringify({ status: 'ok' }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -95,6 +99,110 @@ async function handleGoogleAuth(request, env, corsHeaders, ctx) {
     JSON.stringify({ 
       authUrl: authUrl.toString(),
       state 
+    }),
+    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  );
+}
+
+/**
+ * Returns Google Client ID for One Tap initialization
+ */
+async function handleGetGoogleClientId(request, env, corsHeaders) {
+  return new Response(
+    JSON.stringify({ clientId: env.GOOGLE_CLIENT_ID }),
+    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  );
+}
+
+/**
+ * Handles Google One Tap authentication
+ * Verifies JWT credential from Google and creates session
+ */
+async function handleGoogleOneTap(request, env, corsHeaders, ctx) {
+  if (request.method !== 'POST') {
+    return new Response(
+      JSON.stringify({ error: 'Method not allowed' }),
+      { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (e) {
+    return new Response(
+      JSON.stringify({ error: 'Invalid JSON body' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  const { credential } = body;
+
+  if (!credential) {
+    return new Response(
+      JSON.stringify({ error: 'Missing credential' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // Verify the JWT token with Google
+  const verifyResponse = await fetch(
+    `https://oauth2.googleapis.com/tokeninfo?id_token=${credential}`
+  );
+
+  if (!verifyResponse.ok) {
+    const errorDetails = await verifyResponse.json().catch(() => ({ error: 'Failed to parse Google error response' }));
+    console.error('Google token verification failed:', errorDetails);
+    return new Response(
+      JSON.stringify({ error: 'Invalid credential', details: errorDetails.error_description || 'Verification failed' }),
+      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  const tokenInfo = await verifyResponse.json();
+
+
+  // Verify the token is for our app
+  if (tokenInfo.aud !== env.GOOGLE_CLIENT_ID) {
+    return new Response(
+      JSON.stringify({ error: 'Invalid audience' }),
+      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // Extract user info from verified token
+  const userInfo = {
+    id: tokenInfo.sub,
+    email: tokenInfo.email,
+    name: tokenInfo.name,
+    picture: tokenInfo.picture,
+    email_verified: tokenInfo.email_verified,
+  };
+
+  // Create or update user in D1 database
+  const userId = await upsertUser(env.DB, userInfo, {});
+
+  // Generate session token
+  const sessionToken = await generateSessionToken(userId);
+  
+  // Store session in KV with 7 day expiration
+  await env.SESSIONS.put(sessionToken, JSON.stringify({
+    userId,
+    email: userInfo.email,
+    createdAt: Date.now(),
+  }), { expirationTtl: 604800 }); // 7 days
+
+  // Return session data
+  return new Response(
+    JSON.stringify({
+      sessionToken,
+      user: {
+        id: userId,
+        email: userInfo.email,
+        name: userInfo.name,
+        picture: userInfo.picture,
+      },
+      expiresIn: 604800,
     }),
     { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   );

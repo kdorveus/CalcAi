@@ -27,6 +27,44 @@ export interface AuthError {
 }
 
 /**
+ * Sign in with Google One Tap credential (JWT token)
+ * Sends credential to backend for verification and session creation
+ */
+export async function signInWithGoogleOneTap(credential: string): Promise<{ error: AuthError | null; session: Session | null }> {
+  try {
+    const response = await fetch(AUTH_ENDPOINTS.GOOGLE_ONE_TAP, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ credential }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      return {
+        error: { name: 'AuthError', message: errorData.error || 'Failed to authenticate with Google One Tap' },
+        session: null,
+      };
+    }
+
+    const sessionData = await response.json();
+
+    // Store session
+    await AsyncStorage.setItem(STORAGE_KEYS.SESSION_TOKEN, sessionData.sessionToken);
+    await AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(sessionData.user));
+
+    return { error: null, session: sessionData };
+  } catch (error: any) {
+    console.error('signInWithGoogleOneTap error:', error);
+    return {
+      error: { name: 'AuthError', message: error.message || 'Authentication failed' },
+      session: null,
+    };
+  }
+}
+
+/**
  * Initiates Google OAuth flow
  */
 export async function signInWithGoogle(): Promise<{ error: AuthError | null; session: Session | null }> {

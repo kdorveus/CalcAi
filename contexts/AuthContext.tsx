@@ -15,6 +15,7 @@ type AuthContextType = {
   signUp: (email: string) => Promise<{ error: AuthError | null, session: Session | null, user: User | null }>;
   signOut: () => Promise<{ error: AuthError | null }>;
   signInWithGoogle: () => Promise<{ error: AuthError | null }>;
+  signInWithGoogleOneTap: (credential: string) => Promise<{ error: AuthError | null }>;
   verifyOtp: (email: string, token: string) => Promise<{ error: AuthError | null }>;
   user: User | null;
   session: Session | null;
@@ -28,6 +29,7 @@ const AuthContext = createContext<AuthContextType>({
   signUp: async () => ({ error: null, session: null, user: null }),
   signOut: async () => ({ error: null }),
   signInWithGoogle: async () => ({ error: null }),
+  signInWithGoogleOneTap: async () => ({ error: null }),
   verifyOtp: async () => ({ error: null }),
   user: null,
   session: null,
@@ -141,6 +143,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
       
       if (newSession) {
+        identifyUser(newSession.user.id, { email: newSession.user.email, name: newSession.user.name });
         setUser(newSession.user);
         setSession(newSession);
         setAuthError(null);
@@ -156,6 +159,36 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  // Sign In with Google One Tap
+  const signInWithGoogleOneTap = async (credential: string) => {
+    try {
+      setLoading(true);
+      setAuthError(null);
+      
+      const { error, session: newSession } = await authService.signInWithGoogleOneTap(credential);
+      
+      if (error) {
+        setAuthError(error.message);
+        return { error };
+      }
+      
+      if (newSession) {
+        identifyUser(newSession.user.id, { email: newSession.user.email, name: newSession.user.name });
+        setUser(newSession.user);
+        setSession(newSession);
+        setAuthError(null);
+      }
+      
+      return { error: null };
+    } catch (error: any) {
+      const authError = { name: 'GoogleOneTapError', message: error.message } as AuthError;
+      setAuthError(error.message);
+      return { error: authError };
+    } finally {
+      setLoading(false);
+    }
+  };
+
 
   return (
     <AuthContext.Provider
@@ -164,6 +197,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         signUp,
         signOut,
         signInWithGoogle,
+        signInWithGoogleOneTap,
         verifyOtp,
         user,
         session,
