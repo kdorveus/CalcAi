@@ -495,7 +495,7 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
           <TouchableOpacity
             style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 4 }}
             onPress={() => handleToggleSection('general')}
-            activeOpacity={0.7}
+            activeOpacity={1}
           >
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <AppIcon name="cog" size={20} color="#888" style={{ marginRight: 8 }} />
@@ -623,7 +623,7 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
             <TouchableOpacity
               style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 4 }}
               onPress={() => handleToggleSection('language')}
-              activeOpacity={0.7}
+              activeOpacity={1}
             >
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <AppIcon name="language" size={20} color="#888" style={{ marginRight: 8 }} />
@@ -673,7 +673,7 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
             <TouchableOpacity
               style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 4 }}
               onPress={() => handleToggleSection('webhooks')}
-              activeOpacity={0.7}
+              activeOpacity={1}
             >
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <AppIcon name="webhook" size={20} color="#888" style={{ marginRight: 8 }} />
@@ -714,8 +714,13 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
                         styles.addButton, 
                         (!isPremium || !/^https?:\/\//.test(localWebhookUrl.trim())) && styles.addButtonDisabled
                       ]}
-                      onPress={handleAddWebhookLocal}
-                      disabled={!isPremium || !/^https?:\/\//.test(localWebhookUrl.trim())}
+                      onPress={() => {
+                        if (!isPremium) {
+                          setShowPremiumModal(true);
+                        } else if (/^https?:\/\//.test(localWebhookUrl.trim())) {
+                          handleAddWebhookLocal();
+                        }
+                      }}
                     >
                       {!isPremium ? (
                         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -728,9 +733,13 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
                     </TouchableOpacity>
                   </View>
                   
-                  <View style={styles.sectionDivider} />
+                  {localWebhookUrls.length > 0 && (
+                    <>
+                      <View style={styles.sectionDivider} />
+                      <Text style={[styles.sectionSubtitle, styles.sectionTopMargin]}>{t('settings.webhooks.myWebhooks')}</Text>
+                    </>
+                  )}
                   
-                  <Text style={[styles.sectionSubtitle, styles.sectionTopMargin]}>{t('settings.webhooks.myWebhooks')}</Text>
                   {localWebhookUrls.length > 0 ? (
                     <View style={styles.webhookList}>
                       {localWebhookUrls.map((item) => (
@@ -817,8 +826,15 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
                       ))}
                     </View>
                   ) : (
-                    <View>
-                      <Text style={styles.emptyListText}>{t('settings.webhooks.noWebhooksYet')}</Text>
+                    <View style={styles.emptyStateContainer}>
+                      <AppIcon name="webhook" size={48} color="#444" style={{ marginBottom: 16 }} />
+                      <Text style={styles.emptyStateTitle}>No Webhooks</Text>
+                      <Text style={styles.emptyStateDescription}>
+                        Send results to external services automatically.
+                      </Text>
+                      <Text style={styles.emptyStateDescription}>
+                        Works with Zapier, Make, or any API endpoint.
+                      </Text>
                     </View>
                   )}
               </View>
@@ -1273,6 +1289,26 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#333',
   },
+  emptyStateContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 32,
+    paddingHorizontal: 24,
+  },
+  emptyStateTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#fff',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  emptyStateDescription: {
+    fontSize: 14,
+    color: '#888',
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 8,
+  },
   settingRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1566,16 +1602,7 @@ const styles = StyleSheet.create({
   limitedTimeOffer: {
     color: '#fff',
     fontSize: 26,
-    fontWeight: '700',
     textAlign: 'center',
-    marginBottom: 4,
-    letterSpacing: 0.5,
-  },
-  limitedTimeSubtext: {
-    color: '#888',
-    fontSize: 14,
-    textAlign: 'center',
-    marginBottom: 20,
   },
   promoContainer: {
     padding: 24,
