@@ -1,5 +1,12 @@
 import React from 'react';
-import { View, TouchableOpacity, Text, Platform, StyleSheet, ViewStyle, TextStyle } from 'react-native';
+import {
+  Platform,
+  Text,
+  type TextStyle,
+  TouchableOpacity,
+  View,
+  type ViewStyle,
+} from 'react-native';
 import AppIcon from './AppIcon';
 
 // Keypad layout constant
@@ -28,7 +35,11 @@ interface KeypadComponentProps {
   };
 }
 
-const KeypadComponent: React.FC<KeypadComponentProps> = ({ onKeypadPress, isWebMobile, styles }) => {
+const KeypadComponent: React.FC<KeypadComponentProps> = ({
+  onKeypadPress,
+  isWebMobile,
+  styles,
+}) => {
   return (
     <View style={isWebMobile ? styles.calculatorAreaMobileWeb : styles.calculatorArea}>
       <TouchableOpacity
@@ -49,7 +60,7 @@ const KeypadComponent: React.FC<KeypadComponentProps> = ({ onKeypadPress, isWebM
           <View key={i} style={styles.keypadRow}>
             {row.map((key) => {
               // Determine the button style
-              let buttonStyle;
+              let buttonStyle: ViewStyle;
               if (Platform.OS === 'web') {
                 if (isWebMobile) {
                   // WEB MOBILE: Apply native mobile styles directly
@@ -74,7 +85,7 @@ const KeypadComponent: React.FC<KeypadComponentProps> = ({ onKeypadPress, isWebM
                   buttonStyle = styles.keypadKeyMobile;
                 }
               }
-              
+
               return (
                 <TouchableOpacity
                   key={key}
@@ -84,7 +95,12 @@ const KeypadComponent: React.FC<KeypadComponentProps> = ({ onKeypadPress, isWebM
                   delayPressIn={0}
                 >
                   {key === '↺' ? (
-                    <AppIcon name="refresh" size={28} color="#eee" style={{ transform: [{ scaleX: -1 }] }} />
+                    <AppIcon
+                      name="refresh"
+                      size={28}
+                      color="#eee"
+                      style={{ transform: [{ scaleX: -1 }] }}
+                    />
                   ) : key === 'CHECK_ICON' ? (
                     <AppIcon name="send" size={24} color="#eee" />
                   ) : (

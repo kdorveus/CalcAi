@@ -1,20 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import { router } from 'expo-router';
+import { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
   ActivityIndicator,
   Alert,
+  Image,
   KeyboardAvoidingView,
   Platform,
-  Image,
-  Linking,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTranslation } from '../../hooks/useTranslation';
 import GoogleLogo from '../components/GoogleLogo';
-import { router } from 'expo-router';
 
 export default function Login() {
   const [googleLoading, setGoogleLoading] = useState(false);
@@ -25,11 +24,11 @@ export default function Login() {
     if (authError) {
       Alert.alert(t('auth.error'), authError);
     }
-  }, [authError]);
+  }, [authError, t]);
 
   const handleGoogleLogin = async () => {
     setGoogleLoading(true);
-    console.log("Attempting Google Sign-In...");
+    console.log('Attempting Google Sign-In...');
     await signInWithGoogle();
     setGoogleLoading(false);
     // Let useProtectedRoute handle navigation after successful login
@@ -42,10 +41,7 @@ export default function Login() {
     >
       <View style={styles.formContainer}>
         <View style={styles.logoContainer}>
-          <Image 
-            source={require('../../assets/images/LOGO.webp')} 
-            style={styles.logo}
-          />
+          <Image source={require('../../assets/images/LOGO.webp')} style={styles.logo} />
           <Text style={styles.betaText}>BETA</Text>
         </View>
 
@@ -61,7 +57,7 @@ export default function Login() {
         >
           <View style={styles.googleButtonContentWrapper}>
             {googleLoading ? (
-              <ActivityIndicator color="#4285F4" style={{marginRight: 12}} />
+              <ActivityIndicator color="#4285F4" style={{ marginRight: 12 }} />
             ) : (
               <View style={styles.googleButtonIcon}>
                 <GoogleLogo size={20} />
@@ -72,19 +68,14 @@ export default function Login() {
         </TouchableOpacity>
 
         <View style={styles.legalLinksContainer}>
-          <TouchableOpacity 
-            onPress={() => router.push('/privacy')}
-          >
+          <TouchableOpacity onPress={() => router.push('/privacy')}>
             <Text style={styles.legalLinkText}>{t('common.privacyPolicy')}</Text>
           </TouchableOpacity>
           <Text style={styles.legalLinkSeparator}> • </Text>
-          <TouchableOpacity 
-            onPress={() => router.push('/terms')}
-          >
+          <TouchableOpacity onPress={() => router.push('/terms')}>
             <Text style={styles.legalLinkText}>{t('common.termsOfService')}</Text>
           </TouchableOpacity>
         </View>
-
       </View>
     </KeyboardAvoidingView>
   );
@@ -177,14 +168,14 @@ const styles = StyleSheet.create({
     letterSpacing: 0.25,
   },
   legalLinksContainer: {
-    marginTop: 20, 
+    marginTop: 20,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
   },
   legalLinkText: {
     fontSize: 12,
-    color: '#AEAEB2', 
+    color: '#AEAEB2',
     textDecorationLine: 'underline',
   },
   legalLinkSeparator: {

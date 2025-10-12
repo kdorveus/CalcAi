@@ -19,8 +19,7 @@
         "buildType": "app-bundle",
         "image": "latest"
       },
-      "ios": {
-      },
+      "ios": {},
       "env": {
         "ENVIRONMENT": "production"
       }

@@ -1,14 +1,15 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Platform, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
-import { PREMIUM_ENDPOINTS, STORAGE_KEYS } from '../constants/Config';
-import * as WebBrowser from 'expo-web-browser';
 import * as SecureStore from 'expo-secure-store';
-import { useAuth } from './AuthContext';
-
+import * as WebBrowser from 'expo-web-browser';
+import type React from 'react';
+import { createContext, type ReactNode, useContext, useEffect, useState } from 'react';
+import { Alert, Platform } from 'react-native';
 // Conditionally import Purchases to avoid errors on web
 import PurchasesModule from 'react-native-purchases';
+import { PREMIUM_ENDPOINTS, STORAGE_KEYS } from '../constants/Config';
+import { useAuth } from './AuthContext';
+
 let Purchases: typeof PurchasesModule | null = null;
 if (Platform.OS === 'android' || Platform.OS === 'ios') {
   try {
@@ -51,7 +52,7 @@ type PremiumContextType = {
 const PremiumContext = createContext<PremiumContextType>({
   isPremium: false,
   checkPremiumStatus: async () => false,
-  showPremiumPayment: async (planType?: 'yearly' | 'lifetime') => {},
+  showPremiumPayment: async (_planType?: 'yearly' | 'lifetime') => {},
   premiumLoading: false,
   stripePaymentUrl: '', // Deprecated - will be generated dynamically
   isPremiumCached: false,
@@ -73,11 +74,11 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
   const [isPremium, setIsPremium] = useState<boolean>(false);
   const [isPremiumCached, setIsPremiumCached] = useState<boolean>(false);
   const [premiumLoading, setPremiumLoading] = useState<boolean>(false);
-  const [lastChecked, setLastChecked] = useState<number>(0);
+  const [_lastChecked, setLastChecked] = useState<number>(0);
   const [stripePaymentUrl] = useState<string>(''); // Deprecated
   const [productInfo, setProductInfo] = useState<ProductInfo | null>(null);
-  const [isIapConnected, setIsIapConnected] = useState<boolean>(false);
-  
+  const [_isIapConnected, setIsIapConnected] = useState<boolean>(false);
+
   // Initialize IAP and load cached premium status on mount
   useEffect(() => {
     const initialize = async () => {
@@ -87,11 +88,11 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
           // Use AsyncStorage for web
           const cachedStatus = await AsyncStorage.getItem(PREMIUM_STATUS_KEY);
           const cachedTimestamp = await AsyncStorage.getItem(PREMIUM_TIMESTAMP_KEY);
-          
+
           if (cachedStatus && cachedTimestamp) {
             const status = cachedStatus === 'true';
             const timestamp = parseInt(cachedTimestamp, 10);
-            
+
             setIsPremium(status);
             setLastChecked(timestamp);
             setIsPremiumCached(true);
@@ -100,27 +101,29 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
           // Use SecureStore for native
           const cachedStatus = await SecureStore.getItemAsync(PREMIUM_STATUS_KEY);
           const cachedTimestamp = await SecureStore.getItemAsync(PREMIUM_TIMESTAMP_KEY);
-          
+
           if (cachedStatus && cachedTimestamp) {
             const status = cachedStatus === 'true';
             const timestamp = parseInt(cachedTimestamp, 10);
-            
+
             setIsPremium(status);
             setLastChecked(timestamp);
             setIsPremiumCached(true);
           }
-          
+
           // Initialize IAP for native platforms
           if (Platform.OS === 'android' || Platform.OS === 'ios') {
             try {
               if (Purchases) {
                 // Configure RevenueCat
-                Purchases.configure({ apiKey: process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_KEY || '' });
+                Purchases.configure({
+                  apiKey: process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_KEY || '',
+                });
                 setIsIapConnected(true);
-                
+
                 // Get the products
                 const products = await Purchases.getProducts([GOOGLE_PLAY_PRODUCT_ID]);
-                
+
                 if (products && products.length > 0) {
                   const product = products[0];
                   setProductInfo({
@@ -128,7 +131,7 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
                     price: product.priceString,
                     title: product.title,
                     description: product.description,
-                    currency: product.currencyCode
+                    currency: product.currencyCode,
                   });
                 }
               } else {
@@ -137,7 +140,7 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
             } catch (error) {
               console.warn('Error initializing in-app purchases:', error);
             }
-            
+
             // Set up purchase listener
             if (Purchases) {
               Purchases.addCustomerInfoUpdateListener(async (customerInfo: any) => {
@@ -145,7 +148,7 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
                 // Check if premium entitlement is active
                 if (customerInfo.entitlements.active['premium']) {
                   console.log('Premium entitlement active');
-                  
+
                   // TODO: Update premium status via Cloudflare
                   // For now, just update local state
                   setIsPremium(true);
@@ -160,15 +163,11 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
         console.error('Error initializing premium features:', error);
       }
     };
-    
+
     initialize();
-    
-    // Cleanup: no need to disconnect from RevenueCat
-    return () => {
-      // RevenueCat handles cleanup automatically
-    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  
+
   // Check premium status when user changes
   useEffect(() => {
     if (user) {
@@ -177,6 +176,7 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
       setIsPremium(false);
       setIsPremiumCached(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   // Save premium status to secure storage
@@ -215,35 +215,37 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
       setIsPremiumCached(true);
       await savePremiumStatus(premium, Date.now());
       return premium;
-    } catch (error) {
+    } catch (_error) {
       setIsPremium(false);
       return false;
     }
   };
 
   // Legacy check premium status
-  const checkPremiumStatusLegacy = async (): Promise<boolean> => {
+  const _checkPremiumStatusLegacy = async (): Promise<boolean> => {
     // TODO: Replace with Cloudflare premium status check
-    console.log("[PremiumContext] checkPremiumStatus - awaiting Cloudflare integration");
-    
+    console.log('[PremiumContext] checkPremiumStatus - awaiting Cloudflare integration');
+
     // For now, use only cached local status
     if (isPremiumCached) {
       return isPremium;
     }
-    
+
     setIsPremium(false);
     setIsPremiumCached(true);
     return false;
   };
 
   // Handle payments based on platform
-  const showPremiumPayment = async (planType: 'yearly' | 'lifetime' = 'lifetime'): Promise<void> => {
+  const showPremiumPayment = async (
+    planType: 'yearly' | 'lifetime' = 'lifetime'
+  ): Promise<void> => {
     try {
       // For Android, use Google Play IAP
       if (Platform.OS === 'android') {
         console.log('Using RevenueCat for premium purchase');
         setPremiumLoading(true);
-        
+
         if (Purchases) {
           try {
             // Purchase the product
@@ -255,16 +257,19 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
               console.log('User canceled the purchase');
             } else {
               console.error('Error making purchase:', error);
-              Alert.alert('Purchase Error', 'There was an error processing your purchase. Please try again.');
+              Alert.alert(
+                'Purchase Error',
+                'There was an error processing your purchase. Please try again.'
+              );
             }
           }
         } else {
           console.warn('Purchases module not available');
           Alert.alert('Purchase Error', 'In-app purchases are not available on this device.');
         }
-        
+
         setPremiumLoading(false);
-      } 
+      }
       // For iOS, will need Apple IAP implementation here
       else if (Platform.OS === 'ios') {
         // TODO: Implement iOS IAP when needed
@@ -274,7 +279,7 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
       else {
         console.log('Using Stripe Checkout for premium purchase');
         setPremiumLoading(true);
-        
+
         try {
           const token = await AsyncStorage.getItem(STORAGE_KEYS.SESSION_TOKEN);
           if (!token) {
@@ -304,7 +309,7 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
           } else {
             // For other platforms, use WebBrowser
             const result = await WebBrowser.openBrowserAsync(url);
-            
+
             // After browser closes, check premium status
             if (result.type === 'dismiss' || result.type === 'cancel') {
               // User closed the browser, check if payment was completed
@@ -314,7 +319,11 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
             }
           }
         } catch (error: any) {
-          const errorMessage = error.response?.data?.error || error.response?.data?.details || error.message || 'Could not start checkout. Please try again.';
+          const errorMessage =
+            error.response?.data?.error ||
+            error.response?.data?.details ||
+            error.message ||
+            'Could not start checkout. Please try again.';
           Alert.alert('Checkout Error', errorMessage);
         } finally {
           setPremiumLoading(false);

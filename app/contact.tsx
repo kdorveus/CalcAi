@@ -1,21 +1,21 @@
-import React, { useState, useEffect } from 'react';
+import { MaterialIcons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { router } from 'expo-router';
+import { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  StyleSheet,
-  TouchableOpacity,
   ActivityIndicator,
   Alert,
   Platform,
   SafeAreaView,
   StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { useAuth } from '../contexts/AuthContext';
-import { router } from 'expo-router';
-import { MaterialIcons } from '@expo/vector-icons';
 import { WORKER_URL } from '../constants/Config';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAuth } from '../contexts/AuthContext';
 
 const MAX_MESSAGE_LENGTH = 1000;
 
@@ -51,7 +51,7 @@ export default function Contact() {
 
     try {
       const token = await AsyncStorage.getItem('@calcai_session_token');
-      
+
       if (!token) {
         Alert.alert('Error', 'Session expired. Please log in again.');
         router.replace('/auth/login');
@@ -62,7 +62,7 @@ export default function Contact() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           message: message.trim(),
@@ -85,7 +85,7 @@ export default function Contact() {
           },
         ]
       );
-      
+
       setMessage('');
     } catch (error: any) {
       console.error('Contact form error:', error);
@@ -116,7 +116,11 @@ export default function Contact() {
       <StatusBar barStyle="light-content" backgroundColor="#121212" />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <MaterialIcons name={Platform.OS === 'ios' ? 'arrow-back-ios' : 'arrow-back'} size={24} color="#fff" />
+          <MaterialIcons
+            name={Platform.OS === 'ios' ? 'arrow-back-ios' : 'arrow-back'}
+            size={24}
+            color="#fff"
+          />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Contact Us</Text>
         <TouchableOpacity
@@ -127,13 +131,18 @@ export default function Contact() {
           {isSubmitting ? (
             <ActivityIndicator size="small" color="#0066cc" />
           ) : (
-            <Text style={[styles.sendButtonText, (!message.trim() || isSubmitting) && styles.sendButtonTextDisabled]}>
+            <Text
+              style={[
+                styles.sendButtonText,
+                (!message.trim() || isSubmitting) && styles.sendButtonTextDisabled,
+              ]}
+            >
               Send
             </Text>
           )}
         </TouchableOpacity>
       </View>
-      
+
       <View style={styles.container}>
         <TextInput
           style={styles.messageInput}

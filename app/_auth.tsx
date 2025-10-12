@@ -24,7 +24,6 @@ export default function AuthLayout() {
 */
 
 // Return null or an empty fragment to disable this layout
-import React from 'react';
 export default function AuthLayoutDisabled() {
-    return null;
+  return null;
 }

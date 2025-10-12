@@ -4,11 +4,12 @@
  * Only renders on web platform and doesn't block app loading
  */
 
-import React, { useEffect, useState } from 'react';
+import type React from 'react';
+import { useEffect, useState } from 'react';
 import { Platform } from 'react-native';
+import { AUTH_ENDPOINTS } from '../constants/Config';
 import { useAuth } from '../contexts/AuthContext';
 import { useGoogleOneTap } from '../hooks/useGoogleOneTap';
-import { AUTH_ENDPOINTS } from '../constants/Config';
 
 export const GoogleOneTapProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, signInWithGoogleOneTap } = useAuth();
@@ -34,11 +35,13 @@ export const GoogleOneTapProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const { isInitialized, prompt } = useGoogleOneTap({
     clientId: clientId || '',
-    onSuccess: async (credential) => {
-      const { error } = await signInWithGoogleOneTap(credential);
-      if (error) {
-        console.error('Google One Tap authentication failed:', error);
-      }
+    onSuccess: (credential) => {
+      (async () => {
+        const { error } = await signInWithGoogleOneTap(credential);
+        if (error) {
+          console.error('Google One Tap authentication failed:', error);
+        }
+      })();
     },
     onError: (error) => {
       console.error('Google One Tap error:', error);

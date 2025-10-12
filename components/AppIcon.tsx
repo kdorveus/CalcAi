@@ -1,27 +1,27 @@
-import React from 'react';
-import { SvgProps, Svg, Path } from 'react-native-svg';
-
+import type React from 'react';
+import { Path, Svg, type SvgProps } from 'react-native-svg';
+import AccountCircleIcon from '../assets/icons/account-circle.svg';
+import ArrowLeftIcon from '../assets/icons/arrow-left.svg';
+import CalculatorIcon from '../assets/icons/calculator.svg';
+import CheckIcon from '../assets/icons/check.svg';
+import CheckCircleIcon from '../assets/icons/check-circle.svg';
+import CheckDecagramIcon from '../assets/icons/check-decagram.svg';
+import ChevronDownIcon from '../assets/icons/chevron-down.svg';
+import ChevronUpIcon from '../assets/icons/chevron-up.svg';
+import CloseIcon from '../assets/icons/close.svg';
+import CogIcon from '../assets/icons/cog.svg';
+// Crown icon is now defined inline for better performance
+import DeleteIcon from '../assets/icons/delete.svg';
+import HistoryIcon from '../assets/icons/history.svg';
+import LanguageIcon from '../assets/icons/language.svg';
+import LogoutIcon from '../assets/icons/logout.svg';
 // Import all SVG icons
 import MicrophoneIcon from '../assets/icons/microphone.svg';
 import MicrophoneOffIcon from '../assets/icons/microphone-off.svg';
-import CalculatorIcon from '../assets/icons/calculator.svg';
-import SendIcon from '../assets/icons/send.svg';
-import CloseIcon from '../assets/icons/close.svg';
-import CogIcon from '../assets/icons/cog.svg';
-import HistoryIcon from '../assets/icons/history.svg';
-import CheckCircleIcon from '../assets/icons/check-circle.svg';
-// Crown icon is now defined inline for better performance
-import DeleteIcon from '../assets/icons/delete.svg';
-import StopIcon from '../assets/icons/stop.svg';
-import ArrowLeftIcon from '../assets/icons/arrow-left.svg';
-import ChevronUpIcon from '../assets/icons/chevron-up.svg';
-import ChevronDownIcon from '../assets/icons/chevron-down.svg';
 import PencilIcon from '../assets/icons/pencil.svg';
-import AccountCircleIcon from '../assets/icons/account-circle.svg';
-import LogoutIcon from '../assets/icons/logout.svg';
-import CheckIcon from '../assets/icons/check.svg';
-import CheckDecagramIcon from '../assets/icons/check-decagram.svg';
-import LanguageIcon from '../assets/icons/language.svg';
+import SendIcon from '../assets/icons/send.svg';
+import StopIcon from '../assets/icons/stop.svg';
+
 // Crown Outline icon updated inline for settings PRO button
 const CrownOutlineIcon = (props: SvgProps) => {
   const { width = 24, height = 24, color = 'currentColor', ...rest } = props;
@@ -84,35 +84,34 @@ const RefreshCcwIcon = (props: SvgProps) => (
   </Svg>
 );
 
-
 // Map icon names to their components
 const iconMap: Record<string, React.FC<SvgProps>> = {
-  'webhook': WebhookIcon,
-  'microphone': MicrophoneIcon,
+  webhook: WebhookIcon,
+  microphone: MicrophoneIcon,
   'microphone-off': MicrophoneOffIcon,
-  'calculator': CalculatorIcon,
-  'send': SendIcon,
-  'close': CloseIcon,
-  'cog': CogIcon,
-  'history': HistoryIcon,
+  calculator: CalculatorIcon,
+  send: SendIcon,
+  close: CloseIcon,
+  cog: CogIcon,
+  history: HistoryIcon,
   'check-circle': CheckCircleIcon,
-  'crown': CrownIcon,
-  'delete': DeleteIcon,
+  crown: CrownIcon,
+  delete: DeleteIcon,
   'keyboard-space': KeyboardSpaceIcon,
-  'stop': StopIcon,
+  stop: StopIcon,
   'arrow-left': ArrowLeftIcon,
   'chevron-up': ChevronUpIcon,
   'chevron-down': ChevronDownIcon,
-  'pencil': PencilIcon,
+  pencil: PencilIcon,
   'account-circle': AccountCircleIcon,
-  'logout': LogoutIcon,
-  'check': CheckIcon,
+  logout: LogoutIcon,
+  check: CheckIcon,
   'check-decagram': CheckDecagramIcon,
   'crown-outline': CrownOutlineIcon,
-  'backspace': BackspaceIcon,
-  'refresh': RefreshIcon,
+  backspace: BackspaceIcon,
+  refresh: RefreshIcon,
   'refresh-ccw': RefreshCcwIcon,
-  'language': LanguageIcon
+  language: LanguageIcon,
 };
 
 // Define props for our AppIcon component
@@ -126,30 +125,18 @@ interface AppIconProps extends SvgProps {
  * AppIcon - A custom icon component that uses bundled SVG icons
  * This eliminates network requests and makes icons load instantly
  */
-const AppIcon: React.FC<AppIconProps> = ({ 
-  name, 
-  size = 24, 
-  color = 'currentColor',
-  ...props 
-}) => {
+const AppIcon: React.FC<AppIconProps> = ({ name, size = 24, color = 'currentColor', ...props }) => {
   // Get the icon component from our map
   const IconComponent = iconMap[name];
-  
+
   // If icon doesn't exist, return null
   if (!IconComponent) {
     console.warn(`Icon "${name}" not found`);
     return null;
   }
-  
+
   // Return the icon with the specified props
-  return (
-    <IconComponent 
-      width={size} 
-      height={size} 
-      fill={color}
-      {...props}
-    />
-  );
+  return <IconComponent width={size} height={size} fill={color} {...props} />;
 };
 
 export default AppIcon;

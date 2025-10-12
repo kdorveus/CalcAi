@@ -1,6 +1,16 @@
-import React, { useCallback, useRef } from 'react';
-import { View, FlatList, Text, Pressable, Platform, Vibration, ToastAndroid, ViewStyle, TextStyle } from 'react-native';
 import * as ExpoClipboard from 'expo-clipboard';
+import React, { useCallback } from 'react';
+import {
+  FlatList,
+  Platform,
+  Pressable,
+  Text,
+  type TextStyle,
+  ToastAndroid,
+  Vibration,
+  View,
+  type ViewStyle,
+} from 'react-native';
 
 interface ChatBubble {
   id: string;
@@ -49,7 +59,8 @@ const BubbleListComponent = React.forwardRef<FlatList, BubbleListComponentProps>
     const renderBubble = useCallback(
       ({ item, index }: { item: ChatBubble; index: number }) => {
         const isLastBubble = index === bubbles.length - 1;
-        const isCurrentUserBubble = item.type === 'user' && isLastBubble && item.content === keypadInput;
+        const isCurrentUserBubble =
+          item.type === 'user' && isLastBubble && item.content === keypadInput;
 
         const copyToClipboard = (text: string) => {
           if (Platform.OS === 'web') {
@@ -63,7 +74,11 @@ const BubbleListComponent = React.forwardRef<FlatList, BubbleListComponentProps>
           }
 
           if (Platform.OS === 'android') {
-            ToastAndroid.showWithGravity('Answer copied to clipboard', ToastAndroid.SHORT, ToastAndroid.TOP);
+            ToastAndroid.showWithGravity(
+              'Answer copied to clipboard',
+              ToastAndroid.SHORT,
+              ToastAndroid.TOP
+            );
           } else {
             // For iOS and web, add a temporary bubble at the top
             setBubbles((prev) => [
@@ -83,7 +98,11 @@ const BubbleListComponent = React.forwardRef<FlatList, BubbleListComponentProps>
 
         if (item.type === 'result') {
           return (
-            <Pressable style={styles.resultBubble} onLongPress={() => copyToClipboard(item.content)} delayLongPress={500}>
+            <Pressable
+              style={styles.resultBubble}
+              onLongPress={() => copyToClipboard(item.content)}
+              delayLongPress={500}
+            >
               <Text style={styles.resultText}>{item.content}</Text>
             </Pressable>
           );
@@ -92,13 +111,14 @@ const BubbleListComponent = React.forwardRef<FlatList, BubbleListComponentProps>
         if (item.type === 'error') {
           // Special-case: show "No Equation Detected" messages like interim stream (gray text), not as a red error bubble
           // Check if content starts with any language version of "No Equation Detected"
-          const isNoEquationError = item.content.startsWith('No Equation Detected') ||
-                                    item.content.startsWith('No se Detectó Ecuación') ||
-                                    item.content.startsWith('Aucune Équation Détectée') ||
-                                    item.content.startsWith('Keine Gleichung Erkannt') ||
-                                    item.content.startsWith('Nenhuma Equação Detectada') ||
-                                    item.content.startsWith('Nessuna Equazione Rilevata');
-          
+          const isNoEquationError =
+            item.content.startsWith('No Equation Detected') ||
+            item.content.startsWith('No se Detectó Ecuación') ||
+            item.content.startsWith('Aucune Équation Détectée') ||
+            item.content.startsWith('Keine Gleichung Erkannt') ||
+            item.content.startsWith('Nenhuma Equação Detectada') ||
+            item.content.startsWith('Nessuna Equazione Rilevata');
+
           if (isNoEquationError) {
             return (
               <View style={styles.userBubble}>
@@ -151,7 +171,11 @@ const BubbleListComponent = React.forwardRef<FlatList, BubbleListComponentProps>
               const answer = parts[parts.length - 1].trim();
 
               return (
-                <Pressable style={styles.userBubble} onLongPress={() => copyToClipboard(answer)} delayLongPress={500}>
+                <Pressable
+                  style={styles.userBubble}
+                  onLongPress={() => copyToClipboard(answer)}
+                  delayLongPress={500}
+                >
                   <Text style={[styles.userText, { color: '#fff' }]}>{item.content}</Text>
                 </Pressable>
               );
@@ -167,7 +191,16 @@ const BubbleListComponent = React.forwardRef<FlatList, BubbleListComponentProps>
 
         return null;
       },
-      [bubbles.length, keypadInput, vibrationEnabled, interimTranscript, t, setBubbles, bubbleIdRef, styles]
+      [
+        bubbles.length,
+        keypadInput,
+        vibrationEnabled,
+        interimTranscript,
+        t,
+        setBubbles,
+        bubbleIdRef,
+        styles,
+      ]
     );
 
     return (
@@ -176,17 +209,20 @@ const BubbleListComponent = React.forwardRef<FlatList, BubbleListComponentProps>
         ref={ref}
         data={
           interimTranscript
-            ? [...bubbles, { id: 'interim_speech', type: 'user' as const, content: interimTranscript }]
+            ? [
+                ...bubbles,
+                { id: 'interim_speech', type: 'user' as const, content: interimTranscript },
+              ]
             : previewResult
-            ? [...bubbles, { id: 'preview', type: 'result' as const, content: previewResult }]
-            : bubbles
+              ? [...bubbles, { id: 'preview', type: 'result' as const, content: previewResult }]
+              : bubbles
         }
         renderItem={renderBubble}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.chatArea}
         onContentSizeChange={() => (ref as any)?.current?.scrollToEnd({ animated: true })}
         ListEmptyComponent={emptyComponent}
-        getItemLayout={(data, index) => ({
+        getItemLayout={(_data, index) => ({
           length: 60,
           offset: 60 * index,
           index,

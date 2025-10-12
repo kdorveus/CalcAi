@@ -1,6 +1,6 @@
-import { useRef, useCallback } from 'react';
-import { Platform, Alert } from 'react-native';
 import { requestRecordingPermissionsAsync } from 'expo-audio';
+import { useCallback, useRef } from 'react';
+import { Alert, Platform } from 'react-native';
 
 interface UseSpeechRecognitionProps {
   language: string;
@@ -57,7 +57,8 @@ export const useSpeechRecognition = ({
   const initializeSpeech = useCallback(async () => {
     if (Platform.OS === 'web') {
       // Pre-initialize the Web Speech API object to reduce delay on first use.
-      const WebSpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      const WebSpeechRecognition =
+        (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       if (WebSpeechRecognition) {
         recognitionRef.current = new WebSpeechRecognition();
         // Set properties that don't change, but leave listeners for startRecording
@@ -80,7 +81,7 @@ export const useSpeechRecognition = ({
 
       permissionsGrantedRef.current = audioGranted;
       speechInitializedRef.current = true;
-    } catch (error) {
+    } catch (_error) {
       speechInitializedRef.current = false;
       permissionsGrantedRef.current = false;
     }
@@ -170,7 +171,7 @@ export const useSpeechRecognition = ({
         const handleEnd = () => {
           if (!continuousMode) {
             const bufferedTranscript = interimTranscript;
-            if (bufferedTranscript && bufferedTranscript.trim() && !isTTSSpeaking.current) {
+            if (bufferedTranscript?.trim() && !isTTSSpeaking.current) {
               processSpeechResult(bufferedTranscript.trim(), 'native');
             }
             setIsRecording(false);
@@ -204,7 +205,11 @@ export const useSpeechRecognition = ({
             if (isTTSSpeaking.current) return;
 
             const currentTranscript = lastTranscriptRef.current;
-            if (currentTranscript && currentTranscript === previousTranscript && currentTranscript.trim()) {
+            if (
+              currentTranscript &&
+              currentTranscript === previousTranscript &&
+              currentTranscript.trim()
+            ) {
               const finalTranscript = currentTranscript.trim();
               if (finalTranscript) {
                 processSpeechResult(finalTranscript, 'native');
@@ -213,7 +218,7 @@ export const useSpeechRecognition = ({
             previousTranscript = currentTranscript;
           }, 500);
         }
-      } catch (e) {
+      } catch (_e) {
         setIsRecording(false);
       }
     }
@@ -236,7 +241,7 @@ export const useSpeechRecognition = ({
     setInterimTranscript('');
     lastProcessedTranscriptRef.current = '';
     lastTranscriptRef.current = '';
-    
+
     if (silenceTimerRef.current) {
       clearInterval(silenceTimerRef.current);
       silenceTimerRef.current = null;
@@ -255,7 +260,7 @@ export const useSpeechRecognition = ({
         if (speechListenerRef.current) speechListenerRef.current.remove();
         if (endListenerRef.current) endListenerRef.current.remove();
         if (errorListenerRef.current) errorListenerRef.current.remove();
-      } catch (e) {
+      } catch (_e) {
         // Silent error handling
       }
     }

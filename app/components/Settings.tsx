@@ -1,38 +1,31 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  Button,
-  Switch,
-  FlatList,
-  TouchableOpacity,
-  ActivityIndicator,
-  StyleSheet,
-  SafeAreaView,
-  Platform,
-  Modal,
-  ScrollView,
-  Keyboard,
-  StatusBar,
-  Alert,
-  Settings,
-  Image,
-  Animated,
-  Linking,
-} from 'react-native';
-import Slider from '@react-native-community/slider';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
+import { router } from 'expo-router'; // Keep commented if not needed for direct nav
+import type React from 'react';
+import { useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  Modal,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 // Using our bundled AppIcon component instead of MaterialCommunityIcons
 import AppIcon from '../../components/AppIcon';
+import PremiumPaymentModal from '../../components/PremiumPaymentModal';
+import { SUPPORTED_LANGUAGES } from '../../constants/Languages';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePremium } from '../../contexts/PremiumContext';
-import GoogleLogo from '../components/GoogleLogo';
-import PremiumPaymentModal from '../../components/PremiumPaymentModal';
-import { router } from 'expo-router'; // Keep commented if not needed for direct nav
 import { useTranslation } from '../../hooks/useTranslation';
-import { SUPPORTED_LANGUAGES } from '../../constants/Languages';
+import GoogleLogo from '../components/GoogleLogo';
 
 interface BulkDataItem {
   id: string | number;
@@ -89,7 +82,6 @@ export const WebhookSettingsComponent: React.FC<WebhookSettingsProps> = ({
   setNewWebhookUrl,
   newWebhookTitle,
   setNewWebhookTitle,
-  handleAddWebhook,
   handleDeleteWebhook,
   handleToggleWebhook,
   sendEquation,
@@ -110,7 +102,6 @@ export const WebhookSettingsComponent: React.FC<WebhookSettingsProps> = ({
   setVibrationEnabled,
   openInCalcMode = false,
   setOpenInCalcMode,
-  historyEnabled = true,
   setHistoryEnabled,
   continuousMode = false,
   setContinuousMode,
@@ -126,7 +117,7 @@ export const WebhookSettingsComponent: React.FC<WebhookSettingsProps> = ({
   const [editingWebhookUrl, setEditingWebhookUrl] = useState<string | null>(null);
   const [editingWebhookValue, setEditingWebhookValue] = useState<string>('');
   const [editingWebhookTitle, setEditingWebhookTitle] = useState<string>('');
-  
+
   // Auth state
   const [isLoading, setIsLoading] = useState(false);
 
@@ -135,37 +126,35 @@ export const WebhookSettingsComponent: React.FC<WebhookSettingsProps> = ({
     if (authError) {
       Alert.alert(t('auth.authError'), authError);
     }
-  }, [authError]);
-  
+  }, [authError, t]);
+
   // Sync local webhooks with parent component webhooks
   useEffect(() => {
     setLocalWebhookUrls(webhookUrls);
   }, [webhookUrls]);
-  
+
   // Component state
   const [editingItemId, setEditingItemId] = useState<string | number | null>(null);
   const [editingItemValue, setEditingItemValue] = useState('');
   const [sendingItemId, setSendingItemId] = useState<string | number | null>(null);
-  
+
   // Single state for accordion - only one section can be open at a time
   type SectionName = 'general' | 'language' | 'webhooks' | null;
   const [openSection, setOpenSection] = useState<SectionName>(null);
-  
+
   const handleToggleSection = (sectionName: SectionName) => {
-    setOpenSection(prevOpenSection => 
-      prevOpenSection === sectionName ? null : sectionName
-    );
+    setOpenSection((prevOpenSection) => (prevOpenSection === sectionName ? null : sectionName));
   };
-  
+
   // Sync local state with parent component
   useEffect(() => {
     setLocalWebhookTitle(newWebhookTitle);
   }, [newWebhookTitle]);
-  
+
   useEffect(() => {
     setLocalWebhookUrl(newWebhookUrl);
   }, [newWebhookUrl]);
-  
+
   // Use the real signOut handler from context
   const handleSignOut = async () => {
     try {
@@ -176,7 +165,7 @@ export const WebhookSettingsComponent: React.FC<WebhookSettingsProps> = ({
       Alert.alert(t('auth.error'), error.message || t('auth.failedToSignOut'));
     }
   };
-  
+
   // Local webhook state update handlers
   const updateLocalWebhookTitle = (text: string) => {
     setLocalWebhookTitle(text);
@@ -184,14 +173,14 @@ export const WebhookSettingsComponent: React.FC<WebhookSettingsProps> = ({
       setNewWebhookTitle(text);
     }
   };
-  
+
   const updateLocalWebhookUrl = (text: string) => {
     setLocalWebhookUrl(text);
     if (setNewWebhookUrl) {
       setNewWebhookUrl(text);
     }
   };
-  
+
   // Wrap actions that need auth
   const requireAuth = (action: () => void) => {
     if (!user) {
@@ -211,7 +200,7 @@ export const WebhookSettingsComponent: React.FC<WebhookSettingsProps> = ({
       setShowPremiumModal(true);
       return;
     }
-    
+
     // User has premium, execute the action
     action();
   };
@@ -219,10 +208,10 @@ export const WebhookSettingsComponent: React.FC<WebhookSettingsProps> = ({
   // Helper function to sanitize user input
   const sanitizeInput = (input: string): string => {
     if (!input) return '';
-    
+
     // Remove any HTML/script tags
     let sanitized = input.replace(/<[^>]*>/g, '');
-    
+
     // Encode special characters
     sanitized = sanitized
       .replace(/&/g, '&amp;')
@@ -230,7 +219,7 @@ export const WebhookSettingsComponent: React.FC<WebhookSettingsProps> = ({
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;');
-      
+
     // Limit the length to prevent DoS
     return sanitized.substring(0, 500);
   };
@@ -240,20 +229,20 @@ export const WebhookSettingsComponent: React.FC<WebhookSettingsProps> = ({
     try {
       // Basic URL validation
       if (!url || typeof url !== 'string') return null;
-      
+
       const trimmedUrl = url.trim();
-      
+
       // Must start with http:// or https://
       if (!trimmedUrl.startsWith('http://') && !trimmedUrl.startsWith('https://')) return null;
-      
+
       // Create URL object to validate and parse
       const parsedUrl = new URL(trimmedUrl);
-      
+
       // Check for valid protocol (extra safety)
       if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') return null;
-      
+
       return trimmedUrl;
-    } catch (e) {
+    } catch (_e) {
       // If URL parsing fails, return null
       return null;
     }
@@ -264,33 +253,33 @@ export const WebhookSettingsComponent: React.FC<WebhookSettingsProps> = ({
       // Sanitize inputs
       const sanitizedTitle = sanitizeInput(localWebhookTitle);
       const validatedUrl = validateWebhookUrl(localWebhookUrl);
-      
+
       if (!validatedUrl) {
         Alert.alert(t('settings.webhooks.invalidUrl'), t('settings.webhooks.invalidUrlMessage'));
         return;
       }
-      
-      const urlExists = localWebhookUrls.some(webhook => webhook.url === validatedUrl);
-      
+
+      const urlExists = localWebhookUrls.some((webhook) => webhook.url === validatedUrl);
+
       if (validatedUrl && !urlExists) {
         // Add new webhook with active state set to true and include title if provided
-        const newWebhook = { 
-          url: validatedUrl, 
+        const newWebhook = {
+          url: validatedUrl,
           active: false,
-          title: sanitizedTitle || undefined // Only include title if it's not empty
+          title: sanitizedTitle || undefined, // Only include title if it's not empty
         };
-        
+
         const updatedWebhooks = [...localWebhookUrls, newWebhook];
         setLocalWebhookUrls(updatedWebhooks);
-        
+
         // Update parent state if setter provided
         if (setWebhookUrls) {
           setWebhookUrls(updatedWebhooks);
         }
-        
+
         // Save to AsyncStorage (no console logs)
         AsyncStorage.setItem('webhookUrls', JSON.stringify(updatedWebhooks)).catch(() => {});
-        
+
         // Clear input fields
         setLocalWebhookUrl('');
         updateLocalWebhookUrl('');
@@ -301,23 +290,23 @@ export const WebhookSettingsComponent: React.FC<WebhookSettingsProps> = ({
       }
     });
   };
-  
+
   const handleToggleWebhookWrapped = (url: string, active: boolean) => {
     requirePremium(() => handleToggleWebhook(url, active));
   };
-  
+
   const handleDeleteWebhookWrapped = (url: string) => {
     requirePremium(() => handleDeleteWebhook(url));
   };
-  
+
   const handleSendSingleItemWrapped = (item: BulkDataItem) => {
     requirePremium(() => handleSendSingleItem(item));
   };
-  
+
   const handleSendBulkDataWrapped = () => {
     requirePremium(() => handleSendBulkData());
   };
-  
+
   const clearBulkDataWrapped = () => {
     requirePremium(() => clearBulkData());
   };
@@ -342,11 +331,10 @@ export const WebhookSettingsComponent: React.FC<WebhookSettingsProps> = ({
     }
   };
 
-
   const startEditingWebhook = (url: string) => {
     setEditingWebhookUrl(url);
     setEditingWebhookValue(url);
-    const found = localWebhookUrls.find(w => w.url === url);
+    const found = localWebhookUrls.find((w) => w.url === url);
     setEditingWebhookTitle(found?.title || '');
   };
 
@@ -359,105 +347,106 @@ export const WebhookSettingsComponent: React.FC<WebhookSettingsProps> = ({
   const saveEditedWebhook = async (oldUrl: string) => {
     const sanitizedTitle = sanitizeInput(editingWebhookTitle);
     const validatedUrl = validateWebhookUrl(editingWebhookValue);
-    
+
     if (!validatedUrl) {
       Alert.alert(t('settings.webhooks.invalidUrl'), t('settings.webhooks.invalidUrlMessage'));
       return;
     }
-    
-    if (
-      localWebhookUrls.some(
-        (w) => w.url === validatedUrl && w.url !== oldUrl
-      )
-    ) {
+
+    if (localWebhookUrls.some((w) => w.url === validatedUrl && w.url !== oldUrl)) {
       Alert.alert(t('settings.webhooks.duplicateUrl'), t('settings.webhooks.duplicateUrlMessage'));
       return;
     }
-    
+
     const updated = localWebhookUrls.map((w) =>
-      w.url === oldUrl ? { 
-        ...w, 
-        url: validatedUrl, 
-        title: sanitizedTitle 
-      } : w
+      w.url === oldUrl
+        ? {
+            ...w,
+            url: validatedUrl,
+            title: sanitizedTitle,
+          }
+        : w
     );
-    
+
     try {
       await AsyncStorage.setItem('webhookUrls', JSON.stringify(updated));
-      
+
       // Update local state
       setLocalWebhookUrls(updated);
-      
+
       // Call the parent handler to update state
       if (setWebhookUrls) {
         setWebhookUrls(updated);
       }
-      
+
       // Reset editing state
       setEditingWebhookUrl(null);
       setEditingWebhookValue('');
       setEditingWebhookTitle('');
-      
+
       Alert.alert(t('settings.webhooks.success'), t('settings.webhooks.webhookUpdated'));
-    } catch (e) {
+    } catch (_e) {
       Alert.alert(t('settings.webhooks.saveError'), t('settings.webhooks.couldNotSave'));
     }
   };
 
   // Function to handle sending an individual bulk data item
   const handleSendSingleItem = async (item: BulkDataItem) => {
-    const activeWebhooks = webhookUrls.filter(webhook => webhook.active);
-    
+    const activeWebhooks = webhookUrls.filter((webhook) => webhook.active);
+
     if (activeWebhooks.length === 0) {
       Alert.alert(t('settings.bulkData.noActiveUrls'), t('settings.bulkData.activateMessage'));
       return;
     }
-    
+
     setSendingItemId(item.id);
-    
+
     try {
       // Create an array of promises for each active webhook URL
-      const promises = activeWebhooks.map(webhook => {
-        return axios.post(webhook.url, { data: item.data }, {
-          headers: { 'Content-Type': 'application/json' },
-          timeout: 5000
-        });
+      const promises = activeWebhooks.map((webhook) => {
+        return axios.post(
+          webhook.url,
+          { data: item.data },
+          {
+            headers: { 'Content-Type': 'application/json' },
+            timeout: 5000,
+          }
+        );
       });
-      
+
       // Wait for all promises to resolve
       const results = await Promise.allSettled(promises);
-      
+
       // Count successes and failures
-      const successes = results.filter(result => result.status === 'fulfilled').length;
-      const failures = results.filter(result => result.status === 'rejected').length;
-      
+      const successes = results.filter((result) => result.status === 'fulfilled').length;
+      const failures = results.filter((result) => result.status === 'rejected').length;
+
       // Show result to user
       Alert.alert(
         t('settings.bulkData.sendComplete'),
         `${t('settings.bulkData.successfullySentTo')} ${successes} ${successes !== 1 ? t('settings.bulkData.endpoints') : t('settings.bulkData.endpoint')}.
 ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failures !== 1 ? t('settings.bulkData.endpoints') : t('settings.bulkData.endpoint')}.` : ''}`
       );
-      
-    } catch (error: unknown) {
+    } catch (_error: unknown) {
       Alert.alert(t('settings.bulkData.sendError'), t('settings.bulkData.errorSending'));
     } finally {
       setSendingItemId(null);
     }
   };
-  
+
   // Function to handle editing a bulk data item
   const startEditingItem = (item: BulkDataItem) => {
     setEditingItemId(item.id);
     setEditingItemValue(item.data);
   };
-  
+
   // Function to save edited bulk data item
   const saveEditedItem = (itemId: string | number) => {
     // Avoid redundant writes by checking for actual changes
-    const updatedBulkData = bulkData.map(item => 
+    const updatedBulkData = bulkData.map((item) =>
       item.id === itemId ? { ...item, data: editingItemValue } : item
     );
-    
+
     AsyncStorage.setItem('bulkData', JSON.stringify(updatedBulkData))
       .then(() => {
         setEditingItemId(null);
@@ -468,11 +457,11 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
         Alert.alert(t('settings.webhooks.saveError'), t('settings.bulkData.saveErrorMessage'));
       });
   };
-  
+
   // Function to delete a bulk data item
   const deleteBulkItem = (itemId: string | number) => {
     // Guard deletion to only write when list actually shrank
-    const updatedBulkData = bulkData.filter(item => item.id !== itemId);
+    const updatedBulkData = bulkData.filter((item) => item.id !== itemId);
     AsyncStorage.setItem('bulkData', JSON.stringify(updatedBulkData))
       .then(() => {
         setBulkData(updatedBulkData);
@@ -481,7 +470,7 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
         Alert.alert(t('settings.bulkData.deleteError'), t('settings.bulkData.deleteErrorMessage'));
       });
   };
-  
+
   // Function to cancel editing
   const cancelEditing = () => {
     setEditingItemId(null);
@@ -491,9 +480,20 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
     <View style={{ flex: 1 }}>
       <ScrollView style={styles.scrollableArea} contentContainerStyle={styles.contentContainer}>
         {/* Settings Section */}
-        <View style={[styles.sectionCard, openSection === 'general' && styles.sectionCardOpen, { position: 'relative', zIndex: 3 }]}>
+        <View
+          style={[
+            styles.sectionCard,
+            openSection === 'general' && styles.sectionCardOpen,
+            { position: 'relative', zIndex: 3 },
+          ]}
+        >
           <TouchableOpacity
-            style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 4 }}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              paddingVertical: 8,
+              paddingHorizontal: 4,
+            }}
             onPress={() => handleToggleSection('general')}
             activeOpacity={1}
           >
@@ -509,579 +509,693 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
               style={{ marginLeft: 8 }}
             />
           </TouchableOpacity>
-            {openSection === 'general' && (
-                <View style={styles.dropdownContent}>
-                  <View style={styles.optionsDropdownMenu}>
-                  <Text style={[styles.settingLabel, { color: '#888', fontSize: 14, marginBottom: 8 }]}>{t('settings.general.inputBehavior')}</Text>
-                  <TouchableOpacity 
-                    style={styles.settingRowCompact}
-                    onPress={() => toggleSpeechMute?.()}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.settingLabel}>{t('settings.general.muteVoiceOutput')}</Text>
-                    <Switch
-                      value={isSpeechMuted}
-                      onValueChange={() => toggleSpeechMute?.()}
-                      trackColor={{ false: "#333", true: "#0066cc" }}
-                      thumbColor={isSpeechMuted ? "#0066cc" : "#f4f3f4"}
-                    />
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    style={styles.settingRowCompact}
-                    onPress={() => requirePremium(() => setContinuousMode?.(!continuousMode))}
-                    activeOpacity={0.7}
-                    disabled={loading}
-                  >
-                    <Text style={styles.settingLabel}>Continuous Mode</Text>
-                    <Switch
-                      value={continuousMode}
-                      onValueChange={v => requirePremium(() => setContinuousMode?.(v))}
-                      trackColor={{ false: "#333", true: "#0066cc" }}
-                      thumbColor={continuousMode ? "#0066cc" : "#f4f3f4"}
-                      disabled={loading}
-                    />
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    style={styles.settingRowCompact}
-                    onPress={() => setEnterKeyNewLine?.(!enterKeyNewLine)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.settingLabel}>{t('settings.general.newLineOnSend')}</Text>
-                    <Switch
-                      value={enterKeyNewLine}
-                      onValueChange={v => setEnterKeyNewLine?.(v)}
-                      trackColor={{ false: "#333", true: "#0066cc" }}
-                      thumbColor={enterKeyNewLine ? "#0066cc" : "#f4f3f4"}
-                    />
-                  </TouchableOpacity>
-                  {Platform.OS !== 'web' && (
-                    <TouchableOpacity 
-                      style={styles.settingRowCompact}
-                      onPress={() => setVibrationEnabled?.(!vibrationEnabled)}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={styles.settingLabel}>{t('settings.general.enableVibration')}</Text>
-                      <Switch
-                        value={vibrationEnabled}
-                        onValueChange={v => setVibrationEnabled?.(v)}
-                        trackColor={{ false: "#333", true: "#0066cc" }}
-                        thumbColor={vibrationEnabled ? "#0066cc" : "#f4f3f4"}
-                      />
-                    </TouchableOpacity>
-                  )}
-                  {Platform.OS !== 'web' && (
-                    <TouchableOpacity 
-                      style={styles.settingRowCompact}
-                      onPress={() => setOpenInCalcMode?.(!openInCalcMode)}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={styles.settingLabel}>{t('settings.general.openInCalcMode')}</Text>
-                      <Switch
-                        value={openInCalcMode}
-                        onValueChange={v => setOpenInCalcMode?.(v)}
-                        trackColor={{ false: "#333", true: "#0066cc" }}
-                        thumbColor={openInCalcMode ? "#0066cc" : "#f4f3f4"}
-                      />
-                    </TouchableOpacity>
-                  )}
-                  <View style={{ marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: '#333' }}>
-                    <Text style={[styles.settingLabel, { color: '#888', fontSize: 14, marginBottom: 8 }]}>{t('settings.general.webhooksSection')}</Text>
-                  </View>
-                  <TouchableOpacity 
-                    style={styles.settingRowCompact}
-                    onPress={() => requirePremium(() => setSendEquation(sendEquation))}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.settingLabel}>{t('settings.general.sendAnswerWithoutEquation')}</Text>
-                    <Switch
-                      value={!sendEquation}
-                      onValueChange={v => requirePremium(() => setSendEquation(!v))}
-                      trackColor={{ false: "#333", true: "#0066cc" }}
-                      thumbColor={!sendEquation ? "#0066cc" : "#f4f3f4"}
-                    />
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    style={styles.settingRowCompact}
-                    onPress={() => requirePremium(() => setStreamResults(streamResults))}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.settingLabel}>{t('settings.general.queueResultsForManualSending')}</Text>
-                    <Switch
-                      value={!streamResults}
-                      onValueChange={v => requirePremium(() => setStreamResults(!v))}
-                      trackColor={{ false: "#333", true: "#0066cc" }}
-                      thumbColor={!streamResults ? "#0066cc" : "#f4f3f4"}
-                    />
-                  </TouchableOpacity>
-                  </View>
-              </View>
-            )}
-          </View>
-
-          {/* Language Section */}
-          <View style={[styles.sectionCard, openSection === 'language' && styles.sectionCardOpen, { position: 'relative', zIndex: 2 }]}>
-            <TouchableOpacity
-              style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 4 }}
-              onPress={() => handleToggleSection('language')}
-              activeOpacity={1}
-            >
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <AppIcon name="language" size={20} color="#888" style={{ marginRight: 8 }} />
-                <Text style={styles.subHeader}>{t('settings.language.title')}</Text>
-              </View>
-              <View style={{ flex: 1 }} />
-              <AppIcon
-                name={openSection === 'language' ? 'chevron-up' : 'chevron-down'}
-                size={24}
-                color="#fff"
-                style={{ marginLeft: 8 }}
-              />
-            </TouchableOpacity>
-            {openSection === 'language' && (
-                <View style={styles.dropdownContent}>
-                  <View style={styles.optionsDropdownMenu}>
-                  {SUPPORTED_LANGUAGES.map((lang) => (
-                    <TouchableOpacity
-                      key={lang.code}
-                      style={[
-                        styles.languageOption,
-                        language === lang.code && styles.languageOptionSelected
-                      ]}
-                      onPress={() => handleLanguageSelect(lang.code)}
-                      activeOpacity={0.6}
-                    >
-                      <View style={styles.languageOptionContent}>
-                        <Text style={styles.languageName}>{lang.nativeName}</Text>
-                      </View>
-                      <View style={[
-                        styles.radioButton,
-                        language === lang.code && styles.radioButtonSelected
-                      ]}>
-                        {language === lang.code && (
-                          <View style={styles.radioButtonInner} />
-                        )}
-                      </View>
-                    </TouchableOpacity>
-                  ))}
-                  </View>
-              </View>
-            )}
-          </View>
-          
-          {/* Webhook Section */}
-          <View style={[styles.sectionCard, openSection === 'webhooks' && styles.sectionCardOpen, { position: 'relative', zIndex: 1 }]}>
-            <TouchableOpacity
-              style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 4 }}
-              onPress={() => handleToggleSection('webhooks')}
-              activeOpacity={1}
-            >
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <AppIcon name="webhook" size={20} color="#888" style={{ marginRight: 8 }} />
-                <Text style={styles.subHeader}>{t('settings.webhooks.title')}</Text>
-              </View>
-              <View style={{ flex: 1 }} />
-              <AppIcon
-                name={openSection === 'webhooks' ? 'chevron-up' : 'chevron-down'}
-                size={24}
-                color="#fff"
-                style={{ marginLeft: 8 }}
-              />
-            </TouchableOpacity>
-            
-            {openSection === 'webhooks' && (
-                <View style={styles.dropdownContent}>
-                  <Text style={styles.sectionSubtitle}>{t('settings.webhooks.createNew')}</Text>
-                  <View style={[styles.addWebhookContainer, styles.sectionPadding]}>
-                    <TextInput
-                      style={styles.webhookInput}
-                      placeholder={t('settings.webhooks.enterTitle')}
-                      placeholderTextColor="#888"
-                      value={localWebhookTitle}
-                      onChangeText={updateLocalWebhookTitle}
-                      autoCapitalize="sentences"
-                    />
-                    <TextInput
-                      style={styles.webhookInput}
-                      placeholder={t('settings.webhooks.enterUrl')}
-                      placeholderTextColor="#888"
-                      value={localWebhookUrl}
-                      onChangeText={updateLocalWebhookUrl}
-                      autoCapitalize="none"
-                      keyboardType="url"
-                    />
-                    <TouchableOpacity
-                      style={[
-                        styles.addButton, 
-                        (!isPremium || !/^https?:\/\//.test(localWebhookUrl.trim())) && styles.addButtonDisabled
-                      ]}
-                      onPress={() => {
-                        if (!isPremium) {
-                          setShowPremiumModal(true);
-                        } else if (/^https?:\/\//.test(localWebhookUrl.trim())) {
-                          handleAddWebhookLocal();
-                        }
-                      }}
-                    >
-                      {!isPremium ? (
-                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                          <AppIcon name="crown" size={16} color="#fff" style={{ marginRight: 6 }} />
-                          <Text style={styles.addButtonText}>{t('common.pro')}</Text>
-                        </View>
-                      ) : (
-                        <Text style={styles.addButtonText}>{t('settings.webhooks.add')}</Text>
-                      )}
-                    </TouchableOpacity>
-                  </View>
-                  
-                  {localWebhookUrls.length > 0 && (
-                    <>
-                      <View style={styles.sectionDivider} />
-                      <Text style={[styles.sectionSubtitle, styles.sectionTopMargin]}>{t('settings.webhooks.myWebhooks')}</Text>
-                    </>
-                  )}
-                  
-                  {localWebhookUrls.length > 0 ? (
-                    <View style={styles.webhookList}>
-                      {localWebhookUrls.map((item) => (
-                        <View key={item.url} style={[styles.webhookItem, styles.sectionPadding]}>
-                          {editingWebhookUrl === item.url ? (
-                            // Editing UI
-                            <View style={styles.webhookEditRow}>
-                              <View style={styles.webhookEditInputsContainer}>
-                                <TextInput
-                                  style={styles.webhookInput}
-                                  placeholder={t('settings.webhooks.webhookTitle')}
-                                  placeholderTextColor="#888"
-                                  value={editingWebhookTitle}
-                                  onChangeText={setEditingWebhookTitle}
-                                  autoCapitalize="sentences"
-                                />
-                                <TextInput
-                                  style={styles.webhookInput}
-                                  placeholder={t('settings.webhooks.webhookUrl')}
-                                  placeholderTextColor="#888"
-                                  value={editingWebhookValue}
-                                  onChangeText={setEditingWebhookValue}
-                                  autoCapitalize="none"
-                                  keyboardType="url"
-                                />
-                              </View>
-                              <View style={styles.webhookEditControls}>
-                                <TouchableOpacity
-                                  style={[styles.editButton, styles.saveButton]}
-                                  onPress={() => saveEditedWebhook(item.url)}
-                                >
-                                  <AppIcon name="check" size={24} color="#fff" />
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                  style={[styles.editButton, styles.cancelButton]}
-                                  onPress={cancelEditingWebhook}
-                                >
-                                  <AppIcon name="close" size={24} color="#FF3B30" />
-                                </TouchableOpacity>
-                              </View>
-                            </View>
-                          ) : (
-                            // Display UI
-                            <>
-                              <Text style={styles.webhookUrlText} numberOfLines={1} ellipsizeMode="middle">
-                                {item.title ? item.title : item.url}
-                              </Text>
-                              <View style={styles.webhookItemControls}>
-                                <Switch
-                                  value={item.active}
-                                  onValueChange={(value) => {
-                                    requirePremium(() => {
-                                      handleToggleWebhook(item.url, value);
-                                      const updated = localWebhookUrls.map(webhook => 
-                                        webhook.url === item.url ? { ...webhook, active: value } : webhook
-                                      );
-                                      setLocalWebhookUrls(updated);
-                                    });
-                                  }}
-                                  trackColor={{ false: "#333", true: "#0066cc" }}
-                                  thumbColor={item.active ? "#0066cc" : "#f4f3f4"}
-                                  style={styles.webhookSwitch}
-                                />
-                                <TouchableOpacity
-                                  onPress={() => startEditingWebhook(item.url)}
-                                  style={styles.editButton}
-                                >
-                                  <AppIcon name="pencil" size={20} color="#888888" />
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                  onPress={() => {
-                                    handleDeleteWebhookWrapped(item.url);
-                                    const updated = localWebhookUrls.filter(webhook => webhook.url !== item.url);
-                                    setLocalWebhookUrls(updated);
-                                  }}
-                                  style={styles.deleteButton}
-                                >
-                                  <AppIcon name="close" size={20} color="#888888" />
-                                </TouchableOpacity>
-                              </View>
-                            </>
-                          )}
-                        </View>
-                      ))}
-                    </View>
-                  ) : (
-                    <View style={styles.emptyStateContainer}>
-                      <AppIcon name="webhook" size={48} color="#444" style={{ marginBottom: 16 }} />
-                      <Text style={styles.emptyStateTitle}>No Webhooks</Text>
-                      <Text style={styles.emptyStateDescription}>
-                        Send results to external services automatically.
-                      </Text>
-                      <Text style={styles.emptyStateDescription}>
-                        Works with Zapier, Make, or any API endpoint.
-                      </Text>
-                    </View>
-                  )}
-              </View>
-            )}
-          </View>
-          
-          {/* Bulk Send Button and Data Display */}
-          {bulkData.length > 0 && (
-            <View style={styles.sectionCard}>
-              <View style={styles.bulkHeaderContainer}>
-                <Text style={styles.subHeader}>{t('settings.bulkData.title')} ({bulkData.length} {t('settings.bulkData.items')})</Text>
-                <TouchableOpacity 
-                  onPress={clearBulkDataWrapped} 
-                  style={styles.deleteAllButton} 
-                  disabled={isSendingBulk} 
+          {openSection === 'general' && (
+            <View style={styles.dropdownContent}>
+              <View style={styles.optionsDropdownMenu}>
+                <Text
+                  style={[styles.settingLabel, { color: '#888', fontSize: 14, marginBottom: 8 }]}
                 >
-                  <Text style={[styles.deleteAllButtonText, isSendingBulk && styles.disabledText]}>{t('settings.bulkData.deleteAll')}</Text> 
-                </TouchableOpacity>
-              </View>
-              
-              {/* Display the bulk data items with edit/delete/send controls */}
-              <View style={styles.bulkDataContainer}>
-                {bulkData.map((item, index) => (
-                  <View key={item.id} style={styles.bulkDataItem}>
-                    <Text style={styles.bulkDataIndex}>{index + 1}.</Text>
-                    <View style={{ flex: 1 }}>
-                      {editingItemId === item.id ? (
-                        // Editing mode
-                        <View style={styles.editItemContainer}>
-                          <TextInput
-                            style={styles.editItemInput}
-                            value={editingItemValue}
-                            onChangeText={setEditingItemValue}
-                            autoFocus
-                          />
-                          <TouchableOpacity 
-                            style={[styles.editButton, styles.saveButton]}
-                            onPress={() => saveEditedItem(item.id)}
-                          >
-                            <AppIcon name="check" size={18} color="#fff" />
-                          </TouchableOpacity>
-                          <TouchableOpacity 
-                            style={[styles.editButton, styles.cancelButton]}
-                            onPress={cancelEditing}
-                          >
-                            <AppIcon name="close" size={18} color="#fff" />
-                          </TouchableOpacity>
-                        </View>
-                      ) : (
-                        // Display mode with actions
-                        <View style={styles.bulkItemWithActions}>
-                          <View style={styles.bulkDataContentContainer}>
-                            <Text style={styles.bulkDataContent} numberOfLines={1} ellipsizeMode="tail">
-                              {item.data}
-                            </Text>
-                          </View>
-                          <View style={styles.bulkItemActions}>
-                            <TouchableOpacity 
-                              style={styles.bulkItemAction}
-                              onPress={() => startEditingItem(item)}
-                            >
-                              <AppIcon name="pencil" size={18} color="#ccc" />
-                            </TouchableOpacity>
-                            
-                            <TouchableOpacity 
-                              style={styles.bulkItemAction}
-                              onPress={() => handleSendSingleItemWrapped(item)}
-                              disabled={sendingItemId === item.id || localWebhookUrls.filter(webhook => webhook.active).length === 0}
-                            >
-                              {sendingItemId === item.id ? (
-                                <ActivityIndicator size="small" color="#0066cc" />
-                              ) : (
-                                <AppIcon 
-                                  name="send" 
-                                  size={18} 
-                                  color={localWebhookUrls.filter(webhook => webhook.active).length > 0 ? "#0066cc" : "#666"} 
-                                />
-                              )}
-                            </TouchableOpacity>
-                            
-                            <TouchableOpacity 
-                              style={styles.bulkItemAction}
-                              onPress={() => deleteBulkItem(item.id)}
-                            >
-                              <AppIcon name="close" size={18} color="#888888" />
-                            </TouchableOpacity>
-                          </View>
-                        </View>
-                      )}
-                    </View>
-                  </View>
-                ))}
-              </View>
-              
-              <TouchableOpacity
-                style={[
-                  styles.bulkSendButton,
-                  (bulkData.length === 0 || localWebhookUrls.filter(webhook => webhook.active).length === 0 || isSendingBulk) && styles.disabledButton
-                ]}
-                onPress={handleSendBulkDataWrapped}
-                disabled={bulkData.length === 0 || localWebhookUrls.filter(webhook => webhook.active).length === 0 || isSendingBulk}
-              >
-                <AppIcon name="send" size={20} color="#fff" style={{ marginRight: 8 }} />
-                <Text style={styles.bulkSendText}>
-                  {isSendingBulk ? t('settings.bulkData.sending') : `${t('settings.bulkData.send')} ${bulkData.length} ${bulkData.length !== 1 ? t('settings.bulkData.items') : t('settings.bulkData.item')}`}
+                  {t('settings.general.inputBehavior')}
                 </Text>
-                {isSendingBulk && <ActivityIndicator size="small" color="#fff" style={{ marginLeft: 10 }} />}
-              </TouchableOpacity>
-              {localWebhookUrls.filter(webhook => webhook.active).length === 0 && bulkData.length > 0 && !isSendingBulk && (
-                <Text style={styles.warningText}>{t('settings.bulkData.activateWebhook')}</Text>
-              )}
-            </View>
-          )}
-          
-          {/* Authentication Section */}
-          <View style={[styles.sectionCard, styles.authSection]}>
-            <View style={{ alignItems: 'center', paddingVertical: 16, paddingHorizontal: 4 }}>
-              {/* Avatar */}
-              {user ? (
-                user.picture ? (
-                  <Image 
-                    source={{ uri: user.picture }} 
-                    style={{ width: 72, height: 72, borderRadius: 36, marginBottom: 12 }}
-                  />
-                ) : (
-                  <AppIcon name="account-circle" size={72} color="#888" style={{ marginBottom: 12 }} />
-                )
-              ) : (
-                <Image 
-                  source={require('../../assets/images/cat.webp')} 
-                  style={{ width: 72, height: 72, borderRadius: 36, marginBottom: 12 }}
-                />
-              )}
-
-              {/* Text */}
-              <Text style={[styles.subHeader, { fontSize: 18, marginBottom: 2, fontWeight: 'bold', color: '#fff', textAlign: 'center' }]}>
-                {user ? (user.name || 'User') : t('auth.anonymousCat')}
-              </Text>
-              <Text style={[styles.userSubtitle, { fontSize: 14, color: '#888', textAlign: 'center' }]}>
-                {user ? user.email : t('auth.guestUser')}
-              </Text>
-
-              {/* Button */}
-              {user ? (
                 <TouchableOpacity
-                  style={[styles.signOutButton, { marginTop: 4 }]}
-                  onPress={handleSignOut}
+                  style={styles.settingRowCompact}
+                  onPress={() => toggleSpeechMute?.()}
+                  activeOpacity={0.7}
                 >
-                  <AppIcon name="logout" size={18} color="#888" style={{ marginRight: 8 }} />
-                  <Text style={styles.signOutButtonText}>{t('auth.signOut')}</Text>
+                  <Text style={styles.settingLabel}>{t('settings.general.muteVoiceOutput')}</Text>
+                  <Switch
+                    value={isSpeechMuted}
+                    onValueChange={() => toggleSpeechMute?.()}
+                    trackColor={{ false: '#333', true: '#0066cc' }}
+                    thumbColor={isSpeechMuted ? '#0066cc' : '#f4f3f4'}
+                  />
                 </TouchableOpacity>
-              ) : (
-                <TouchableOpacity 
-                  style={[styles.googleButton, { marginTop: 12, paddingVertical: 8, paddingHorizontal: 16 }]}
-                  onPress={handleGoogleLogin}
-                  disabled={isLoading}
+                <TouchableOpacity
+                  style={styles.settingRowCompact}
+                  onPress={() => requirePremium(() => setContinuousMode?.(!continuousMode))}
+                  activeOpacity={0.7}
+                  disabled={loading}
                 >
-                  {isLoading ? (
-                    <ActivityIndicator color="#0066cc" size="small" />
-                  ) : (
-                    <>
-                      <GoogleLogo size={18} />
-                      <Text style={[styles.googleButtonText, { fontSize: 14 }]}>{t('auth.continueWithGoogle')}</Text>
-                    </>
-                  )}
+                  <Text style={styles.settingLabel}>Continuous Mode</Text>
+                  <Switch
+                    value={continuousMode}
+                    onValueChange={(v) => requirePremium(() => setContinuousMode?.(v))}
+                    trackColor={{ false: '#333', true: '#0066cc' }}
+                    thumbColor={continuousMode ? '#0066cc' : '#f4f3f4'}
+                    disabled={loading}
+                  />
                 </TouchableOpacity>
-              )}
+                <TouchableOpacity
+                  style={styles.settingRowCompact}
+                  onPress={() => setEnterKeyNewLine?.(!enterKeyNewLine)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.settingLabel}>{t('settings.general.newLineOnSend')}</Text>
+                  <Switch
+                    value={enterKeyNewLine}
+                    onValueChange={(v) => setEnterKeyNewLine?.(v)}
+                    trackColor={{ false: '#333', true: '#0066cc' }}
+                    thumbColor={enterKeyNewLine ? '#0066cc' : '#f4f3f4'}
+                  />
+                </TouchableOpacity>
+                {Platform.OS !== 'web' && (
+                  <TouchableOpacity
+                    style={styles.settingRowCompact}
+                    onPress={() => setVibrationEnabled?.(!vibrationEnabled)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.settingLabel}>{t('settings.general.enableVibration')}</Text>
+                    <Switch
+                      value={vibrationEnabled}
+                      onValueChange={(v) => setVibrationEnabled?.(v)}
+                      trackColor={{ false: '#333', true: '#0066cc' }}
+                      thumbColor={vibrationEnabled ? '#0066cc' : '#f4f3f4'}
+                    />
+                  </TouchableOpacity>
+                )}
+                {Platform.OS !== 'web' && (
+                  <TouchableOpacity
+                    style={styles.settingRowCompact}
+                    onPress={() => setOpenInCalcMode?.(!openInCalcMode)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.settingLabel}>{t('settings.general.openInCalcMode')}</Text>
+                    <Switch
+                      value={openInCalcMode}
+                      onValueChange={(v) => setOpenInCalcMode?.(v)}
+                      trackColor={{ false: '#333', true: '#0066cc' }}
+                      thumbColor={openInCalcMode ? '#0066cc' : '#f4f3f4'}
+                    />
+                  </TouchableOpacity>
+                )}
+                <View
+                  style={{
+                    marginTop: 16,
+                    paddingTop: 16,
+                    borderTopWidth: 1,
+                    borderTopColor: '#333',
+                  }}
+                >
+                  <Text
+                    style={[styles.settingLabel, { color: '#888', fontSize: 14, marginBottom: 8 }]}
+                  >
+                    {t('settings.general.webhooksSection')}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.settingRowCompact}
+                  onPress={() => requirePremium(() => setSendEquation(sendEquation))}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.settingLabel}>
+                    {t('settings.general.sendAnswerWithoutEquation')}
+                  </Text>
+                  <Switch
+                    value={!sendEquation}
+                    onValueChange={(v) => requirePremium(() => setSendEquation(!v))}
+                    trackColor={{ false: '#333', true: '#0066cc' }}
+                    thumbColor={!sendEquation ? '#0066cc' : '#f4f3f4'}
+                  />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.settingRowCompact}
+                  onPress={() => requirePremium(() => setStreamResults(streamResults))}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.settingLabel}>
+                    {t('settings.general.queueResultsForManualSending')}
+                  </Text>
+                  <Switch
+                    value={!streamResults}
+                    onValueChange={(v) => requirePremium(() => setStreamResults(!v))}
+                    trackColor={{ false: '#333', true: '#0066cc' }}
+                    thumbColor={!streamResults ? '#0066cc' : '#f4f3f4'}
+                  />
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
-
-        </ScrollView>
-        
-        {/* Legal Links at absolute bottom */}
-        <View style={styles.legalLinksContainer}>
-          <TouchableOpacity 
-            onPress={() => {
-              onClose();
-              router.push('/privacy');
-            }}
-          >
-            <Text style={styles.legalLinkText}>{t('common.privacyPolicy')}</Text>
-          </TouchableOpacity>
-          <Text style={styles.legalLinkSeparator}> • </Text>
-          <TouchableOpacity 
-            onPress={() => {
-              onClose();
-              router.push('/terms');
-            }}
-          >
-            <Text style={styles.legalLinkText}>{t('common.termsOfService')}</Text>
-          </TouchableOpacity>
-          {user && (
-            <>
-              <Text style={styles.legalLinkSeparator}> • </Text>
-              <TouchableOpacity 
-                onPress={() => {
-                  onClose();
-                  router.push('/contact');
-                }}
-              >
-                <Text style={styles.legalLinkText}>Contact Us</Text>
-              </TouchableOpacity>
-            </>
           )}
         </View>
+
+        {/* Language Section */}
+        <View
+          style={[
+            styles.sectionCard,
+            openSection === 'language' && styles.sectionCardOpen,
+            { position: 'relative', zIndex: 2 },
+          ]}
+        >
+          <TouchableOpacity
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              paddingVertical: 8,
+              paddingHorizontal: 4,
+            }}
+            onPress={() => handleToggleSection('language')}
+            activeOpacity={1}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <AppIcon name="language" size={20} color="#888" style={{ marginRight: 8 }} />
+              <Text style={styles.subHeader}>{t('settings.language.title')}</Text>
+            </View>
+            <View style={{ flex: 1 }} />
+            <AppIcon
+              name={openSection === 'language' ? 'chevron-up' : 'chevron-down'}
+              size={24}
+              color="#fff"
+              style={{ marginLeft: 8 }}
+            />
+          </TouchableOpacity>
+          {openSection === 'language' && (
+            <View style={styles.dropdownContent}>
+              <View style={styles.optionsDropdownMenu}>
+                {SUPPORTED_LANGUAGES.map((lang) => (
+                  <TouchableOpacity
+                    key={lang.code}
+                    style={[
+                      styles.languageOption,
+                      language === lang.code && styles.languageOptionSelected,
+                    ]}
+                    onPress={() => handleLanguageSelect(lang.code)}
+                    activeOpacity={0.6}
+                  >
+                    <View style={styles.languageOptionContent}>
+                      <Text style={styles.languageName}>{lang.nativeName}</Text>
+                    </View>
+                    <View
+                      style={[
+                        styles.radioButton,
+                        language === lang.code && styles.radioButtonSelected,
+                      ]}
+                    >
+                      {language === lang.code && <View style={styles.radioButtonInner} />}
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          )}
+        </View>
+
+        {/* Webhook Section */}
+        <View
+          style={[
+            styles.sectionCard,
+            openSection === 'webhooks' && styles.sectionCardOpen,
+            { position: 'relative', zIndex: 1 },
+          ]}
+        >
+          <TouchableOpacity
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              paddingVertical: 8,
+              paddingHorizontal: 4,
+            }}
+            onPress={() => handleToggleSection('webhooks')}
+            activeOpacity={1}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <AppIcon name="webhook" size={20} color="#888" style={{ marginRight: 8 }} />
+              <Text style={styles.subHeader}>{t('settings.webhooks.title')}</Text>
+            </View>
+            <View style={{ flex: 1 }} />
+            <AppIcon
+              name={openSection === 'webhooks' ? 'chevron-up' : 'chevron-down'}
+              size={24}
+              color="#fff"
+              style={{ marginLeft: 8 }}
+            />
+          </TouchableOpacity>
+
+          {openSection === 'webhooks' && (
+            <View style={styles.dropdownContent}>
+              <Text style={styles.sectionSubtitle}>{t('settings.webhooks.createNew')}</Text>
+              <View style={[styles.addWebhookContainer, styles.sectionPadding]}>
+                <TextInput
+                  style={styles.webhookInput}
+                  placeholder={t('settings.webhooks.enterTitle')}
+                  placeholderTextColor="#888"
+                  value={localWebhookTitle}
+                  onChangeText={updateLocalWebhookTitle}
+                  autoCapitalize="sentences"
+                />
+                <TextInput
+                  style={styles.webhookInput}
+                  placeholder={t('settings.webhooks.enterUrl')}
+                  placeholderTextColor="#888"
+                  value={localWebhookUrl}
+                  onChangeText={updateLocalWebhookUrl}
+                  autoCapitalize="none"
+                  keyboardType="url"
+                />
+                <TouchableOpacity
+                  style={[
+                    styles.addButton,
+                    (!isPremium || !/^https?:\/\//.test(localWebhookUrl.trim())) &&
+                      styles.addButtonDisabled,
+                  ]}
+                  onPress={() => {
+                    if (!isPremium) {
+                      setShowPremiumModal(true);
+                    } else if (/^https?:\/\//.test(localWebhookUrl.trim())) {
+                      handleAddWebhookLocal();
+                    }
+                  }}
+                >
+                  {!isPremium ? (
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <AppIcon name="crown" size={16} color="#fff" style={{ marginRight: 6 }} />
+                      <Text style={styles.addButtonText}>{t('common.pro')}</Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.addButtonText}>{t('settings.webhooks.add')}</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+
+              {localWebhookUrls.length > 0 && (
+                <>
+                  <View style={styles.sectionDivider} />
+                  <Text style={[styles.sectionSubtitle, styles.sectionTopMargin]}>
+                    {t('settings.webhooks.myWebhooks')}
+                  </Text>
+                </>
+              )}
+
+              {localWebhookUrls.length > 0 ? (
+                <View style={styles.webhookList}>
+                  {localWebhookUrls.map((item) => (
+                    <View key={item.url} style={[styles.webhookItem, styles.sectionPadding]}>
+                      {editingWebhookUrl === item.url ? (
+                        // Editing UI
+                        <View style={styles.webhookEditRow}>
+                          <View style={styles.webhookEditInputsContainer}>
+                            <TextInput
+                              style={styles.webhookInput}
+                              placeholder={t('settings.webhooks.webhookTitle')}
+                              placeholderTextColor="#888"
+                              value={editingWebhookTitle}
+                              onChangeText={setEditingWebhookTitle}
+                              autoCapitalize="sentences"
+                            />
+                            <TextInput
+                              style={styles.webhookInput}
+                              placeholder={t('settings.webhooks.webhookUrl')}
+                              placeholderTextColor="#888"
+                              value={editingWebhookValue}
+                              onChangeText={setEditingWebhookValue}
+                              autoCapitalize="none"
+                              keyboardType="url"
+                            />
+                          </View>
+                          <View style={styles.webhookEditControls}>
+                            <TouchableOpacity
+                              style={[styles.editButton, styles.saveButton]}
+                              onPress={() => saveEditedWebhook(item.url)}
+                            >
+                              <AppIcon name="check" size={24} color="#fff" />
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={[styles.editButton, styles.cancelButton]}
+                              onPress={cancelEditingWebhook}
+                            >
+                              <AppIcon name="close" size={24} color="#FF3B30" />
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      ) : (
+                        // Display UI
+                        <>
+                          <Text
+                            style={styles.webhookUrlText}
+                            numberOfLines={1}
+                            ellipsizeMode="middle"
+                          >
+                            {item.title ? item.title : item.url}
+                          </Text>
+                          <View style={styles.webhookItemControls}>
+                            <Switch
+                              value={item.active}
+                              onValueChange={(value) => {
+                                requirePremium(() => {
+                                  handleToggleWebhook(item.url, value);
+                                  const updated = localWebhookUrls.map((webhook) =>
+                                    webhook.url === item.url
+                                      ? { ...webhook, active: value }
+                                      : webhook
+                                  );
+                                  setLocalWebhookUrls(updated);
+                                });
+                              }}
+                              trackColor={{ false: '#333', true: '#0066cc' }}
+                              thumbColor={item.active ? '#0066cc' : '#f4f3f4'}
+                              style={styles.webhookSwitch}
+                            />
+                            <TouchableOpacity
+                              onPress={() => startEditingWebhook(item.url)}
+                              style={styles.editButton}
+                            >
+                              <AppIcon name="pencil" size={20} color="#888888" />
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              onPress={() => {
+                                handleDeleteWebhookWrapped(item.url);
+                                const updated = localWebhookUrls.filter(
+                                  (webhook) => webhook.url !== item.url
+                                );
+                                setLocalWebhookUrls(updated);
+                              }}
+                              style={styles.deleteButton}
+                            >
+                              <AppIcon name="close" size={20} color="#888888" />
+                            </TouchableOpacity>
+                          </View>
+                        </>
+                      )}
+                    </View>
+                  ))}
+                </View>
+              ) : (
+                <View style={styles.emptyStateContainer}>
+                  <AppIcon name="webhook" size={48} color="#444" style={{ marginBottom: 16 }} />
+                  <Text style={styles.emptyStateTitle}>No Webhooks</Text>
+                  <Text style={styles.emptyStateDescription}>
+                    Send results to external services automatically.
+                  </Text>
+                  <Text style={styles.emptyStateDescription}>
+                    Works with Zapier, Make, or any API endpoint.
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
+        </View>
+
+        {/* Bulk Send Button and Data Display */}
+        {bulkData.length > 0 && (
+          <View style={styles.sectionCard}>
+            <View style={styles.bulkHeaderContainer}>
+              <Text style={styles.subHeader}>
+                {t('settings.bulkData.title')} ({bulkData.length} {t('settings.bulkData.items')})
+              </Text>
+              <TouchableOpacity
+                onPress={clearBulkDataWrapped}
+                style={styles.deleteAllButton}
+                disabled={isSendingBulk}
+              >
+                <Text style={[styles.deleteAllButtonText, isSendingBulk && styles.disabledText]}>
+                  {t('settings.bulkData.deleteAll')}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Display the bulk data items with edit/delete/send controls */}
+            <View style={styles.bulkDataContainer}>
+              {bulkData.map((item, index) => (
+                <View key={item.id} style={styles.bulkDataItem}>
+                  <Text style={styles.bulkDataIndex}>{index + 1}.</Text>
+                  <View style={{ flex: 1 }}>
+                    {editingItemId === item.id ? (
+                      // Editing mode
+                      <View style={styles.editItemContainer}>
+                        <TextInput
+                          style={styles.editItemInput}
+                          value={editingItemValue}
+                          onChangeText={setEditingItemValue}
+                          autoFocus
+                        />
+                        <TouchableOpacity
+                          style={[styles.editButton, styles.saveButton]}
+                          onPress={() => saveEditedItem(item.id)}
+                        >
+                          <AppIcon name="check" size={18} color="#fff" />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.editButton, styles.cancelButton]}
+                          onPress={cancelEditing}
+                        >
+                          <AppIcon name="close" size={18} color="#fff" />
+                        </TouchableOpacity>
+                      </View>
+                    ) : (
+                      // Display mode with actions
+                      <View style={styles.bulkItemWithActions}>
+                        <View style={styles.bulkDataContentContainer}>
+                          <Text
+                            style={styles.bulkDataContent}
+                            numberOfLines={1}
+                            ellipsizeMode="tail"
+                          >
+                            {item.data}
+                          </Text>
+                        </View>
+                        <View style={styles.bulkItemActions}>
+                          <TouchableOpacity
+                            style={styles.bulkItemAction}
+                            onPress={() => startEditingItem(item)}
+                          >
+                            <AppIcon name="pencil" size={18} color="#ccc" />
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            style={styles.bulkItemAction}
+                            onPress={() => handleSendSingleItemWrapped(item)}
+                            disabled={
+                              sendingItemId === item.id ||
+                              localWebhookUrls.filter((webhook) => webhook.active).length === 0
+                            }
+                          >
+                            {sendingItemId === item.id ? (
+                              <ActivityIndicator size="small" color="#0066cc" />
+                            ) : (
+                              <AppIcon
+                                name="send"
+                                size={18}
+                                color={
+                                  localWebhookUrls.filter((webhook) => webhook.active).length > 0
+                                    ? '#0066cc'
+                                    : '#666'
+                                }
+                              />
+                            )}
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            style={styles.bulkItemAction}
+                            onPress={() => deleteBulkItem(item.id)}
+                          >
+                            <AppIcon name="close" size={18} color="#888888" />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              ))}
+            </View>
+
+            <TouchableOpacity
+              style={[
+                styles.bulkSendButton,
+                (bulkData.length === 0 ||
+                  localWebhookUrls.filter((webhook) => webhook.active).length === 0 ||
+                  isSendingBulk) &&
+                  styles.disabledButton,
+              ]}
+              onPress={handleSendBulkDataWrapped}
+              disabled={
+                bulkData.length === 0 ||
+                localWebhookUrls.filter((webhook) => webhook.active).length === 0 ||
+                isSendingBulk
+              }
+            >
+              <AppIcon name="send" size={20} color="#fff" style={{ marginRight: 8 }} />
+              <Text style={styles.bulkSendText}>
+                {isSendingBulk
+                  ? t('settings.bulkData.sending')
+                  : `${t('settings.bulkData.send')} ${bulkData.length} ${bulkData.length !== 1 ? t('settings.bulkData.items') : t('settings.bulkData.item')}`}
+              </Text>
+              {isSendingBulk && (
+                <ActivityIndicator size="small" color="#fff" style={{ marginLeft: 10 }} />
+              )}
+            </TouchableOpacity>
+            {localWebhookUrls.filter((webhook) => webhook.active).length === 0 &&
+              bulkData.length > 0 &&
+              !isSendingBulk && (
+                <Text style={styles.warningText}>{t('settings.bulkData.activateWebhook')}</Text>
+              )}
+          </View>
+        )}
+
+        {/* Authentication Section */}
+        <View style={[styles.sectionCard, styles.authSection]}>
+          <View style={{ alignItems: 'center', paddingVertical: 16, paddingHorizontal: 4 }}>
+            {/* Avatar */}
+            {user ? (
+              user.picture ? (
+                <Image
+                  source={{ uri: user.picture }}
+                  style={{ width: 72, height: 72, borderRadius: 36, marginBottom: 12 }}
+                />
+              ) : (
+                <AppIcon
+                  name="account-circle"
+                  size={72}
+                  color="#888"
+                  style={{ marginBottom: 12 }}
+                />
+              )
+            ) : (
+              <Image
+                source={require('../../assets/images/cat.webp')}
+                style={{ width: 72, height: 72, borderRadius: 36, marginBottom: 12 }}
+              />
+            )}
+
+            {/* Text */}
+            <Text
+              style={[
+                styles.subHeader,
+                {
+                  fontSize: 18,
+                  marginBottom: 2,
+                  fontWeight: 'bold',
+                  color: '#fff',
+                  textAlign: 'center',
+                },
+              ]}
+            >
+              {user ? user.name || 'User' : t('auth.anonymousCat')}
+            </Text>
+            <Text
+              style={[styles.userSubtitle, { fontSize: 14, color: '#888', textAlign: 'center' }]}
+            >
+              {user ? user.email : t('auth.guestUser')}
+            </Text>
+
+            {/* Button */}
+            {user ? (
+              <TouchableOpacity
+                style={[styles.signOutButton, { marginTop: 4 }]}
+                onPress={handleSignOut}
+              >
+                <AppIcon name="logout" size={18} color="#888" style={{ marginRight: 8 }} />
+                <Text style={styles.signOutButtonText}>{t('auth.signOut')}</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={[
+                  styles.googleButton,
+                  { marginTop: 12, paddingVertical: 8, paddingHorizontal: 16 },
+                ]}
+                onPress={handleGoogleLogin}
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <ActivityIndicator color="#0066cc" size="small" />
+                ) : (
+                  <>
+                    <GoogleLogo size={18} />
+                    <Text style={[styles.googleButtonText, { fontSize: 14 }]}>
+                      {t('auth.continueWithGoogle')}
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      </ScrollView>
+
+      {/* Legal Links at absolute bottom */}
+      <View style={styles.legalLinksContainer}>
+        <TouchableOpacity
+          onPress={() => {
+            onClose();
+            router.push('/privacy');
+          }}
+        >
+          <Text style={styles.legalLinkText}>{t('common.privacyPolicy')}</Text>
+        </TouchableOpacity>
+        <Text style={styles.legalLinkSeparator}> • </Text>
+        <TouchableOpacity
+          onPress={() => {
+            onClose();
+            router.push('/terms');
+          }}
+        >
+          <Text style={styles.legalLinkText}>{t('common.termsOfService')}</Text>
+        </TouchableOpacity>
+        {user && (
+          <>
+            <Text style={styles.legalLinkSeparator}> • </Text>
+            <TouchableOpacity
+              onPress={() => {
+                onClose();
+                router.push('/contact');
+              }}
+            >
+              <Text style={styles.legalLinkText}>Contact Us</Text>
+            </TouchableOpacity>
+          </>
+        )}
       </View>
+    </View>
   );
-  
+
   return (
     <>
       <Modal
         visible={visible}
-        animationType={Platform.OS === 'web' ? "none" : "slide"}
+        animationType={Platform.OS === 'web' ? 'none' : 'slide'}
         transparent={false}
         onRequestClose={onClose}
       >
         <SafeAreaView style={{ flex: 1, backgroundColor: '#121212' }}>
           <View style={{ flex: 1, backgroundColor: '#121212' }}>
-          <View style={styles.header}>
-            {/* New Back Button on Left */}
-            <TouchableOpacity onPress={onClose} style={styles.headerBackButton}>
-              <AppIcon name="arrow-left" size={24} color="#fff" />
-            </TouchableOpacity>
-            
-            {/* Title and Settings Icon (centered group) */}
-            <View style={styles.headerTitleGroup}>
-              <AppIcon name="cog" size={24} color="#fff" style={{ marginRight: 8 }} />
-              <Text style={styles.modalTitle}>{t('settings.title')}</Text>
-            </View>
-            
-            {/* Premium Button - only shown for non-premium users */}
-            {!isPremium ? (
-              <TouchableOpacity 
-                style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'transparent', paddingHorizontal: 0, paddingVertical: 0, elevation: 0, shadowOpacity: 0 }}
-                onPress={() => setShowPremiumModal(true)}
-                activeOpacity={0.7}
-              >
-                <AppIcon name="crown-outline" size={22} color="#ff9500" />
-                <Text style={{ color: '#ff9500', fontWeight: 'bold', fontSize: 14, marginLeft: 4 }}>{t('common.pro')}</Text>
+            <View style={styles.header}>
+              {/* New Back Button on Left */}
+              <TouchableOpacity onPress={onClose} style={styles.headerBackButton}>
+                <AppIcon name="arrow-left" size={24} color="#fff" />
               </TouchableOpacity>
-            ) : (
-              <View style={styles.headerRightPlaceholder} />
-            )}
+
+              {/* Title and Settings Icon (centered group) */}
+              <View style={styles.headerTitleGroup}>
+                <AppIcon name="cog" size={24} color="#fff" style={{ marginRight: 8 }} />
+                <Text style={styles.modalTitle}>{t('settings.title')}</Text>
+              </View>
+
+              {/* Premium Button - only shown for non-premium users */}
+              {!isPremium ? (
+                <TouchableOpacity
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    backgroundColor: 'transparent',
+                    paddingHorizontal: 0,
+                    paddingVertical: 0,
+                    elevation: 0,
+                    shadowOpacity: 0,
+                  }}
+                  onPress={() => setShowPremiumModal(true)}
+                  activeOpacity={0.7}
+                >
+                  <AppIcon name="crown-outline" size={22} color="#ff9500" />
+                  <Text
+                    style={{ color: '#ff9500', fontWeight: 'bold', fontSize: 14, marginLeft: 4 }}
+                  >
+                    {t('common.pro')}
+                  </Text>
+                </TouchableOpacity>
+              ) : (
+                <View style={styles.headerRightPlaceholder} />
+              )}
+            </View>
+
+            {ScrollViewContent}
           </View>
-          
-          {ScrollViewContent}
-        </View>
         </SafeAreaView>
         <PremiumPaymentModal
           visible={showPremiumModal}
@@ -1624,7 +1738,7 @@ const styles = StyleSheet.create({
       },
       web: {
         boxShadow: '0 4px 8px rgba(0, 0, 0, 0.2)',
-      }
+      },
     }),
   },
   logoContainer: {
@@ -1654,7 +1768,7 @@ const styles = StyleSheet.create({
       },
       web: {
         boxShadow: '0 2px 3px rgba(255, 215, 0, 0.3)',
-      }
+      },
     }),
   },
   premiumTryText: {
@@ -1696,7 +1810,7 @@ const styles = StyleSheet.create({
       },
       web: {
         boxShadow: '0 2px 4px rgba(255, 215, 0, 0.1)',
-      }
+      },
     }),
   },
   promoBadgeText: {
@@ -1747,7 +1861,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 6,
   },
   headerBackButton: {
-    padding: 8, 
+    padding: 8,
   },
   headerTitleGroup: {
     flexDirection: 'row',

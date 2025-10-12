@@ -6,7 +6,7 @@ import { useTranslation } from '../hooks/useTranslation';
 
 export default function NotFoundScreen() {
   const { t } = useTranslation();
-  
+
   return (
     <>
       <Stack.Screen options={{ title: 'Oops!' }} />

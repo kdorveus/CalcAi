@@ -1,24 +1,24 @@
-import React, { useState } from 'react';
+import type React from 'react';
+import { useState } from 'react';
 import {
-  View,
-  Text,
-  Modal,
-  StyleSheet,
-  TouchableOpacity,
-  FlatList,
   ActivityIndicator,
-  Alert,
-  SafeAreaView,
+  FlatList,
+  Modal,
   Platform,
   Pressable,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
+import type { CalculationHistoryItem } from '../contexts/CalculationHistoryContext';
+import { usePostHog } from '../contexts/PostHogContext';
+import { usePremium } from '../contexts/PremiumContext';
+import { useTranslation } from '../hooks/useTranslation';
 // Using our bundled AppIcon component instead of MaterialCommunityIcons
 import AppIcon from './AppIcon';
-import { useCalculationHistory, CalculationHistoryItem } from '../contexts/CalculationHistoryContext';
-import { usePremium } from '../contexts/PremiumContext';
 import PremiumPaymentModal from './PremiumPaymentModal';
-import { useTranslation } from '../hooks/useTranslation';
-import { usePostHog } from '../contexts/PostHogContext';
 
 interface HistoryModalProps {
   visible: boolean;
@@ -37,11 +37,10 @@ const HistoryModal: React.FC<HistoryModalProps> = ({
   history,
   onDelete,
   onClearAll,
-  onSelect,
   isLoading,
   onSendToWebhook,
 }) => {
-  const { isPremium, checkPremiumStatus } = usePremium();
+  const { checkPremiumStatus } = usePremium();
   const { t } = useTranslation();
   const { captureEvent } = usePostHog();
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -80,7 +79,7 @@ const HistoryModal: React.FC<HistoryModalProps> = ({
       onSendToWebhook(item.expression, item.result);
     }
   };
-  
+
   // Handle webhook purchase success
   const handleWebhookSuccess = () => {
     if (selectedItem) {
@@ -96,21 +95,33 @@ const HistoryModal: React.FC<HistoryModalProps> = ({
   const formatDate = (dateString: string) => {
     try {
       const date = new Date(dateString);
-      
+
       // Format: Month Day at HH:MM AM/PM (e.g., "October 6 at 2:45 PM")
-      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
-                          'July', 'August', 'September', 'October', 'November', 'December'];
+      const monthNames = [
+        'January',
+        'February',
+        'March',
+        'April',
+        'May',
+        'June',
+        'July',
+        'August',
+        'September',
+        'October',
+        'November',
+        'December',
+      ];
       const monthName = monthNames[date.getMonth()];
       const day = date.getDate();
-      
+
       let hours = date.getHours();
       const minutes = String(date.getMinutes()).padStart(2, '0');
       const ampm = hours >= 12 ? 'PM' : 'AM';
       hours = hours % 12;
       hours = hours ? hours : 12; // the hour '0' should be '12'
-      
+
       return `${monthName} ${day} at ${hours}:${minutes} ${ampm}`;
-    } catch (error) {
+    } catch (_error) {
       return t('history.unknownDate');
     }
   };
@@ -124,16 +135,10 @@ const HistoryModal: React.FC<HistoryModalProps> = ({
         <Text style={styles.dateText}>{formatDate(item.created_at)}</Text>
       </View>
       <View style={styles.historyItemActions}>
-        <TouchableOpacity 
-          style={styles.actionButton}
-          onPress={() => handleSendToWebhook(item)}
-        >
+        <TouchableOpacity style={styles.actionButton} onPress={() => handleSendToWebhook(item)}>
           <AppIcon name="send" size={20} color="#0066cc" />
         </TouchableOpacity>
-        <TouchableOpacity 
-          onPress={() => handleDelete(item.created_at)} 
-          style={styles.actionButton}
-        >
+        <TouchableOpacity onPress={() => handleDelete(item.created_at)} style={styles.actionButton}>
           <AppIcon name="delete" size={20} color="#888" />
         </TouchableOpacity>
       </View>
@@ -151,32 +156,29 @@ const HistoryModal: React.FC<HistoryModalProps> = ({
 
   return (
     <>
-      <Modal
-        visible={visible}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={onClose}
-      >
+      <Modal visible={visible} transparent={true} animationType="slide" onRequestClose={onClose}>
         <SafeAreaView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <TouchableOpacity 
-              style={styles.backButton}
-              onPress={onClose}
-            >
+            <TouchableOpacity style={styles.backButton} onPress={onClose}>
               <AppIcon name="arrow-left" size={24} color="#fff" />
             </TouchableOpacity>
-            
+
             <Text style={styles.modalTitle}>{t('history.calculationHistory')}</Text>
-            
+
             {history.length > 0 ? (
               <View style={styles.tooltipContainer}>
-                <Pressable 
+                <Pressable
                   style={styles.clearButton}
                   onPress={handleClearAll}
                   onHoverIn={() => Platform.OS === 'web' && setHoveredTooltip('clearAll')}
                   onHoverOut={() => Platform.OS === 'web' && setHoveredTooltip(null)}
                 >
-                  <AppIcon name="refresh" size={24} color="#888" style={{ transform: [{ scaleX: -1 }] }} />
+                  <AppIcon
+                    name="refresh"
+                    size={24}
+                    color="#888"
+                    style={{ transform: [{ scaleX: -1 }] }}
+                  />
                 </Pressable>
                 {hoveredTooltip === 'clearAll' && Platform.OS === 'web' && (
                   <View style={styles.tooltip}>
@@ -207,7 +209,7 @@ const HistoryModal: React.FC<HistoryModalProps> = ({
           )}
         </SafeAreaView>
       </Modal>
-      
+
       {/* Premium Payment Modal for Webhook */}
       <PremiumPaymentModal
         visible={webhookModalVisible}
@@ -348,7 +350,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 8,
   },
-
 });
 
 export default HistoryModal;

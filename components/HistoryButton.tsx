@@ -1,8 +1,8 @@
-import React from 'react';
-import { TouchableOpacity, StyleSheet, View, Text } from 'react-native';
+import type React from 'react';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useCalculationHistory } from '../contexts/CalculationHistoryContext';
 // Using our bundled AppIcon component instead of MaterialCommunityIcons
 import AppIcon from './AppIcon';
-import { useCalculationHistory } from '../contexts/CalculationHistoryContext';
 
 interface HistoryButtonProps {
   onPress: () => void;
@@ -13,17 +13,11 @@ const HistoryButton: React.FC<HistoryButtonProps> = ({ onPress }) => {
   const hasHistory = history.length > 0;
 
   return (
-    <TouchableOpacity 
-      style={styles.container}
-      onPress={onPress}
-      activeOpacity={0.7}
-    >
+    <TouchableOpacity style={styles.container} onPress={onPress} activeOpacity={0.7}>
       <AppIcon name="history" size={24} color="#fff" />
       {hasHistory && (
         <View style={styles.badge}>
-          <Text style={styles.badgeText}>
-            {history.length > 99 ? '99+' : history.length}
-          </Text>
+          <Text style={styles.badgeText}>{history.length > 99 ? '99+' : history.length}</Text>
         </View>
       )}
     </TouchableOpacity>

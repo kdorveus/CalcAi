@@ -68,23 +68,26 @@ export default {
  * Initiates Google OAuth flow
  * Returns authorization URL for client to redirect to
  */
-async function handleGoogleAuth(request, env, corsHeaders, ctx) {
+async function handleGoogleAuth(request, env, corsHeaders, _ctx) {
   const url = new URL(request.url);
   const platform = url.searchParams.get('platform') || 'web'; // 'web' or 'mobile'
-  
+
   // Generate state parameter for CSRF protection
   const state = crypto.randomUUID();
-  
+
   // Store state in KV with 10 minute expiration
-  await env.AUTH_STATE.put(state, JSON.stringify({ 
-    platform, 
-    timestamp: Date.now() 
-  }), { expirationTtl: 600 });
+  await env.AUTH_STATE.put(
+    state,
+    JSON.stringify({
+      platform,
+      timestamp: Date.now(),
+    }),
+    { expirationTtl: 600 }
+  );
 
   // Build Google OAuth URL
-  const redirectUri = platform === 'mobile' 
-    ? env.GOOGLE_REDIRECT_URI_MOBILE 
-    : env.GOOGLE_REDIRECT_URI_WEB;
+  const redirectUri =
+    platform === 'mobile' ? env.GOOGLE_REDIRECT_URI_MOBILE : env.GOOGLE_REDIRECT_URI_WEB;
 
   const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
   authUrl.searchParams.set('client_id', env.GOOGLE_CLIENT_ID);
@@ -96,9 +99,9 @@ async function handleGoogleAuth(request, env, corsHeaders, ctx) {
   authUrl.searchParams.set('prompt', 'select_account'); // Only show account picker, not permissions every time
 
   return new Response(
-    JSON.stringify({ 
+    JSON.stringify({
       authUrl: authUrl.toString(),
-      state 
+      state,
     }),
     { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   );
@@ -107,42 +110,41 @@ async function handleGoogleAuth(request, env, corsHeaders, ctx) {
 /**
  * Returns Google Client ID for One Tap initialization
  */
-async function handleGetGoogleClientId(request, env, corsHeaders) {
-  return new Response(
-    JSON.stringify({ clientId: env.GOOGLE_CLIENT_ID }),
-    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-  );
+async function handleGetGoogleClientId(_request, env, corsHeaders) {
+  return new Response(JSON.stringify({ clientId: env.GOOGLE_CLIENT_ID }), {
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
 }
 
 /**
  * Handles Google One Tap authentication
  * Verifies JWT credential from Google and creates session
  */
-async function handleGoogleOneTap(request, env, corsHeaders, ctx) {
+async function handleGoogleOneTap(request, env, corsHeaders, _ctx) {
   if (request.method !== 'POST') {
-    return new Response(
-      JSON.stringify({ error: 'Method not allowed' }),
-      { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+      status: 405,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 
   let body;
   try {
     body = await request.json();
-  } catch (e) {
-    return new Response(
-      JSON.stringify({ error: 'Invalid JSON body' }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+  } catch (_e) {
+    return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 
   const { credential } = body;
 
   if (!credential) {
-    return new Response(
-      JSON.stringify({ error: 'Missing credential' }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return new Response(JSON.stringify({ error: 'Missing credential' }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 
   // Verify the JWT token with Google
@@ -151,23 +153,27 @@ async function handleGoogleOneTap(request, env, corsHeaders, ctx) {
   );
 
   if (!verifyResponse.ok) {
-    const errorDetails = await verifyResponse.json().catch(() => ({ error: 'Failed to parse Google error response' }));
+    const errorDetails = await verifyResponse
+      .json()
+      .catch(() => ({ error: 'Failed to parse Google error response' }));
     console.error('Google token verification failed:', errorDetails);
     return new Response(
-      JSON.stringify({ error: 'Invalid credential', details: errorDetails.error_description || 'Verification failed' }),
+      JSON.stringify({
+        error: 'Invalid credential',
+        details: errorDetails.error_description || 'Verification failed',
+      }),
       { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 
   const tokenInfo = await verifyResponse.json();
 
-
   // Verify the token is for our app
   if (tokenInfo.aud !== env.GOOGLE_CLIENT_ID) {
-    return new Response(
-      JSON.stringify({ error: 'Invalid audience' }),
-      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return new Response(JSON.stringify({ error: 'Invalid audience' }), {
+      status: 401,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 
   // Extract user info from verified token
@@ -184,13 +190,17 @@ async function handleGoogleOneTap(request, env, corsHeaders, ctx) {
 
   // Generate session token
   const sessionToken = await generateSessionToken(userId);
-  
+
   // Store session in KV with 7 day expiration
-  await env.SESSIONS.put(sessionToken, JSON.stringify({
-    userId,
-    email: userInfo.email,
-    createdAt: Date.now(),
-  }), { expirationTtl: 604800 }); // 7 days
+  await env.SESSIONS.put(
+    sessionToken,
+    JSON.stringify({
+      userId,
+      email: userInfo.email,
+      createdAt: Date.now(),
+    }),
+    { expirationTtl: 604800 }
+  ); // 7 days
 
   // Return session data
   return new Response(
@@ -212,42 +222,41 @@ async function handleGoogleOneTap(request, env, corsHeaders, ctx) {
  * Handles OAuth callback from Google
  * Exchanges code for tokens and creates/updates user in database
  */
-async function handleGoogleCallback(request, env, corsHeaders, ctx) {
+async function handleGoogleCallback(request, env, corsHeaders, _ctx) {
   const url = new URL(request.url);
   const code = url.searchParams.get('code');
   const state = url.searchParams.get('state');
   const error = url.searchParams.get('error');
 
   if (error) {
-    return new Response(
-      JSON.stringify({ error: 'OAuth error', details: error }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return new Response(JSON.stringify({ error: 'OAuth error', details: error }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 
   if (!code || !state) {
-    return new Response(
-      JSON.stringify({ error: 'Missing code or state parameter' }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return new Response(JSON.stringify({ error: 'Missing code or state parameter' }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 
   // Verify state parameter
   const stateData = await env.AUTH_STATE.get(state);
   if (!stateData) {
-    return new Response(
-      JSON.stringify({ error: 'Invalid or expired state parameter' }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return new Response(JSON.stringify({ error: 'Invalid or expired state parameter' }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 
   const { platform } = JSON.parse(stateData);
   await env.AUTH_STATE.delete(state);
 
   // Exchange code for tokens
-  const redirectUri = platform === 'mobile' 
-    ? env.GOOGLE_REDIRECT_URI_MOBILE 
-    : env.GOOGLE_REDIRECT_URI_WEB;
+  const redirectUri =
+    platform === 'mobile' ? env.GOOGLE_REDIRECT_URI_MOBILE : env.GOOGLE_REDIRECT_URI_WEB;
 
   const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
@@ -263,10 +272,10 @@ async function handleGoogleCallback(request, env, corsHeaders, ctx) {
 
   if (!tokenResponse.ok) {
     const errorData = await tokenResponse.text();
-    return new Response(
-      JSON.stringify({ error: 'Token exchange failed', details: errorData }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return new Response(JSON.stringify({ error: 'Token exchange failed', details: errorData }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 
   const tokens = await tokenResponse.json();
@@ -277,10 +286,10 @@ async function handleGoogleCallback(request, env, corsHeaders, ctx) {
   });
 
   if (!userInfoResponse.ok) {
-    return new Response(
-      JSON.stringify({ error: 'Failed to fetch user info' }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return new Response(JSON.stringify({ error: 'Failed to fetch user info' }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 
   const userInfo = await userInfoResponse.json();
@@ -290,13 +299,17 @@ async function handleGoogleCallback(request, env, corsHeaders, ctx) {
 
   // Generate session token
   const sessionToken = await generateSessionToken(userId);
-  
+
   // Store session in KV with 7 day expiration
-  await env.SESSIONS.put(sessionToken, JSON.stringify({
-    userId,
-    email: userInfo.email,
-    createdAt: Date.now(),
-  }), { expirationTtl: 604800 }); // 7 days
+  await env.SESSIONS.put(
+    sessionToken,
+    JSON.stringify({
+      userId,
+      email: userInfo.email,
+      createdAt: Date.now(),
+    }),
+    { expirationTtl: 604800 }
+  ); // 7 days
 
   // Redirect based on platform
   if (platform === 'mobile') {
@@ -313,7 +326,7 @@ async function handleGoogleCallback(request, env, corsHeaders, ctx) {
 /**
  * Verifies a session token
  */
-async function handleVerifyToken(request, env, corsHeaders, ctx) {
+async function handleVerifyToken(request, env, corsHeaders, _ctx) {
   const authResult = await verifyAuth(request, env, corsHeaders);
   if (authResult instanceof Response) {
     return authResult;
@@ -323,13 +336,15 @@ async function handleVerifyToken(request, env, corsHeaders, ctx) {
   // Get user from database
   const user = await env.DB.prepare(
     'SELECT id, email, name, picture, created_at FROM users WHERE id = ?'
-  ).bind(session.userId).first();
+  )
+    .bind(session.userId)
+    .first();
 
   if (!user) {
-    return new Response(
-      JSON.stringify({ error: 'User not found' }),
-      { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return new Response(JSON.stringify({ error: 'User not found' }), {
+      status: 404,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 
   return new Response(
@@ -349,7 +364,7 @@ async function handleVerifyToken(request, env, corsHeaders, ctx) {
 /**
  * Refreshes a session token
  */
-async function handleRefreshToken(request, env, corsHeaders, ctx) {
+async function handleRefreshToken(request, env, corsHeaders, _ctx) {
   const authResult = await verifyAuth(request, env, corsHeaders);
   if (authResult instanceof Response) {
     return authResult;
@@ -358,13 +373,17 @@ async function handleRefreshToken(request, env, corsHeaders, ctx) {
 
   // Generate new session token
   const newToken = await generateSessionToken(session.userId);
-  
+
   // Store new session
-  await env.SESSIONS.put(newToken, JSON.stringify({
-    userId: session.userId,
-    email: session.email,
-    createdAt: Date.now(),
-  }), { expirationTtl: 604800 });
+  await env.SESSIONS.put(
+    newToken,
+    JSON.stringify({
+      userId: session.userId,
+      email: session.email,
+      createdAt: Date.now(),
+    }),
+    { expirationTtl: 604800 }
+  );
 
   // Delete old session
   await env.SESSIONS.delete(oldToken);
@@ -389,34 +408,38 @@ async function handleLogout(request, env, corsHeaders, ctx) {
   const { token } = authResult;
   ctx.waitUntil(env.SESSIONS.delete(token));
 
-  return new Response(
-    JSON.stringify({ success: true }),
-    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-  );
+  return new Response(JSON.stringify({ success: true }), {
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
 }
 
 /**
  * Creates or updates a user in the database
  */
-async function upsertUser(db, userInfo, tokens) {
-  const existingUser = await db.prepare(
-    'SELECT id FROM users WHERE google_id = ?'
-  ).bind(userInfo.id).first();
+async function upsertUser(db, userInfo, _tokens) {
+  const existingUser = await db
+    .prepare('SELECT id FROM users WHERE google_id = ?')
+    .bind(userInfo.id)
+    .first();
 
   if (existingUser) {
     // Update existing user
-    await db.prepare(
-      'UPDATE users SET email = ?, name = ?, picture = ?, updated_at = CURRENT_TIMESTAMP WHERE google_id = ?'
-    ).bind(userInfo.email, userInfo.name, userInfo.picture, userInfo.id).run();
-    
+    await db
+      .prepare(
+        'UPDATE users SET email = ?, name = ?, picture = ?, updated_at = CURRENT_TIMESTAMP WHERE google_id = ?'
+      )
+      .bind(userInfo.email, userInfo.name, userInfo.picture, userInfo.id)
+      .run();
+
     return existingUser.id;
   } else {
     // Create new user
     const userId = crypto.randomUUID();
-    await db.prepare(
-      'INSERT INTO users (id, google_id, email, name, picture) VALUES (?, ?, ?, ?, ?)'
-    ).bind(userId, userInfo.id, userInfo.email, userInfo.name, userInfo.picture).run();
-    
+    await db
+      .prepare('INSERT INTO users (id, google_id, email, name, picture) VALUES (?, ?, ?, ?, ?)')
+      .bind(userId, userInfo.id, userInfo.email, userInfo.name, userInfo.picture)
+      .run();
+
     return userId;
   }
 }
@@ -430,7 +453,7 @@ async function generateSessionToken(userId) {
   const dataBuffer = encoder.encode(data);
   const hashBuffer = await crypto.subtle.digest('SHA-256', dataBuffer);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
 /**
@@ -440,65 +463,63 @@ async function generateSessionToken(userId) {
 async function verifyAuth(request, env, corsHeaders) {
   const authHeader = request.headers.get('Authorization');
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return new Response(
-      JSON.stringify({ error: 'Missing or invalid authorization header' }),
-      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return new Response(JSON.stringify({ error: 'Missing or invalid authorization header' }), {
+      status: 401,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 
   const token = authHeader.substring(7);
   const sessionData = await env.SESSIONS.get(token);
 
   if (!sessionData) {
-    return new Response(
-      JSON.stringify({ error: 'Invalid or expired session' }),
-      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return new Response(JSON.stringify({ error: 'Invalid or expired session' }), {
+      status: 401,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 
   try {
     const session = JSON.parse(sessionData);
     return { session, token };
-  } catch (e) {
-    return new Response(
-      JSON.stringify({ error: 'Invalid session format' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+  } catch (_e) {
+    return new Response(JSON.stringify({ error: 'Invalid session format' }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 }
 
 /**
  * Checks if user has premium status
  */
-async function handlePremiumCheck(request, env, corsHeaders, ctx) {
+async function handlePremiumCheck(request, env, corsHeaders, _ctx) {
   const authResult = await verifyAuth(request, env, corsHeaders);
   if (authResult instanceof Response) {
-    return new Response(
-      JSON.stringify({ isPremium: false }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return new Response(JSON.stringify({ isPremium: false }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
   const { session } = authResult;
 
-  const user = await env.DB.prepare(
-    'SELECT is_premium FROM users WHERE id = ?'
-  ).bind(session.userId).first();
+  const user = await env.DB.prepare('SELECT is_premium FROM users WHERE id = ?')
+    .bind(session.userId)
+    .first();
 
-  return new Response(
-    JSON.stringify({ isPremium: user?.is_premium ? true : false }),
-    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-  );
+  return new Response(JSON.stringify({ isPremium: user?.is_premium ? true : false }), {
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
 }
 
 /**
  * Creates a Stripe Checkout session for premium purchase
  */
-async function handleCreateCheckout(request, env, corsHeaders, ctx) {
+async function handleCreateCheckout(request, env, corsHeaders, _ctx) {
   if (request.method !== 'POST') {
-    return new Response(
-      JSON.stringify({ error: 'Method not allowed' }),
-      { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+      status: 405,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 
   const authResult = await verifyAuth(request, env, corsHeaders);
@@ -508,46 +529,46 @@ async function handleCreateCheckout(request, env, corsHeaders, ctx) {
   const { session } = authResult;
 
   // Get user from database
-  const user = await env.DB.prepare(
-    'SELECT id, email, stripe_customer_id FROM users WHERE id = ?'
-  ).bind(session.userId).first();
+  const user = await env.DB.prepare('SELECT id, email, stripe_customer_id FROM users WHERE id = ?')
+    .bind(session.userId)
+    .first();
 
   if (!user) {
-    return new Response(
-      JSON.stringify({ error: 'User not found' }),
-      { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return new Response(JSON.stringify({ error: 'User not found' }), {
+      status: 404,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 
   // Parse request body
   let body;
   try {
     body = await request.json();
-  } catch (e) {
-    return new Response(
-      JSON.stringify({ error: 'Invalid JSON body' }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+  } catch (_e) {
+    return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 
   const { priceId } = body;
 
   if (!priceId) {
-    return new Response(
-      JSON.stringify({ error: 'Missing priceId' }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return new Response(JSON.stringify({ error: 'Missing priceId' }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 
   // Create or retrieve Stripe customer
   let customerId = user.stripe_customer_id;
-  
+
   if (!customerId) {
     // Create new Stripe customer
     const customerResponse = await fetch('https://api.stripe.com/v1/customers', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${env.STRIPE_SECRET_KEY}`,
+        Authorization: `Bearer ${env.STRIPE_SECRET_KEY}`,
         'Content-Type': 'application/x-www-form-urlencoded',
       },
       body: new URLSearchParams({
@@ -568,16 +589,16 @@ async function handleCreateCheckout(request, env, corsHeaders, ctx) {
     customerId = customer.id;
 
     // Save customer ID to database
-    await env.DB.prepare(
-      'UPDATE users SET stripe_customer_id = ? WHERE id = ?'
-    ).bind(customerId, user.id).run();
+    await env.DB.prepare('UPDATE users SET stripe_customer_id = ? WHERE id = ?')
+      .bind(customerId, user.id)
+      .run();
   }
 
   // Create Stripe Checkout session
   const checkoutResponse = await fetch('https://api.stripe.com/v1/checkout/sessions', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${env.STRIPE_SECRET_KEY}`,
+      Authorization: `Bearer ${env.STRIPE_SECRET_KEY}`,
       'Content-Type': 'application/x-www-form-urlencoded',
     },
     body: new URLSearchParams({
@@ -602,7 +623,7 @@ async function handleCreateCheckout(request, env, corsHeaders, ctx) {
   const checkout = await checkoutResponse.json();
 
   return new Response(
-    JSON.stringify({ 
+    JSON.stringify({
       sessionId: checkout.id,
       url: checkout.url,
     }),
@@ -615,32 +636,32 @@ async function handleCreateCheckout(request, env, corsHeaders, ctx) {
  */
 async function handleStripeWebhook(request, env, corsHeaders) {
   if (request.method !== 'POST') {
-    return new Response(
-      JSON.stringify({ error: 'Method not allowed' }),
-      { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+      status: 405,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 
   const signature = request.headers.get('stripe-signature');
   if (!signature) {
-    return new Response(
-      JSON.stringify({ error: 'Missing stripe-signature header' }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return new Response(JSON.stringify({ error: 'Missing stripe-signature header' }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 
   let event;
   try {
     const body = await request.text();
-    
+
     // Verify webhook signature
     event = await verifyStripeWebhook(body, signature, env.STRIPE_WEBHOOK_SECRET);
   } catch (err) {
     console.error('Webhook signature verification failed:', err.message);
-    return new Response(
-      JSON.stringify({ error: 'Webhook signature verification failed' }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return new Response(JSON.stringify({ error: 'Webhook signature verification failed' }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 
   // Handle the event
@@ -662,16 +683,15 @@ async function handleStripeWebhook(request, env, corsHeaders) {
         console.log(`Unhandled event type: ${event.type}`);
     }
 
-    return new Response(
-      JSON.stringify({ received: true }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return new Response(JSON.stringify({ received: true }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   } catch (error) {
     console.error('Error handling webhook:', error);
-    return new Response(
-      JSON.stringify({ error: 'Webhook handler failed' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return new Response(JSON.stringify({ error: 'Webhook handler failed' }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 }
 
@@ -680,13 +700,13 @@ async function handleStripeWebhook(request, env, corsHeaders) {
  */
 async function verifyStripeWebhook(payload, signature, secret) {
   const encoder = new TextEncoder();
-  const data = encoder.encode(payload);
-  
+  const _data = encoder.encode(payload);
+
   // Extract timestamp and signatures from header
   const signatureParts = signature.split(',');
   let timestamp;
   const signatures = [];
-  
+
   for (const part of signatureParts) {
     const [key, value] = part.split('=');
     if (key === 't') {
@@ -695,11 +715,11 @@ async function verifyStripeWebhook(payload, signature, secret) {
       signatures.push(value);
     }
   }
-  
+
   if (!timestamp || signatures.length === 0) {
     throw new Error('Invalid signature format');
   }
-  
+
   // Create the signed payload
   const signedPayload = `${timestamp}.${payload}`;
   const key = await crypto.subtle.importKey(
@@ -709,22 +729,18 @@ async function verifyStripeWebhook(payload, signature, secret) {
     false,
     ['sign']
   );
-  
-  const signature_bytes = await crypto.subtle.sign(
-    'HMAC',
-    key,
-    encoder.encode(signedPayload)
-  );
-  
+
+  const signature_bytes = await crypto.subtle.sign('HMAC', key, encoder.encode(signedPayload));
+
   const expectedSignature = Array.from(new Uint8Array(signature_bytes))
-    .map(b => b.toString(16).padStart(2, '0'))
+    .map((b) => b.toString(16).padStart(2, '0'))
     .join('');
-  
+
   // Compare signatures
   if (!signatures.includes(expectedSignature)) {
     throw new Error('Signature verification failed');
   }
-  
+
   // Parse and return the event
   return JSON.parse(payload);
 }
@@ -742,7 +758,9 @@ async function handleCheckoutCompleted(session, env) {
   // Update user premium status
   await env.DB.prepare(
     'UPDATE users SET is_premium = 1, stripe_customer_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
-  ).bind(session.customer, userId).run();
+  )
+    .bind(session.customer, userId)
+    .run();
 
   console.log(`Premium activated for user ${userId}`);
 }
@@ -752,17 +770,19 @@ async function handleCheckoutCompleted(session, env) {
  */
 async function handleInvoicePaid(invoice, env) {
   const customerId = invoice.customer;
-  
+
   // Find user by Stripe customer ID and activate premium
-  const user = await env.DB.prepare(
-    'SELECT id FROM users WHERE stripe_customer_id = ?'
-  ).bind(customerId).first();
+  const user = await env.DB.prepare('SELECT id FROM users WHERE stripe_customer_id = ?')
+    .bind(customerId)
+    .first();
 
   if (user) {
     await env.DB.prepare(
       'UPDATE users SET is_premium = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
-    ).bind(user.id).run();
-    
+    )
+      .bind(user.id)
+      .run();
+
     console.log(`Premium activated for user ${user.id} via invoice payment`);
   }
 }
@@ -772,11 +792,11 @@ async function handleInvoicePaid(invoice, env) {
  */
 async function handlePaymentFailed(invoice, env) {
   const customerId = invoice.customer;
-  
+
   // Find user and potentially deactivate premium
-  const user = await env.DB.prepare(
-    'SELECT id FROM users WHERE stripe_customer_id = ?'
-  ).bind(customerId).first();
+  const user = await env.DB.prepare('SELECT id FROM users WHERE stripe_customer_id = ?')
+    .bind(customerId)
+    .first();
 
   if (user) {
     console.log(`Payment failed for user ${user.id}`);
@@ -789,17 +809,19 @@ async function handlePaymentFailed(invoice, env) {
  */
 async function handleSubscriptionDeleted(subscription, env) {
   const customerId = subscription.customer;
-  
+
   // Find user and deactivate premium
-  const user = await env.DB.prepare(
-    'SELECT id FROM users WHERE stripe_customer_id = ?'
-  ).bind(customerId).first();
+  const user = await env.DB.prepare('SELECT id FROM users WHERE stripe_customer_id = ?')
+    .bind(customerId)
+    .first();
 
   if (user) {
     await env.DB.prepare(
       'UPDATE users SET is_premium = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
-    ).bind(user.id).run();
-    
+    )
+      .bind(user.id)
+      .run();
+
     console.log(`Premium deactivated for user ${user.id} due to subscription cancellation`);
   }
 }
@@ -807,12 +829,12 @@ async function handleSubscriptionDeleted(subscription, env) {
 /**
  * Proxies webhook requests with authentication and rate limiting
  */
-async function handleWebhookProxy(request, env, corsHeaders, ctx) {
+async function handleWebhookProxy(request, env, corsHeaders, _ctx) {
   if (request.method !== 'POST') {
-    return new Response(
-      JSON.stringify({ error: 'Method not allowed' }),
-      { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+      status: 405,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 
   const authResult = await verifyAuth(request, env, corsHeaders);
@@ -822,45 +844,45 @@ async function handleWebhookProxy(request, env, corsHeaders, ctx) {
   const { session } = authResult;
 
   // Get user and verify premium status
-  const user = await env.DB.prepare(
-    'SELECT id, email, is_premium FROM users WHERE id = ?'
-  ).bind(session.userId).first();
+  const user = await env.DB.prepare('SELECT id, email, is_premium FROM users WHERE id = ?')
+    .bind(session.userId)
+    .first();
 
   if (!user || !user.is_premium) {
-    return new Response(
-      JSON.stringify({ error: 'Premium subscription required' }),
-      { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return new Response(JSON.stringify({ error: 'Premium subscription required' }), {
+      status: 403,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 
   // Parse request body
   let body;
   try {
     body = await request.json();
-  } catch (e) {
-    return new Response(
-      JSON.stringify({ error: 'Invalid JSON body' }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+  } catch (_e) {
+    return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 
   const { webhookUrl, data } = body;
 
   if (!webhookUrl || !data) {
-    return new Response(
-      JSON.stringify({ error: 'Missing webhookUrl or data' }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return new Response(JSON.stringify({ error: 'Missing webhookUrl or data' }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 
   // Validate webhook URL
   try {
     new URL(webhookUrl);
-  } catch (e) {
-    return new Response(
-      JSON.stringify({ error: 'Invalid webhook URL' }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+  } catch (_e) {
+    return new Response(JSON.stringify({ error: 'Invalid webhook URL' }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 
   // Send webhook with timeout
@@ -878,17 +900,17 @@ async function handleWebhookProxy(request, env, corsHeaders, ctx) {
     clearTimeout(timeoutId);
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
-        status: webhookResponse.status 
+      JSON.stringify({
+        success: true,
+        status: webhookResponse.status,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
     return new Response(
-      JSON.stringify({ 
-        success: false, 
-        error: error.name === 'AbortError' ? 'Webhook timeout' : 'Webhook failed' 
+      JSON.stringify({
+        success: false,
+        error: error.name === 'AbortError' ? 'Webhook timeout' : 'Webhook failed',
       }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
@@ -900,10 +922,10 @@ async function handleWebhookProxy(request, env, corsHeaders, ctx) {
  */
 async function handleContactForm(request, env, corsHeaders, ctx) {
   if (request.method !== 'POST') {
-    return new Response(
-      JSON.stringify({ error: 'Method not allowed' }),
-      { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+      status: 405,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 
   const authResult = await verifyAuth(request, env, corsHeaders);
@@ -913,43 +935,43 @@ async function handleContactForm(request, env, corsHeaders, ctx) {
   const { session } = authResult;
 
   // Get user from database
-  const user = await env.DB.prepare(
-    'SELECT id, email, name FROM users WHERE id = ?'
-  ).bind(session.userId).first();
+  const user = await env.DB.prepare('SELECT id, email, name FROM users WHERE id = ?')
+    .bind(session.userId)
+    .first();
 
   if (!user) {
-    return new Response(
-      JSON.stringify({ error: 'User not found' }),
-      { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return new Response(JSON.stringify({ error: 'User not found' }), {
+      status: 404,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 
   // Parse request body
   let body;
   try {
     body = await request.json();
-  } catch (e) {
-    return new Response(
-      JSON.stringify({ error: 'Invalid JSON body' }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+  } catch (_e) {
+    return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 
   const { message } = body;
 
   if (!message || typeof message !== 'string' || !message.trim()) {
-    return new Response(
-      JSON.stringify({ error: 'Message is required' }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return new Response(JSON.stringify({ error: 'Message is required' }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 
   // Validate message length
   if (message.length > 1000) {
-    return new Response(
-      JSON.stringify({ error: 'Message too long (max 1000 characters)' }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return new Response(JSON.stringify({ error: 'Message too long (max 1000 characters)' }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 
   // Prepare webhook payload
@@ -989,15 +1011,17 @@ async function handleContactForm(request, env, corsHeaders, ctx) {
 
   // Perform the webhook call in the background after the response has been sent
   // This makes the API feel instantaneous to the user
-  ctx.waitUntil(sendWebhook().catch(err => {
-    console.error('Contact form webhook failed in waitUntil:', err);
-  }));
+  ctx.waitUntil(
+    sendWebhook().catch((err) => {
+      console.error('Contact form webhook failed in waitUntil:', err);
+    })
+  );
 
   // Immediately return a success response to the client
   return new Response(
     JSON.stringify({
       success: true,
-      message: 'Message is being sent.'
+      message: 'Message is being sent.',
     }),
     { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   );

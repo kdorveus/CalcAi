@@ -7,7 +7,7 @@ import { useLanguage } from '../contexts/LanguageContext';
  */
 export const useTranslation = () => {
   const { t, language, setLanguage, isLoading } = useLanguage();
-  
+
   return {
     t,
     language,

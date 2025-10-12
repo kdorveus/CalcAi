@@ -3,17 +3,26 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect, lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import 'react-native-reanimated';
 import * as Linking from 'expo-linking';
+import { Platform, View } from 'react-native';
 import { AuthProvider, useProtectedRoute } from '../contexts/AuthContext';
 import { LanguageProvider } from '../contexts/LanguageContext';
 import { PostHogProvider } from '../contexts/PostHogContext';
-import { Platform, View } from 'react-native';
 
-const PremiumProvider = lazy(() => import('../contexts/PremiumContext').then(m => ({ default: m.PremiumProvider })));
-const CalculationHistoryProvider = lazy(() => import('../contexts/CalculationHistoryContext').then(m => ({ default: m.CalculationHistoryProvider })));
-const GoogleOneTapProvider = lazy(() => import('../components/GoogleOneTapProvider').then(m => ({ default: m.GoogleOneTapProvider })));
+const PremiumProvider = lazy(() =>
+  import('../contexts/PremiumContext').then((m) => ({ default: m.PremiumProvider }))
+);
+const CalculationHistoryProvider = lazy(() =>
+  import('../contexts/CalculationHistoryContext').then((m) => ({
+    default: m.CalculationHistoryProvider,
+  }))
+);
+const GoogleOneTapProvider = lazy(() =>
+  import('../components/GoogleOneTapProvider').then((m) => ({ default: m.GoogleOneTapProvider }))
+);
+
 // import { router } from 'expo-router'; // No longer directly needed here
 
 import { useColorScheme } from 'react-native';
@@ -21,7 +30,7 @@ import { useColorScheme } from 'react-native';
 // Ultra-fast icon loading for web - preload critical icons as base64
 if (Platform.OS === 'web' && typeof document !== 'undefined') {
   // Immediate execution to ensure fastest possible loading
-  (function() {
+  (() => {
     // Force Material Icons to load first - highest priority
     const materialIconsStyle = document.createElement('style');
     materialIconsStyle.id = 'critical-material-icons';
@@ -52,14 +61,14 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
         -webkit-font-smoothing: antialiased;
       }
     `;
-    
+
     // Insert at the beginning of head for highest priority
     if (document.head.firstChild) {
       document.head.insertBefore(materialIconsStyle, document.head.firstChild);
     } else {
       document.head.appendChild(materialIconsStyle);
     }
-    
+
     // Add critical CSS after Material Icons (still high priority)
     const criticalCss = document.createElement('style');
     criticalCss.id = 'critical-css';
@@ -150,7 +159,7 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
         align-items: center;
       }
     `;
-    
+
     // Insert critical CSS after Material Icons
     if (document.getElementById('critical-material-icons')) {
       const materialIconsElement = document.getElementById('critical-material-icons');
@@ -162,13 +171,13 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
     } else {
       document.head.appendChild(criticalCss);
     }
-    
+
     // Create inline icons for instant rendering
     const iconSamples = document.createElement('div');
     iconSamples.style.position = 'absolute';
     iconSamples.style.visibility = 'hidden';
     iconSamples.style.pointerEvents = 'none';
-    
+
     // Pre-render key icons to cache them
     iconSamples.innerHTML = `
       <i class="material-icons">calculate</i>
@@ -177,10 +186,10 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
       <i class="material-icons">send</i>
       <i class="material-icons">space_bar</i>
     `;
-    
+
     // Add to body to ensure they're rendered
     document.body.appendChild(iconSamples);
-    
+
     // Pre-render the bottom bar structure for immediate display
     const preBottomBar = document.createElement('div');
     preBottomBar.className = 'bottom-bar force-instant-display';
@@ -195,7 +204,7 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
         <i class="material-icons" style="color:#ccc;font-size:28px;">settings</i>
       </div>
     `;
-    
+
     // Remove after a short delay to avoid conflicts with React
     setTimeout(() => {
       if (document.body.contains(iconSamples)) {
@@ -205,9 +214,9 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
         document.body.removeChild(preBottomBar);
       }
     }, 500);
-    
+
     // Mark document as ready for render before JS is loaded
-    document.documentElement.dataset.ready = "true";
+    document.documentElement.dataset.ready = 'true';
     document.documentElement.classList.add('force-instant-display');
 
     // Define type for preload assets
@@ -221,10 +230,10 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
     const assetsToPreload: PreloadAsset[] = [
       { href: require('../assets/images/LOGO.webp').uri, as: 'image' },
       // Example for SVG if needed:
-      // { href: require('../assets/icons/microphone.svg').uri, as: 'image', type: 'image/svg+xml' }, 
+      // { href: require('../assets/icons/microphone.svg').uri, as: 'image', type: 'image/svg+xml' },
     ];
 
-    assetsToPreload.forEach(asset => {
+    assetsToPreload.forEach((asset) => {
       const link = document.createElement('link');
       link.rel = 'preload';
       link.href = asset.href;
@@ -246,8 +255,8 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
     // A common pattern might be '/_expo/static/js/web/entry-<hash>.js'
     // As a generic placeholder, we can try a common entry point name if known or defer this step.
     // For now, let's assume a common pattern or skip if too uncertain.
-    // Example: mainBundleLink.href = '/path/to/main-bundle.js'; 
-    // document.head.appendChild(mainBundleLink); 
+    // Example: mainBundleLink.href = '/path/to/main-bundle.js';
+    // document.head.appendChild(mainBundleLink);
     // --> Given the uncertainty of the bundle name, I will comment this out for now.
   })();
 }
@@ -269,7 +278,7 @@ export default function RootLayout() {
   const [loaded, error] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
     ...FontAwesome.font,
-    'MaterialIcons': require('@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/MaterialIcons.ttf'),
+    MaterialIcons: require('@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/MaterialIcons.ttf'),
   });
 
   // Expo Router uses Error Boundaries to catch errors in the navigation tree.
@@ -285,11 +294,11 @@ export default function RootLayout() {
 
   // Initialize deep linking (keep this for potential OAuth returns)
   useEffect(() => {
-    const subscription = Linking.addEventListener('url', ({ url }) => {
+    const subscription = Linking.addEventListener('url', () => {
       // AuthContext might handle session from deep link via onAuthStateChange or specific logic
     });
     const getInitialLink = async () => {
-      const initialUrl = await Linking.getInitialURL();
+      await Linking.getInitialURL();
     };
     getInitialLink();
     return () => {
@@ -303,21 +312,21 @@ export default function RootLayout() {
 
   // Wrap the navigation stack with providers
   return (
-      <PostHogProvider>
-        <LanguageProvider>
-          <AuthProvider>
-            <GoogleOneTapProvider>
-              <Suspense fallback={<View style={{ flex: 1, backgroundColor: '#121212' }} />}>
-                <PremiumProvider>
-                  <CalculationHistoryProvider>
-                    <RootLayoutNav />
-                  </CalculationHistoryProvider>
-                </PremiumProvider>
-              </Suspense>
-            </GoogleOneTapProvider>
-          </AuthProvider>
-        </LanguageProvider>
-      </PostHogProvider>
+    <PostHogProvider>
+      <LanguageProvider>
+        <AuthProvider>
+          <GoogleOneTapProvider>
+            <Suspense fallback={<View style={{ flex: 1, backgroundColor: '#121212' }} />}>
+              <PremiumProvider>
+                <CalculationHistoryProvider>
+                  <RootLayoutNav />
+                </CalculationHistoryProvider>
+              </PremiumProvider>
+            </Suspense>
+          </GoogleOneTapProvider>
+        </AuthProvider>
+      </LanguageProvider>
+    </PostHogProvider>
   );
 }
 
@@ -325,33 +334,33 @@ export default function RootLayout() {
 
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
-  
+
   // Use the protection hook inside the AuthProvider context
-  useProtectedRoute(); 
+  useProtectedRoute();
 
   return (
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen 
-          name="index" 
-          options={{ 
-            headerShown: false,
-          }} 
-        />
-        <Stack.Screen 
-          name="modal" 
-          options={{ 
-            presentation: 'modal',
-            headerShown: false,
-          }} 
-        />
-        <Stack.Screen 
-          name="auth" 
-          options={{ 
+    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen
+          name="index"
+          options={{
             headerShown: false,
           }}
         />
-        </Stack>
-      </ThemeProvider>
+        <Stack.Screen
+          name="modal"
+          options={{
+            presentation: 'modal',
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="auth"
+          options={{
+            headerShown: false,
+          }}
+        />
+      </Stack>
+    </ThemeProvider>
   );
 }

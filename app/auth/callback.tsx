@@ -1,16 +1,16 @@
-import React, { useEffect } from 'react';
-import { View, Platform, Alert, Image, StyleSheet } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useTranslation } from '../../hooks/useTranslation';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect } from 'react';
+import { Alert, Image, Platform, StyleSheet, View } from 'react-native';
 import { STORAGE_KEYS } from '../../constants/Config';
+import { useTranslation } from '../../hooks/useTranslation';
 import * as authService from '../../utils/authService';
 
 export default function AuthCallbackScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const { t } = useTranslation();
-  
+
   // Extract params once
   const errorParam = params.error as string;
   const errorDescription = params.error_description as string;
@@ -32,26 +32,26 @@ export default function AuthCallbackScreen() {
           // Parallel operations for speed
           const [, verifyResult] = await Promise.all([
             AsyncStorage.setItem(STORAGE_KEYS.SESSION_TOKEN, token),
-            authService.verifySession()
+            authService.verifySession(),
           ]);
-          
+
           const { user: verifiedUser, error } = verifyResult;
-          
+
           if (error || !verifiedUser) {
             Alert.alert(t('auth.authError'), 'Failed to verify session');
             router.replace('/auth/login');
             return;
           }
-          
+
           // Store user and redirect
           await AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(verifiedUser));
-          
+
           if (Platform.OS === 'web') {
             window.location.href = '/';
           } else {
             router.replace('/');
           }
-        } catch (error) {
+        } catch (_error) {
           Alert.alert(t('auth.authError'), 'Failed to save session');
           router.replace('/auth/login');
         }
@@ -63,8 +63,8 @@ export default function AuthCallbackScreen() {
 
   return (
     <View style={styles.container}>
-      <Image 
-        source={require('../../assets/images/icon.png')} 
+      <Image
+        source={require('../../assets/images/icon.png')}
         style={styles.icon}
         resizeMode="contain"
         fadeDuration={0}
@@ -84,4 +84,4 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
   },
-}); 
+});

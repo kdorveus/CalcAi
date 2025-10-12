@@ -1,22 +1,21 @@
 import React, { useState } from 'react';
 import {
-  View,
-  Text,
-  Modal,
-  StyleSheet,
-  TouchableOpacity,
   ActivityIndicator,
+  Modal,
   Platform,
   ScrollView,
-  Switch,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
+import GoogleLogo from '../app/components/GoogleLogo';
+import { useAuth } from '../contexts/AuthContext';
+import { usePostHog } from '../contexts/PostHogContext';
+import { usePremium } from '../contexts/PremiumContext';
+import { useTranslation } from '../hooks/useTranslation';
 // Using our bundled AppIcon component instead of MaterialCommunityIcons
 import AppIcon from './AppIcon';
-import GoogleLogo from '../app/components/GoogleLogo';
-import { usePremium } from '../contexts/PremiumContext';
-import { useAuth } from '../contexts/AuthContext';
-import { useTranslation } from '../hooks/useTranslation';
-import { usePostHog } from '../contexts/PostHogContext';
 
 interface PremiumPaymentModalProps {
   visible: boolean;
@@ -26,12 +25,8 @@ interface PremiumPaymentModalProps {
 
 type PlanType = 'yearly' | 'lifetime';
 
-const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
-  visible,
-  onClose,
-  onSuccess,
-}) => {
-  const { showPremiumPayment, premiumLoading, productInfo } = usePremium();
+const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({ visible, onClose }) => {
+  const { showPremiumPayment, premiumLoading } = usePremium();
   const { user, signInWithGoogle } = useAuth();
   const { t } = useTranslation();
   const { captureEvent } = usePostHog();
@@ -44,7 +39,7 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
     if (visible) {
       captureEvent('premium_modal_viewed');
     }
-  }, [visible]);
+  }, [visible, captureEvent]);
 
   const handlePayment = async () => {
     // If not logged in, trigger login first
@@ -114,12 +109,7 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
   };
 
   return (
-    <Modal
-      visible={visible}
-      transparent={true}
-      animationType="fade"
-      onRequestClose={handleClose}
-    >
+    <Modal visible={visible} transparent={true} animationType="fade" onRequestClose={handleClose}>
       <View style={styles.modalOverlay}>
         <View style={styles.modalContainer}>
           <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
@@ -141,8 +131,12 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
                 {/* Price Display */}
                 <View style={styles.priceSection}>
                   <View style={styles.priceRow}>
-                    <Text style={styles.oldPrice}>{selectedPlan === 'yearly' ? '$69' : '$129'}</Text>
-                    <Text style={styles.planPrice}>{selectedPlan === 'yearly' ? '$49' : '$89'}</Text>
+                    <Text style={styles.oldPrice}>
+                      {selectedPlan === 'yearly' ? '$69' : '$129'}
+                    </Text>
+                    <Text style={styles.planPrice}>
+                      {selectedPlan === 'yearly' ? '$49' : '$89'}
+                    </Text>
                   </View>
                 </View>
 
@@ -152,47 +146,63 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
                   <TouchableOpacity
                     style={[
                       styles.planOption,
-                      selectedPlan === 'yearly' && styles.planOptionSelected
+                      selectedPlan === 'yearly' && styles.planOptionSelected,
                     ]}
                     onPress={() => handlePlanSelection('yearly')}
                     activeOpacity={0.7}
                   >
-                    <View style={[
-                      styles.radioButton,
-                      selectedPlan === 'yearly' && styles.radioButtonSelected
-                    ]}>
+                    <View
+                      style={[
+                        styles.radioButton,
+                        selectedPlan === 'yearly' && styles.radioButtonSelected,
+                      ]}
+                    >
                       {selectedPlan === 'yearly' && <View style={styles.radioButtonInner} />}
                     </View>
-                    <Text style={[
-                      styles.planOptionText,
-                      selectedPlan === 'yearly' && styles.planOptionTextSelected
-                    ]}>{t('premium.modal.yearly')}</Text>
+                    <Text
+                      style={[
+                        styles.planOptionText,
+                        selectedPlan === 'yearly' && styles.planOptionTextSelected,
+                      ]}
+                    >
+                      {t('premium.modal.yearly')}
+                    </Text>
                   </TouchableOpacity>
 
                   {/* Lifetime Option */}
                   <TouchableOpacity
                     style={[
                       styles.planOption,
-                      selectedPlan === 'lifetime' && styles.planOptionSelected
+                      selectedPlan === 'lifetime' && styles.planOptionSelected,
                     ]}
                     onPress={() => handlePlanSelection('lifetime')}
                     activeOpacity={0.7}
                   >
-                    <View style={[
-                      styles.radioButton,
-                      selectedPlan === 'lifetime' && styles.radioButtonSelected
-                    ]}>
+                    <View
+                      style={[
+                        styles.radioButton,
+                        selectedPlan === 'lifetime' && styles.radioButtonSelected,
+                      ]}
+                    >
                       {selectedPlan === 'lifetime' && <View style={styles.radioButtonInner} />}
                     </View>
-                    <Text style={[
-                      styles.planOptionText,
-                      selectedPlan === 'lifetime' && styles.planOptionTextSelected
-                    ]}>{t('premium.modal.lifetime')}</Text>
+                    <Text
+                      style={[
+                        styles.planOptionText,
+                        selectedPlan === 'lifetime' && styles.planOptionTextSelected,
+                      ]}
+                    >
+                      {t('premium.modal.lifetime')}
+                    </Text>
                   </TouchableOpacity>
                 </View>
 
                 {/* Payment Frequency Text */}
-                <Text style={styles.paymentFrequency}>{selectedPlan === 'yearly' ? t('premium.modal.onceAYear') : t('premium.modal.oneTimePayment')}</Text>
+                <Text style={styles.paymentFrequency}>
+                  {selectedPlan === 'yearly'
+                    ? t('premium.modal.onceAYear')
+                    : t('premium.modal.oneTimePayment')}
+                </Text>
               </View>
             </View>
 
@@ -201,11 +211,15 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
               <View style={styles.benefitsList}>
                 <View style={styles.benefitItem}>
                   <AppIcon name="check" size={20} color="#ff9500" />
-                  <Text style={styles.benefitText}>{t('premium.modal.benefits.unlimitedVoice')}</Text>
+                  <Text style={styles.benefitText}>
+                    {t('premium.modal.benefits.unlimitedVoice')}
+                  </Text>
                 </View>
                 <View style={styles.benefitItem}>
                   <AppIcon name="check" size={20} color="#ff9500" />
-                  <Text style={styles.benefitText}>{t('premium.modal.benefits.webhookIntegrations')}</Text>
+                  <Text style={styles.benefitText}>
+                    {t('premium.modal.benefits.webhookIntegrations')}
+                  </Text>
                 </View>
                 <View style={styles.benefitItem}>
                   <AppIcon name="check" size={20} color="#ff9500" />
@@ -217,26 +231,32 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
                 </View>
                 <View style={styles.benefitItem}>
                   <AppIcon name="check" size={20} color="#ff9500" />
-                  <Text style={styles.benefitText}>{t('premium.modal.benefits.exportHistory')}</Text>
+                  <Text style={styles.benefitText}>
+                    {t('premium.modal.benefits.exportHistory')}
+                  </Text>
                 </View>
                 <View style={styles.benefitItem}>
                   <AppIcon name="check" size={20} color="#ff9500" />
-                  <Text style={styles.benefitText}>{t('premium.modal.benefits.advancedVoice')}</Text>
+                  <Text style={styles.benefitText}>
+                    {t('premium.modal.benefits.advancedVoice')}
+                  </Text>
                 </View>
                 <View style={styles.benefitItem}>
                   <AppIcon name="check" size={20} color="#ff9500" />
-                  <Text style={styles.benefitText}>{t('premium.modal.benefits.prioritySupport')}</Text>
+                  <Text style={styles.benefitText}>
+                    {t('premium.modal.benefits.prioritySupport')}
+                  </Text>
                 </View>
               </View>
             </View>
 
-            <TouchableOpacity 
+            <TouchableOpacity
               style={!user ? styles.googleButton : styles.paymentButton}
               onPress={handlePayment}
               disabled={isLoading || premiumLoading}
             >
               {isLoading || premiumLoading ? (
-                <ActivityIndicator color={!user ? "#4285F4" : "#000"} />
+                <ActivityIndicator color={!user ? '#4285F4' : '#000'} />
               ) : (
                 <View style={styles.buttonContentWrapper}>
                   {!user && (
@@ -244,13 +264,15 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
                       <GoogleLogo size={20} />
                     </View>
                   )}
-                  <Text style={!user ? styles.googleButtonText : styles.paymentButtonText}>{getPlanButtonText()}</Text>
+                  <Text style={!user ? styles.googleButtonText : styles.paymentButtonText}>
+                    {getPlanButtonText()}
+                  </Text>
                 </View>
               )}
             </TouchableOpacity>
 
             {/* Restore Purchase Button */}
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.restoreButton}
               onPress={handleRestorePurchase}
               disabled={isRestoring}
@@ -467,7 +489,7 @@ const styles = StyleSheet.create({
       },
       web: {
         boxShadow: '0 4px 8px rgba(255, 149, 0, 0.4)',
-      }
+      },
     }),
   },
   paymentButtonText: {

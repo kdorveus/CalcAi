@@ -1,19 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import { MaterialIcons } from '@expo/vector-icons';
+import { router } from 'expo-router';
+import { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTranslation } from '../../hooks/useTranslation';
-import { router } from 'expo-router';
-import { MaterialIcons } from '@expo/vector-icons';
 
 export default function SignUp() {
   const [email, setEmail] = useState('');
@@ -24,10 +24,10 @@ export default function SignUp() {
   const { t } = useTranslation();
 
   useEffect(() => {
-    if (authError && authError !== "Please check your email to verify your account.") {
-        Alert.alert(t('auth.error'), authError);
+    if (authError && authError !== 'Please check your email to verify your account.') {
+      Alert.alert(t('auth.error'), authError);
     }
-  }, [authError]);
+  }, [authError, t]);
 
   const handleSignUp = async () => {
     if (!email || !password || !confirmPassword) {
@@ -52,20 +52,18 @@ export default function SignUp() {
     }
 
     setLocalLoading(true);
-    console.log("Attempting sign up...");
+    console.log('Attempting sign up...');
     const { error, session, user } = await signUp(email);
     setLocalLoading(false);
 
     if (error) {
-      console.error("Sign up failed:", error.message);
+      console.error('Sign up failed:', error.message);
     } else if (!session && user) {
-       Alert.alert(
-         t('auth.signUpPending'),
-         t('auth.checkEmailVerification'),
-         [{ text: 'OK', onPress: () => router.replace('/auth/login') }]
-       );
+      Alert.alert(t('auth.signUpPending'), t('auth.checkEmailVerification'), [
+        { text: 'OK', onPress: () => router.replace('/auth/login') },
+      ]);
     } else if (session) {
-      console.log("Sign up successful, session created.");
+      console.log('Sign up successful, session created.');
     }
   };
 
@@ -113,11 +111,7 @@ export default function SignUp() {
           />
         </View>
 
-        <TouchableOpacity
-          style={styles.button}
-          onPress={handleSignUp}
-          disabled={localLoading}
-        >
+        <TouchableOpacity style={styles.button} onPress={handleSignUp} disabled={localLoading}>
           {localLoading ? (
             <ActivityIndicator color="#fff" />
           ) : (

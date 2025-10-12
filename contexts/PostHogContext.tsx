@@ -1,10 +1,14 @@
-import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
+import type React from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 import { POSTHOG_CONFIG } from '../constants/Config';
 
 // Platform-specific PostHog types
 type PostHogClient = any;
-type QueuedEvent = ['capture', string, Record<string, any> | undefined] | ['identify', string, Record<string, any> | undefined] | ['reset'];
+type QueuedEvent =
+  | ['capture', string, Record<string, any> | undefined]
+  | ['identify', string, Record<string, any> | undefined]
+  | ['reset'];
 
 interface PostHogContextType {
   posthog: PostHogClient | null;
@@ -31,44 +35,7 @@ export const PostHogProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const posthogClientRef = useRef<PostHogClient | null>(null);
   const eventQueueRef = useRef<QueuedEvent[]>([]);
 
-  useEffect(() => {
-    // Initialize PostHog as soon as the provider mounts. It's async and won't block.
-    const initPostHog = async () => {
-      try {
-        if (POSTHOG_CONFIG.API_KEY && Platform.OS === 'web') {
-          // Use posthog-js for web
-          const posthog = await import('posthog-js');
-          posthog.default.init(POSTHOG_CONFIG.API_KEY, {
-            api_host: POSTHOG_CONFIG.HOST,
-            capture_pageview: false, // We'll manually capture
-            autocapture: false, // Disable auto-capture for performance
-            loaded: (ph) => {
-              posthogClientRef.current = ph;
-              processQueue(ph);
-            }
-          });
-        } else if (POSTHOG_CONFIG.API_KEY) {
-          // Use posthog-react-native for mobile
-          const PostHog = (await import('posthog-react-native')).default;
-          posthogClientRef.current = new PostHog(
-            POSTHOG_CONFIG.API_KEY,
-            {
-              host: POSTHOG_CONFIG.HOST,
-              captureAppLifecycleEvents: true,
-            }
-          );
-          processQueue(posthogClientRef.current);
-        }
-      } catch (error) {
-        // Silent fail - PostHog is optional
-        console.warn('PostHog initialization failed:', error);
-      }
-    };
-
-    initPostHog();
-  }, []);
-
-  const processQueue = (client: PostHogClient) => {
+  const processQueue = useCallback((client: PostHogClient) => {
     if (!client) return;
     while (eventQueueRef.current.length > 0) {
       const event = eventQueueRef.current.shift();
@@ -84,36 +51,83 @@ export const PostHogProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
     }
     setIsInitialized(true);
-  };
+  }, []);
+
+  useEffect(() => {
+    // Initialize PostHog as soon as the provider mounts. It's async and won't block.
+    const initPostHog = async () => {
+      try {
+        if (POSTHOG_CONFIG.API_KEY && Platform.OS === 'web') {
+          // Use posthog-js for web
+          const posthog = await import('posthog-js');
+          posthog.default.init(POSTHOG_CONFIG.API_KEY, {
+            api_host: POSTHOG_CONFIG.HOST,
+            capture_pageview: false, // We'll manually capture
+            autocapture: false, // Disable auto-capture for performance
+            loaded: (ph) => {
+              posthogClientRef.current = ph;
+              processQueue(ph);
+            },
+          });
+        } else if (POSTHOG_CONFIG.API_KEY) {
+          // Use posthog-react-native for mobile
+          const PostHog = (await import('posthog-react-native')).default;
+          posthogClientRef.current = new PostHog(POSTHOG_CONFIG.API_KEY, {
+            host: POSTHOG_CONFIG.HOST,
+            captureAppLifecycleEvents: true,
+          });
+          processQueue(posthogClientRef.current);
+        }
+      } catch (error) {
+        // Silent fail - PostHog is optional
+        console.warn('PostHog initialization failed:', error);
+      }
+    };
+
+    initPostHog();
+  }, [processQueue]);
 
   // Performance-optimized event capture
-  const captureEvent = useCallback((eventName: string, properties?: Record<string, any>) => {
-    if (posthogClientRef.current && isInitialized) {
-      posthogClientRef.current.capture(eventName, properties);
-    } else {
-      eventQueueRef.current.push(['capture', eventName, properties]);
-    }
-  }, [isInitialized]);
+  const captureEvent = useCallback(
+    (eventName: string, properties?: Record<string, any>) => {
+      if (posthogClientRef.current && isInitialized) {
+        posthogClientRef.current.capture(eventName, properties);
+      } else {
+        eventQueueRef.current.push(['capture', eventName, properties]);
+      }
+    },
+    [isInitialized]
+  );
 
-  const captureScreen = useCallback((screenName: string, properties?: Record<string, any>) => {
-    if (posthogClientRef.current && isInitialized) {
-      posthogClientRef.current.capture('$screen', {
-        $screen_name: screenName,
-        ...properties,
-      });
-    } else {
-      eventQueueRef.current.push(['capture', '$screen', { $screen_name: screenName, ...properties }]);
-    }
-  }, [isInitialized]);
+  const captureScreen = useCallback(
+    (screenName: string, properties?: Record<string, any>) => {
+      if (posthogClientRef.current && isInitialized) {
+        posthogClientRef.current.capture('$screen', {
+          $screen_name: screenName,
+          ...properties,
+        });
+      } else {
+        eventQueueRef.current.push([
+          'capture',
+          '$screen',
+          { $screen_name: screenName, ...properties },
+        ]);
+      }
+    },
+    [isInitialized]
+  );
 
   // User identification
-  const identifyUser = useCallback((userId: string, properties?: Record<string, any>) => {
-    if (posthogClientRef.current && isInitialized) {
-      posthogClientRef.current.identify(userId, properties);
-    } else {
-      eventQueueRef.current.push(['identify', userId, properties]);
-    }
-  }, [isInitialized]);
+  const identifyUser = useCallback(
+    (userId: string, properties?: Record<string, any>) => {
+      if (posthogClientRef.current && isInitialized) {
+        posthogClientRef.current.identify(userId, properties);
+      } else {
+        eventQueueRef.current.push(['identify', userId, properties]);
+      }
+    },
+    [isInitialized]
+  );
 
   // Reset user on logout
   const resetUser = useCallback(() => {

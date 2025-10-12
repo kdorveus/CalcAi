@@ -1,7 +1,7 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
-import { Platform, ToastAndroid, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Alert, Platform, ToastAndroid } from 'react-native';
 import { sendWebhook } from '../utils/webhookService';
 
 interface WebhookItem {
@@ -79,7 +79,7 @@ export const useWebhookManager = (
         }
 
         setWebhookSettingsLoaded(true);
-      } catch (error) {
+      } catch (_error) {
         setWebhookSettingsLoaded(true);
       }
     };
@@ -114,7 +114,7 @@ export const useWebhookManager = (
       if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') return null;
 
       return url;
-    } catch (e) {
+    } catch (_e) {
       return null;
     }
   }, []);
@@ -169,7 +169,7 @@ export const useWebhookManager = (
             .filter(Boolean);
 
           await Promise.allSettled(promises);
-        } catch (error) {
+        } catch (_error) {
           if (Platform.OS === 'android') {
             ToastAndroid.show(t('mainApp.couldNotSendData'), ToastAndroid.SHORT);
           }
@@ -183,7 +183,16 @@ export const useWebhookManager = (
         setBulkData((prev) => [...prev, newItem]);
       }
     },
-    [webhookSettingsLoaded, webhookUrls, sendEquation, streamResults, sanitizeInput, validateWebhookUrl, t, bubbleIdRef]
+    [
+      webhookSettingsLoaded,
+      webhookUrls,
+      sendEquation,
+      streamResults,
+      sanitizeInput,
+      validateWebhookUrl,
+      t,
+      bubbleIdRef,
+    ]
   );
 
   // Handle adding webhook
@@ -223,7 +232,9 @@ export const useWebhookManager = (
   // Handle toggling webhook
   const handleToggleWebhook = useCallback(
     (url: string, active: boolean) => {
-      setWebhookUrls(webhookUrls.map((webhook) => (webhook.url === url ? { ...webhook, active } : webhook)));
+      setWebhookUrls(
+        webhookUrls.map((webhook) => (webhook.url === url ? { ...webhook, active } : webhook))
+      );
     },
     [webhookUrls]
   );
@@ -302,7 +313,7 @@ export const useWebhookManager = (
         t('mainApp.bulkSendComplete'),
         `Successfully sent data to ${successCount} endpoints.\nFailed to send data to ${failureCount} endpoints.`
       );
-    } catch (error) {
+    } catch (_error) {
       Alert.alert(t('mainApp.bulkSendError'), t('mainApp.bulkSendErrorMessage'));
     } finally {
       setIsSendingBulk(false);
@@ -317,7 +328,7 @@ export const useWebhookManager = (
         AsyncStorage.setItem('sendEquation', JSON.stringify(sendEquation)),
         AsyncStorage.setItem('streamResults', JSON.stringify(streamResults)),
       ]);
-    } catch (error) {
+    } catch (_error) {
       if (Platform.OS === 'android') {
         ToastAndroid.show(t('mainApp.couldNotSaveSettings'), ToastAndroid.SHORT);
       }

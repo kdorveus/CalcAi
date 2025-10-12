@@ -1,6 +1,6 @@
-import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
-import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import type React from 'react';
+import { createContext, type ReactNode, useCallback, useContext, useEffect, useState } from 'react';
 
 // Define the shape of a calculation history item
 export interface CalculationHistoryItem {
@@ -36,17 +36,14 @@ interface CalculationHistoryProviderProps {
 const HISTORY_STORAGE_KEY = 'calculation_history';
 
 // Create the CalculationHistoryProvider component
-export const CalculationHistoryProvider: React.FC<CalculationHistoryProviderProps> = ({ children }) => {
+export const CalculationHistoryProvider: React.FC<CalculationHistoryProviderProps> = ({
+  children,
+}) => {
   const [history, setHistory] = useState<CalculationHistoryItem[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Load history from AsyncStorage on mount
-  useEffect(() => {
-    loadHistory();
-  }, []);
-
   // Load history from AsyncStorage
-  const loadHistory = async () => {
+  const loadHistory = useCallback(async () => {
     try {
       setLoading(true);
       const storedHistory = await AsyncStorage.getItem(HISTORY_STORAGE_KEY);
@@ -58,7 +55,12 @@ export const CalculationHistoryProvider: React.FC<CalculationHistoryProviderProp
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  // Load history from AsyncStorage on mount
+  useEffect(() => {
+    loadHistory();
+  }, [loadHistory]);
 
   // Save history to AsyncStorage
   const saveHistory = async (newHistory: CalculationHistoryItem[]) => {
@@ -91,7 +93,7 @@ export const CalculationHistoryProvider: React.FC<CalculationHistoryProviderProp
   // Delete a calculation from history - KISS approach
   const deleteCalculation = async (created_at: string) => {
     try {
-      const updatedHistory = history.filter(item => item.created_at !== created_at);
+      const updatedHistory = history.filter((item) => item.created_at !== created_at);
       setHistory(updatedHistory);
       await saveHistory(updatedHistory);
     } catch (error) {

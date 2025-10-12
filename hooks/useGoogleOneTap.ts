@@ -66,7 +66,9 @@ export function useGoogleOneTap(config: GoogleOneTapConfig) {
     const loadScript = () => {
       return new Promise<void>((resolve, reject) => {
         // Check if script already exists
-        const existingScript = document.querySelector('script[src*="accounts.google.com/gsi/client"]');
+        const existingScript = document.querySelector(
+          'script[src*="accounts.google.com/gsi/client"]'
+        );
         if (existingScript) {
           resolve();
           return;
@@ -76,12 +78,12 @@ export function useGoogleOneTap(config: GoogleOneTapConfig) {
         script.src = 'https://accounts.google.com/gsi/client';
         script.async = true;
         script.defer = true;
-        
+
         script.onload = () => {
           setIsLoaded(true);
           resolve();
         };
-        
+
         script.onerror = () => {
           scriptLoadedRef.current = false;
           reject(new Error('Failed to load Google Identity Services'));
@@ -102,7 +104,7 @@ export function useGoogleOneTap(config: GoogleOneTapConfig) {
     return () => {
       clearTimeout(timeoutId);
     };
-  }, []);
+  }, [config.onError]);
 
   // Initialize Google One Tap
   useEffect(() => {
@@ -142,7 +144,15 @@ export function useGoogleOneTap(config: GoogleOneTapConfig) {
       config.onError?.(error as Error);
       initAttemptedRef.current = false;
     }
-  }, [isLoaded, config.clientId]);
+  }, [
+    isLoaded,
+    config.clientId,
+    config.autoSelect,
+    config.cancelOnTapOutside,
+    config.context,
+    config.onSuccess,
+    config.onError,
+  ]);
 
   // Prompt One Tap
   const prompt = () => {
