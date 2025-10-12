@@ -1,5 +1,5 @@
 import type React from 'react';
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 import { POSTHOG_CONFIG } from '../constants/Config';
 
@@ -138,17 +138,20 @@ export const PostHogProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   }, [isInitialized]);
 
+  const contextValue = useMemo(
+    () => ({
+      posthog: posthogClientRef.current,
+      isInitialized,
+      captureEvent,
+      identifyUser,
+      captureScreen,
+      resetUser,
+    }),
+    [isInitialized, captureEvent, identifyUser, captureScreen, resetUser]
+  );
+
   return (
-    <PostHogContext.Provider
-      value={{
-        posthog: posthogClientRef.current,
-        isInitialized,
-        captureEvent,
-        identifyUser,
-        captureScreen,
-        resetUser,
-      }}
-    >
+    <PostHogContext.Provider value={contextValue}>
       {children}
     </PostHogContext.Provider>
   );

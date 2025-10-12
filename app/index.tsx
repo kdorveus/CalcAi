@@ -933,24 +933,20 @@ const MainScreen: React.FC = () => {
           { id: (bubbleIdRef.current++).toString(), type: 'user', content: '' },
         ];
       });
+    } else {
+      // Case 2: Any other key - confirm result and continue
+      const currentResult = keypadInput;
+      const newInput = currentResult + key;
+      setKeypadInput(newInput);
 
-      setExpectingFreshInput(false);
-      scrollToBottom(50);
-      return true; // Signal handled
+      setBubbles((prev) => {
+        const filtered = prev.filter((b) => b.type !== 'result-input');
+        return [
+          ...filtered,
+          { id: (bubbleIdRef.current++).toString(), type: 'user', content: newInput },
+        ];
+      });
     }
-
-    // Case 2: Any other key - confirm result and continue
-    const currentResult = keypadInput;
-    const newInput = currentResult + key;
-    setKeypadInput(newInput);
-
-    setBubbles((prev) => {
-      const filtered = prev.filter((b) => b.type !== 'result-input');
-      return [
-        ...filtered,
-        { id: (bubbleIdRef.current++).toString(), type: 'user', content: newInput },
-      ];
-    });
 
     setExpectingFreshInput(false);
     scrollToBottom(50);

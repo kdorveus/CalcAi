@@ -1,6 +1,6 @@
 import { useRouter, useSegments } from 'expo-router';
 import type React from 'react';
-import { createContext, type ReactNode, useContext, useEffect, useState } from 'react';
+import { createContext, type ReactNode, useContext, useEffect, useMemo, useState } from 'react';
 import * as authService from '../utils/authService';
 import { usePostHog } from './PostHogContext';
 
@@ -204,21 +204,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  const contextValue = useMemo(
+    () => ({
+      signIn,
+      signUp,
+      signOut,
+      signInWithGoogle,
+      signInWithGoogleOneTap,
+      verifyOtp,
+      user,
+      session,
+      loading,
+      authError,
+    }),
+    [signIn, signUp, signOut, signInWithGoogle, signInWithGoogleOneTap, verifyOtp, user, session, loading, authError]
+  );
+
   return (
-    <AuthContext.Provider
-      value={{
-        signIn,
-        signUp,
-        signOut,
-        signInWithGoogle,
-        signInWithGoogleOneTap,
-        verifyOtp,
-        user,
-        session,
-        loading,
-        authError,
-      }}
-    >
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );

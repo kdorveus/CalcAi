@@ -348,7 +348,6 @@ const useAuthHandlers = (
   signOut: () => Promise<{ error: any | null }>,
   signInWithGoogle: () => Promise<{ error: any | null }>
 ) => {
-  const { t } = useTranslation();
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSignOut = async () => {
@@ -544,7 +543,7 @@ const LanguageSettings: React.FC<{
   t: (key: string) => string;
   language: string;
   setLanguage: (lang: string) => void;
-}> = ({ t, language, setLanguage }) => (
+}> = ({ language, setLanguage }) => (
   <View style={styles.optionsDropdownMenu}>
     {SUPPORTED_LANGUAGES.map((lang) => (
       <TouchableOpacity
@@ -593,10 +592,6 @@ const WebhookSettings: React.FC<{
   startEditingWebhook: (url: string) => void;
   cancelEditingWebhook: () => void;
   saveEditedWebhook: (oldUrl: string) => void;
-  sendEquation: boolean;
-  setSendEquation: (value: boolean) => void;
-  streamResults: boolean;
-  setStreamResults: (value: boolean) => void;
 }> = ({
   t,
   requirePremium,
@@ -618,10 +613,6 @@ const WebhookSettings: React.FC<{
   startEditingWebhook,
   cancelEditingWebhook,
   saveEditedWebhook,
-  sendEquation,
-  setSendEquation,
-  streamResults,
-  setStreamResults,
 }) => (
   <View style={styles.dropdownContent}>
     <Text style={styles.sectionSubtitle}>{t('settings.webhooks.createNew')}</Text>
@@ -1142,10 +1133,6 @@ export const WebhookSettingsComponentV2: React.FC<WebhookSettingsProps> = ({
               startEditingWebhook={webhookManagement.startEditingWebhook}
               cancelEditingWebhook={webhookManagement.cancelEditingWebhook}
               saveEditedWebhook={webhookManagement.saveEditedWebhook}
-              sendEquation={sendEquation}
-              setSendEquation={setSendEquation}
-              streamResults={streamResults}
-              setStreamResults={setStreamResults}
             />
           )}
         </View>

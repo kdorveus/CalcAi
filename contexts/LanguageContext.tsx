@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type React from 'react';
-import { createContext, type ReactNode, useCallback, useContext, useEffect, useState } from 'react';
+import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { Platform } from 'react-native';
 import {
   DEFAULT_LANGUAGE,
@@ -124,12 +124,15 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({ children }) 
     }
   };
 
-  const contextValue: LanguageContextType = {
-    language,
-    setLanguage,
-    t,
-    isLoading,
-  };
+  const contextValue: LanguageContextType = useMemo(
+    () => ({
+      language,
+      setLanguage,
+      t,
+      isLoading,
+    }),
+    [language, setLanguage, t, isLoading]
+  );
 
   return <LanguageContext.Provider value={contextValue}>{children}</LanguageContext.Provider>;
 };

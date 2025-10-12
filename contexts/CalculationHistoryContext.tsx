@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type React from 'react';
-import { createContext, type ReactNode, useCallback, useContext, useEffect, useState } from 'react';
+import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
 // Define the shape of a calculation history item
 export interface CalculationHistoryItem {
@@ -111,16 +111,19 @@ export const CalculationHistoryProvider: React.FC<CalculationHistoryProviderProp
     }
   };
 
+  const contextValue = useMemo(
+    () => ({
+      history,
+      addCalculation,
+      deleteCalculation,
+      clearAllCalculations,
+      loading,
+    }),
+    [history, addCalculation, deleteCalculation, clearAllCalculations, loading]
+  );
+
   return (
-    <CalculationHistoryContext.Provider
-      value={{
-        history,
-        addCalculation,
-        deleteCalculation,
-        clearAllCalculations,
-        loading,
-      }}
-    >
+    <CalculationHistoryContext.Provider value={contextValue}>
       {children}
     </CalculationHistoryContext.Provider>
   );

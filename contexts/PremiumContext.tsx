@@ -3,7 +3,7 @@ import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import * as WebBrowser from 'expo-web-browser';
 import type React from 'react';
-import { createContext, type ReactNode, useContext, useEffect, useState } from 'react';
+import { createContext, type ReactNode, useContext, useEffect, useMemo, useState } from 'react';
 import { Alert, Platform } from 'react-native';
 // Conditionally import Purchases to avoid errors on web
 import PurchasesModule from 'react-native-purchases';
@@ -337,18 +337,21 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
     }
   };
 
+  const contextValue = useMemo(
+    () => ({
+      isPremium,
+      checkPremiumStatus,
+      showPremiumPayment,
+      premiumLoading,
+      stripePaymentUrl,
+      isPremiumCached,
+      productInfo,
+    }),
+    [isPremium, checkPremiumStatus, showPremiumPayment, premiumLoading, stripePaymentUrl, isPremiumCached, productInfo]
+  );
+
   return (
-    <PremiumContext.Provider
-      value={{
-        isPremium,
-        checkPremiumStatus,
-        showPremiumPayment,
-        premiumLoading,
-        stripePaymentUrl,
-        isPremiumCached,
-        productInfo,
-      }}
-    >
+    <PremiumContext.Provider value={contextValue}>
       {children}
     </PremiumContext.Provider>
   );
