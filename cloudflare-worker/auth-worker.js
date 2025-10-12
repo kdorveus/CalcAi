@@ -4,6 +4,25 @@
  * Stores user data in Cloudflare D1 database
  */
 
+// Error message constants
+const ERROR_MESSAGES = {
+  INVALID_JSON: 'Invalid JSON body',
+  METHOD_NOT_ALLOWED: 'Method not allowed',
+  MISSING_CREDENTIAL: 'Missing credential',
+  INVALID_CREDENTIAL: 'Invalid credential',
+  INVALID_AUDIENCE: 'Invalid audience',
+  MISSING_AUTH_HEADER: 'Missing or invalid authorization header',
+  INVALID_SESSION: 'Invalid or expired session',
+  INVALID_SESSION_FORMAT: 'Invalid session format',
+  USER_NOT_FOUND: 'User not found',
+  MISSING_PRICE_ID: 'Missing priceId',
+  MISSING_WEBHOOK_DATA: 'Missing webhookUrl or data',
+  INVALID_WEBHOOK_URL: 'Invalid webhook URL',
+  MISSING_MESSAGE: 'Message is required',
+  MESSAGE_TOO_LONG: 'Message too long (max 1000 characters)',
+  PREMIUM_REQUIRED: 'Premium subscription required',
+};
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -122,7 +141,7 @@ async function handleGetGoogleClientId(_request, env, corsHeaders) {
  */
 async function handleGoogleOneTap(request, env, corsHeaders, _ctx) {
   if (request.method !== 'POST') {
-    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+    return new Response(JSON.stringify({ error: ERROR_MESSAGES.METHOD_NOT_ALLOWED }), {
       status: 405,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
@@ -131,8 +150,9 @@ async function handleGoogleOneTap(request, env, corsHeaders, _ctx) {
   let body;
   try {
     body = await request.json();
-  } catch (_e) {
-    return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
+  } catch (error) {
+    console.error('Invalid JSON in request body:', error);
+    return new Response(JSON.stringify({ error: ERROR_MESSAGES.INVALID_JSON }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
@@ -141,7 +161,7 @@ async function handleGoogleOneTap(request, env, corsHeaders, _ctx) {
   const { credential } = body;
 
   if (!credential) {
-    return new Response(JSON.stringify({ error: 'Missing credential' }), {
+    return new Response(JSON.stringify({ error: ERROR_MESSAGES.MISSING_CREDENTIAL }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
@@ -170,7 +190,7 @@ async function handleGoogleOneTap(request, env, corsHeaders, _ctx) {
 
   // Verify the token is for our app
   if (tokenInfo.aud !== env.GOOGLE_CLIENT_ID) {
-    return new Response(JSON.stringify({ error: 'Invalid audience' }), {
+    return new Response(JSON.stringify({ error: ERROR_MESSAGES.INVALID_AUDIENCE }), {
       status: 401,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
@@ -341,7 +361,7 @@ async function handleVerifyToken(request, env, corsHeaders, _ctx) {
     .first();
 
   if (!user) {
-    return new Response(JSON.stringify({ error: 'User not found' }), {
+    return new Response(JSON.stringify({ error: ERROR_MESSAGES.USER_NOT_FOUND }), {
       status: 404,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
@@ -463,7 +483,7 @@ async function generateSessionToken(userId) {
 async function verifyAuth(request, env, corsHeaders) {
   const authHeader = request.headers.get('Authorization');
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return new Response(JSON.stringify({ error: 'Missing or invalid authorization header' }), {
+    return new Response(JSON.stringify({ error: ERROR_MESSAGES.MISSING_AUTH_HEADER }), {
       status: 401,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
@@ -473,7 +493,7 @@ async function verifyAuth(request, env, corsHeaders) {
   const sessionData = await env.SESSIONS.get(token);
 
   if (!sessionData) {
-    return new Response(JSON.stringify({ error: 'Invalid or expired session' }), {
+    return new Response(JSON.stringify({ error: ERROR_MESSAGES.INVALID_SESSION }), {
       status: 401,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
@@ -482,8 +502,9 @@ async function verifyAuth(request, env, corsHeaders) {
   try {
     const session = JSON.parse(sessionData);
     return { session, token };
-  } catch (_e) {
-    return new Response(JSON.stringify({ error: 'Invalid session format' }), {
+  } catch (error) {
+    console.error('Failed to parse session data:', error);
+    return new Response(JSON.stringify({ error: ERROR_MESSAGES.INVALID_SESSION_FORMAT }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
@@ -506,7 +527,7 @@ async function handlePremiumCheck(request, env, corsHeaders, _ctx) {
     .bind(session.userId)
     .first();
 
-  return new Response(JSON.stringify({ isPremium: user?.is_premium ? true : false }), {
+  return new Response(JSON.stringify({ isPremium: Boolean(user?.is_premium) }), {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
 }
@@ -516,7 +537,7 @@ async function handlePremiumCheck(request, env, corsHeaders, _ctx) {
  */
 async function handleCreateCheckout(request, env, corsHeaders, _ctx) {
   if (request.method !== 'POST') {
-    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+    return new Response(JSON.stringify({ error: ERROR_MESSAGES.METHOD_NOT_ALLOWED }), {
       status: 405,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
@@ -534,7 +555,7 @@ async function handleCreateCheckout(request, env, corsHeaders, _ctx) {
     .first();
 
   if (!user) {
-    return new Response(JSON.stringify({ error: 'User not found' }), {
+    return new Response(JSON.stringify({ error: ERROR_MESSAGES.USER_NOT_FOUND }), {
       status: 404,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
@@ -544,8 +565,9 @@ async function handleCreateCheckout(request, env, corsHeaders, _ctx) {
   let body;
   try {
     body = await request.json();
-  } catch (_e) {
-    return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
+  } catch (error) {
+    console.error('Invalid JSON in checkout request:', error);
+    return new Response(JSON.stringify({ error: ERROR_MESSAGES.INVALID_JSON }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
@@ -554,7 +576,7 @@ async function handleCreateCheckout(request, env, corsHeaders, _ctx) {
   const { priceId } = body;
 
   if (!priceId) {
-    return new Response(JSON.stringify({ error: 'Missing priceId' }), {
+    return new Response(JSON.stringify({ error: ERROR_MESSAGES.MISSING_PRICE_ID }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
@@ -636,7 +658,7 @@ async function handleCreateCheckout(request, env, corsHeaders, _ctx) {
  */
 async function handleStripeWebhook(request, env, corsHeaders) {
   if (request.method !== 'POST') {
-    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+    return new Response(JSON.stringify({ error: ERROR_MESSAGES.METHOD_NOT_ALLOWED }), {
       status: 405,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
@@ -700,7 +722,6 @@ async function handleStripeWebhook(request, env, corsHeaders) {
  */
 async function verifyStripeWebhook(payload, signature, secret) {
   const encoder = new TextEncoder();
-  const _data = encoder.encode(payload);
 
   // Extract timestamp and signatures from header
   const signatureParts = signature.split(',');
@@ -831,7 +852,7 @@ async function handleSubscriptionDeleted(subscription, env) {
  */
 async function handleWebhookProxy(request, env, corsHeaders, _ctx) {
   if (request.method !== 'POST') {
-    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+    return new Response(JSON.stringify({ error: ERROR_MESSAGES.METHOD_NOT_ALLOWED }), {
       status: 405,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
@@ -849,7 +870,7 @@ async function handleWebhookProxy(request, env, corsHeaders, _ctx) {
     .first();
 
   if (!user || !user.is_premium) {
-    return new Response(JSON.stringify({ error: 'Premium subscription required' }), {
+    return new Response(JSON.stringify({ error: ERROR_MESSAGES.PREMIUM_REQUIRED }), {
       status: 403,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
@@ -859,8 +880,9 @@ async function handleWebhookProxy(request, env, corsHeaders, _ctx) {
   let body;
   try {
     body = await request.json();
-  } catch (_e) {
-    return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
+  } catch (error) {
+    console.error('Invalid JSON in webhook proxy request:', error);
+    return new Response(JSON.stringify({ error: ERROR_MESSAGES.INVALID_JSON }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
@@ -869,7 +891,7 @@ async function handleWebhookProxy(request, env, corsHeaders, _ctx) {
   const { webhookUrl, data } = body;
 
   if (!webhookUrl || !data) {
-    return new Response(JSON.stringify({ error: 'Missing webhookUrl or data' }), {
+    return new Response(JSON.stringify({ error: ERROR_MESSAGES.MISSING_WEBHOOK_DATA }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
@@ -878,8 +900,9 @@ async function handleWebhookProxy(request, env, corsHeaders, _ctx) {
   // Validate webhook URL
   try {
     new URL(webhookUrl);
-  } catch (_e) {
-    return new Response(JSON.stringify({ error: 'Invalid webhook URL' }), {
+  } catch (error) {
+    console.error('Invalid webhook URL format:', error);
+    return new Response(JSON.stringify({ error: ERROR_MESSAGES.INVALID_WEBHOOK_URL }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
@@ -922,7 +945,7 @@ async function handleWebhookProxy(request, env, corsHeaders, _ctx) {
  */
 async function handleContactForm(request, env, corsHeaders, ctx) {
   if (request.method !== 'POST') {
-    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+    return new Response(JSON.stringify({ error: ERROR_MESSAGES.METHOD_NOT_ALLOWED }), {
       status: 405,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
@@ -940,7 +963,7 @@ async function handleContactForm(request, env, corsHeaders, ctx) {
     .first();
 
   if (!user) {
-    return new Response(JSON.stringify({ error: 'User not found' }), {
+    return new Response(JSON.stringify({ error: ERROR_MESSAGES.USER_NOT_FOUND }), {
       status: 404,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
@@ -950,8 +973,9 @@ async function handleContactForm(request, env, corsHeaders, ctx) {
   let body;
   try {
     body = await request.json();
-  } catch (_e) {
-    return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
+  } catch (error) {
+    console.error('Invalid JSON in contact form request:', error);
+    return new Response(JSON.stringify({ error: ERROR_MESSAGES.INVALID_JSON }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
@@ -960,7 +984,7 @@ async function handleContactForm(request, env, corsHeaders, ctx) {
   const { message } = body;
 
   if (!message || typeof message !== 'string' || !message.trim()) {
-    return new Response(JSON.stringify({ error: 'Message is required' }), {
+    return new Response(JSON.stringify({ error: ERROR_MESSAGES.MISSING_MESSAGE }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
@@ -968,7 +992,7 @@ async function handleContactForm(request, env, corsHeaders, ctx) {
 
   // Validate message length
   if (message.length > 1000) {
-    return new Response(JSON.stringify({ error: 'Message too long (max 1000 characters)' }), {
+    return new Response(JSON.stringify({ error: ERROR_MESSAGES.MESSAGE_TOO_LONG }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

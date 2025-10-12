@@ -79,7 +79,8 @@ export const useWebhookManager = (
         }
 
         setWebhookSettingsLoaded(true);
-      } catch (_error) {
+      } catch (error) {
+        console.error('Failed to load webhook settings:', error);
         setWebhookSettingsLoaded(true);
       }
     };
@@ -114,7 +115,8 @@ export const useWebhookManager = (
       if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') return null;
 
       return url;
-    } catch (_e) {
+    } catch (error) {
+      console.debug('Invalid webhook URL:', error);
       return null;
     }
   }, []);
@@ -169,7 +171,8 @@ export const useWebhookManager = (
             .filter(Boolean);
 
           await Promise.allSettled(promises);
-        } catch (_error) {
+        } catch (error) {
+          console.error('Failed to send webhook data:', error);
           if (Platform.OS === 'android') {
             ToastAndroid.show(t('mainApp.couldNotSendData'), ToastAndroid.SHORT);
           }
@@ -313,7 +316,8 @@ export const useWebhookManager = (
         t('mainApp.bulkSendComplete'),
         `Successfully sent data to ${successCount} endpoints.\nFailed to send data to ${failureCount} endpoints.`
       );
-    } catch (_error) {
+    } catch (error) {
+      console.error('Bulk send error:', error);
       Alert.alert(t('mainApp.bulkSendError'), t('mainApp.bulkSendErrorMessage'));
     } finally {
       setIsSendingBulk(false);
@@ -328,7 +332,8 @@ export const useWebhookManager = (
         AsyncStorage.setItem('sendEquation', JSON.stringify(sendEquation)),
         AsyncStorage.setItem('streamResults', JSON.stringify(streamResults)),
       ]);
-    } catch (_error) {
+    } catch (error) {
+      console.error('Failed to save webhook settings:', error);
       if (Platform.OS === 'android') {
         ToastAndroid.show(t('mainApp.couldNotSaveSettings'), ToastAndroid.SHORT);
       }

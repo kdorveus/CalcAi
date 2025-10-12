@@ -45,12 +45,12 @@ export function useGoogleOneTap(config: GoogleOneTapConfig) {
   // Load Google Identity Services script
   useEffect(() => {
     // Only run on web platform
-    if (Platform.OS !== 'web' || typeof window === 'undefined') {
+    if (Platform.OS !== 'web' || typeof globalThis.window === 'undefined') {
       return;
     }
 
     // Check if already loaded
-    if (window.google?.accounts?.id) {
+    if (globalThis.window.google?.accounts?.id) {
       setIsLoaded(true);
       return;
     }
@@ -108,11 +108,11 @@ export function useGoogleOneTap(config: GoogleOneTapConfig) {
 
   // Initialize Google One Tap
   useEffect(() => {
-    if (!isLoaded || Platform.OS !== 'web' || typeof window === 'undefined') {
+    if (!isLoaded || Platform.OS !== 'web' || typeof globalThis.window === 'undefined') {
       return;
     }
 
-    if (!window.google?.accounts?.id) {
+    if (!globalThis.window.google?.accounts?.id) {
       return;
     }
 
@@ -124,7 +124,7 @@ export function useGoogleOneTap(config: GoogleOneTapConfig) {
     initAttemptedRef.current = true;
 
     try {
-      window.google.accounts.id.initialize({
+      globalThis.window.google.accounts.id.initialize({
         client_id: config.clientId,
         callback: (response: any) => {
           if (response.credential) {
@@ -156,16 +156,16 @@ export function useGoogleOneTap(config: GoogleOneTapConfig) {
 
   // Prompt One Tap
   const prompt = () => {
-    if (!isInitialized || Platform.OS !== 'web' || typeof window === 'undefined') {
+    if (!isInitialized || Platform.OS !== 'web' || typeof globalThis.window === 'undefined') {
       return;
     }
 
-    if (!window.google?.accounts?.id) {
+    if (!globalThis.window.google?.accounts?.id) {
       return;
     }
 
     try {
-      window.google.accounts.id.prompt((notification: any) => {
+      globalThis.window.google.accounts.id.prompt((notification: any) => {
         if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
           // One Tap was not displayed or was skipped
           // This is normal behavior - user may have dismissed it before
@@ -179,16 +179,16 @@ export function useGoogleOneTap(config: GoogleOneTapConfig) {
 
   // Cancel One Tap
   const cancel = () => {
-    if (!isInitialized || Platform.OS !== 'web' || typeof window === 'undefined') {
+    if (!isInitialized || Platform.OS !== 'web' || typeof globalThis.window === 'undefined') {
       return;
     }
 
-    if (!window.google?.accounts?.id) {
+    if (!globalThis.window.google?.accounts?.id) {
       return;
     }
 
     try {
-      window.google.accounts.id.cancel();
+      globalThis.window.google.accounts.id.cancel();
     } catch (error) {
       console.error('Google One Tap cancel error:', error);
     }

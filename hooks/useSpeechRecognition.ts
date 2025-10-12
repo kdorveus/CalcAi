@@ -58,7 +58,7 @@ export const useSpeechRecognition = ({
     if (Platform.OS === 'web') {
       // Pre-initialize the Web Speech API object to reduce delay on first use.
       const WebSpeechRecognition =
-        (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        (globalThis as any).SpeechRecognition || (globalThis as any).webkitSpeechRecognition;
       if (WebSpeechRecognition) {
         recognitionRef.current = new WebSpeechRecognition();
         // Set properties that don't change, but leave listeners for startRecording
@@ -81,7 +81,8 @@ export const useSpeechRecognition = ({
 
       permissionsGrantedRef.current = audioGranted;
       speechInitializedRef.current = true;
-    } catch (_error) {
+    } catch (error) {
+      console.error('Failed to initialize speech recognition:', error);
       speechInitializedRef.current = false;
       permissionsGrantedRef.current = false;
     }
@@ -218,7 +219,8 @@ export const useSpeechRecognition = ({
             previousTranscript = currentTranscript;
           }, 500);
         }
-      } catch (_e) {
+      } catch (error) {
+        console.error('Failed to start recording:', error);
         setIsRecording(false);
       }
     }
@@ -260,8 +262,8 @@ export const useSpeechRecognition = ({
         if (speechListenerRef.current) speechListenerRef.current.remove();
         if (endListenerRef.current) endListenerRef.current.remove();
         if (errorListenerRef.current) errorListenerRef.current.remove();
-      } catch (_e) {
-        // Silent error handling
+      } catch (error) {
+        console.debug('Error stopping speech recognition:', error);
       }
     }
   }, [setIsRecording, setInterimTranscript]);

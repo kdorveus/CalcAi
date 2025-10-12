@@ -36,7 +36,8 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({ children }) 
       } else {
         return DEFAULT_LANGUAGE;
       }
-    } catch (_error) {
+    } catch (error) {
+      console.debug('Failed to get stored language:', error);
       return DEFAULT_LANGUAGE;
     }
   }, []);
@@ -58,8 +59,8 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({ children }) 
             await AsyncStorage.setItem(LANGUAGE_STORAGE_KEY, systemLanguage);
           }
         }
-      } catch (_error) {
-        //
+      } catch (error) {
+        console.debug('Failed to initialize language:', error);
       } finally {
         setIsLoading(false);
       }
@@ -73,8 +74,8 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({ children }) 
         setLanguageState(lang);
         await AsyncStorage.setItem(LANGUAGE_STORAGE_KEY, lang);
       }
-    } catch (_error) {
-      //
+    } catch (error) {
+      console.error('Failed to change language:', error);
     }
   };
 

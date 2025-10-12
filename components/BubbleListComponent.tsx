@@ -40,7 +40,112 @@ interface BubbleListComponentProps {
   };
 }
 
-const BubbleListComponent = React.forwardRef<FlatList, BubbleListComponentProps>(
+// Extracted helper function
+const isNoEquationError = (content: string): boolean => {
+  const noEquationPhrases = [
+    'No Equation Detected',
+    'No se Detectó Ecuación',
+    'Aucune Équation Détectée',
+    'Keine Gleichung Erkannt',
+    'Nenhuma Equação Detectada',
+    'Nessuna Equazione Rilevata',
+  ];
+  return noEquationPhrases.some((phrase) => content.startsWith(phrase));
+};
+
+// Extracted components
+const ResultBubble: React.FC<{
+  item: ChatBubble;
+  onCopy: (text: string) => void;
+  styles: { resultBubble: ViewStyle; resultText: TextStyle };
+}> = ({ item, onCopy, styles }) => (
+  <Pressable
+    style={styles.resultBubble}
+    onLongPress={() => onCopy(item.content)}
+    delayLongPress={500}
+  >
+    <Text style={styles.resultText}>{item.content}</Text>
+  </Pressable>
+);
+
+const ErrorBubble: React.FC<{
+  item: ChatBubble;
+  styles: {
+    userBubble: ViewStyle;
+    userText: TextStyle;
+    errorBubble: ViewStyle;
+    errorText: TextStyle;
+  };
+}> = ({ item, styles }) => {
+  if (isNoEquationError(item.content)) {
+    return (
+      <View style={styles.userBubble}>
+        <Text style={[styles.userText, { color: '#999' }]}>{item.content}</Text>
+      </View>
+    );
+  }
+  return (
+    <View style={styles.errorBubble}>
+      <Text style={styles.errorText}>{item.content}</Text>
+    </View>
+  );
+};
+
+const UserBubble: React.FC<{
+  item: ChatBubble;
+  isLast: boolean;
+  keypadInput: string;
+  interimTranscript: string;
+  onCopy: (text: string) => void;
+  styles: {
+    userBubble: ViewStyle;
+    userText: TextStyle;
+    currentUserBubbleContainer: ViewStyle;
+  };
+}> = ({ item, isLast, keypadInput, interimTranscript, onCopy, styles }) => {
+  const isCurrentUserBubble = item.type === 'user' && isLast && item.content === keypadInput;
+
+  if (item.id === 'interim_speech') {
+    return (
+      <View style={styles.userBubble}>
+        <Text style={[styles.userText, { color: '#999' }]}>{item.content}</Text>
+      </View>
+    );
+  }
+
+  if (isCurrentUserBubble) {
+    return (
+      <View style={styles.currentUserBubbleContainer}>
+        <View style={styles.userBubble}>
+          <Text style={[styles.userText, interimTranscript ? { color: '#999' } : null]}>
+            {interimTranscript ? interimTranscript : item.content || ' '}
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
+  // Check if the content contains an equals sign
+  const hasEquals = item.content.includes('=');
+  if (hasEquals) {
+    const parts = item.content.split('=');
+    const answer = parts[parts.length - 1].trim();
+
+    return (
+      <Pressable style={styles.userBubble} onLongPress={() => onCopy(answer)} delayLongPress={500}>
+        <Text style={[styles.userText, { color: '#fff' }]}>{item.content}</Text>
+      </Pressable>
+    );
+  }
+
+  return (
+    <View style={styles.userBubble}>
+      <Text style={styles.userText}>{item.content}</Text>
+    </View>
+  );
+};
+
+const BubbleListComponentV2 = React.forwardRef<FlatList, BubbleListComponentProps>(
   (
     {
       bubbles,
@@ -56,84 +161,53 @@ const BubbleListComponent = React.forwardRef<FlatList, BubbleListComponentProps>
     },
     ref
   ) => {
+    const copyToClipboard = useCallback(
+      (text: string) => {
+        if (Platform.OS === 'web') {
+          navigator.clipboard?.writeText(text).catch(() => {});
+        } else {
+          ExpoClipboard.setStringAsync(text).catch(() => {});
+        }
+
+        if (vibrationEnabled) {
+          Vibration.vibrate(50);
+        }
+
+        if (Platform.OS === 'android') {
+          ToastAndroid.showWithGravity(
+            'Answer copied to clipboard',
+            ToastAndroid.SHORT,
+            ToastAndroid.TOP
+          );
+        } else {
+          setBubbles((prev) => [
+            {
+              id: (bubbleIdRef.current++).toString(),
+              type: 'calc',
+              content: t('mainApp.answerCopiedToClipboard'),
+            },
+            ...prev,
+          ]);
+          setTimeout(() => {
+            setBubbles((prev) => prev.slice(1));
+          }, 2000);
+        }
+      },
+      [vibrationEnabled, t, setBubbles, bubbleIdRef]
+    );
+
     const renderBubble = useCallback(
       ({ item, index }: { item: ChatBubble; index: number }) => {
         const isLastBubble = index === bubbles.length - 1;
-        const isCurrentUserBubble =
-          item.type === 'user' && isLastBubble && item.content === keypadInput;
-
-        const copyToClipboard = (text: string) => {
-          if (Platform.OS === 'web') {
-            navigator.clipboard?.writeText(text).catch(() => {});
-          } else {
-            ExpoClipboard.setStringAsync(text).catch(() => {});
-          }
-          // Add vibration feedback
-          if (vibrationEnabled) {
-            Vibration.vibrate(50);
-          }
-
-          if (Platform.OS === 'android') {
-            ToastAndroid.showWithGravity(
-              'Answer copied to clipboard',
-              ToastAndroid.SHORT,
-              ToastAndroid.TOP
-            );
-          } else {
-            // For iOS and web, add a temporary bubble at the top
-            setBubbles((prev) => [
-              {
-                id: (bubbleIdRef.current++).toString(),
-                type: 'calc',
-                content: t('mainApp.answerCopiedToClipboard'),
-              },
-              ...prev,
-            ]);
-            // Remove the notification bubble after 2 seconds
-            setTimeout(() => {
-              setBubbles((prev) => prev.slice(1));
-            }, 2000);
-          }
-        };
 
         if (item.type === 'result') {
-          return (
-            <Pressable
-              style={styles.resultBubble}
-              onLongPress={() => copyToClipboard(item.content)}
-              delayLongPress={500}
-            >
-              <Text style={styles.resultText}>{item.content}</Text>
-            </Pressable>
-          );
+          return <ResultBubble item={item} onCopy={copyToClipboard} styles={styles} />;
         }
 
         if (item.type === 'error') {
-          // Special-case: show "No Equation Detected" messages like interim stream (gray text), not as a red error bubble
-          // Check if content starts with any language version of "No Equation Detected"
-          const isNoEquationError =
-            item.content.startsWith('No Equation Detected') ||
-            item.content.startsWith('No se Detectó Ecuación') ||
-            item.content.startsWith('Aucune Équation Détectée') ||
-            item.content.startsWith('Keine Gleichung Erkannt') ||
-            item.content.startsWith('Nenhuma Equação Detectada') ||
-            item.content.startsWith('Nessuna Equazione Rilevata');
-
-          if (isNoEquationError) {
-            return (
-              <View style={styles.userBubble}>
-                <Text style={[styles.userText, { color: '#999' }]}>{item.content}</Text>
-              </View>
-            );
-          }
-          return (
-            <View style={styles.errorBubble}>
-              <Text style={styles.errorText}>{item.content}</Text>
-            </View>
-          );
+          return <ErrorBubble item={item} styles={styles} />;
         }
 
-        // result-input (special case for result in input field)
         if (item.type === 'result-input') {
           return (
             <View style={styles.currentUserBubbleContainer}>
@@ -144,63 +218,22 @@ const BubbleListComponent = React.forwardRef<FlatList, BubbleListComponentProps>
           );
         }
 
-        // user
         if (item.type === 'user') {
-          if (item.id === 'interim_speech') {
-            return (
-              <View style={styles.userBubble}>
-                <Text style={[styles.userText, { color: '#999' }]}>{item.content}</Text>
-              </View>
-            );
-          }
-          if (isCurrentUserBubble) {
-            return (
-              <View style={styles.currentUserBubbleContainer}>
-                <View style={styles.userBubble}>
-                  <Text style={[styles.userText, interimTranscript ? { color: '#999' } : null]}>
-                    {interimTranscript ? interimTranscript : item.content || ' '}
-                  </Text>
-                </View>
-              </View>
-            );
-          } else {
-            // Check if the content contains an equals sign
-            const hasEquals = item.content.includes('=');
-            if (hasEquals) {
-              const parts = item.content.split('=');
-              const answer = parts[parts.length - 1].trim();
-
-              return (
-                <Pressable
-                  style={styles.userBubble}
-                  onLongPress={() => copyToClipboard(answer)}
-                  delayLongPress={500}
-                >
-                  <Text style={[styles.userText, { color: '#fff' }]}>{item.content}</Text>
-                </Pressable>
-              );
-            }
-
-            return (
-              <View style={styles.userBubble}>
-                <Text style={styles.userText}>{item.content}</Text>
-              </View>
-            );
-          }
+          return (
+            <UserBubble
+              item={item}
+              isLast={isLastBubble}
+              keypadInput={keypadInput}
+              interimTranscript={interimTranscript}
+              onCopy={copyToClipboard}
+              styles={styles}
+            />
+          );
         }
 
         return null;
       },
-      [
-        bubbles.length,
-        keypadInput,
-        vibrationEnabled,
-        interimTranscript,
-        t,
-        setBubbles,
-        bubbleIdRef,
-        styles,
-      ]
+      [bubbles.length, keypadInput, interimTranscript, copyToClipboard, styles]
     );
 
     return (
@@ -236,6 +269,6 @@ const BubbleListComponent = React.forwardRef<FlatList, BubbleListComponentProps>
   }
 );
 
-BubbleListComponent.displayName = 'BubbleListComponent';
+BubbleListComponentV2.displayName = 'BubbleListComponentV2';
 
-export default React.memo(BubbleListComponent);
+export default React.memo(BubbleListComponentV2);

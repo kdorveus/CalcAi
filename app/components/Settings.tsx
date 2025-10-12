@@ -25,7 +25,7 @@ import { SUPPORTED_LANGUAGES } from '../../constants/Languages';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePremium } from '../../contexts/PremiumContext';
 import { useTranslation } from '../../hooks/useTranslation';
-import GoogleLogo from '../components/GoogleLogo';
+import GoogleLogo from './GoogleLogo';
 
 interface BulkDataItem {
   id: string | number;
@@ -107,7 +107,7 @@ export const WebhookSettingsComponent: React.FC<WebhookSettingsProps> = ({
   setContinuousMode,
 }) => {
   const { user, loading, signOut, authError, signInWithGoogle } = useAuth();
-  const { isPremium, checkPremiumStatus, premiumLoading } = usePremium();
+  const { isPremium, checkPremiumStatus } = usePremium();
   const { t, language, setLanguage } = useTranslation();
   const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [lastAttemptedAction, setLastAttemptedAction] = useState<(() => void) | null>(null);
@@ -181,15 +181,7 @@ export const WebhookSettingsComponent: React.FC<WebhookSettingsProps> = ({
     }
   };
 
-  // Wrap actions that need auth
-  const requireAuth = (action: () => void) => {
-    if (!user) {
-      setLastAttemptedAction(() => action);
-      handleGoogleLogin();
-      return;
-    }
-    action();
-  };
+  // requireAuth removed - was not being used
 
   // Wrap actions that need premium
   const requirePremium = async (action: () => void) => {
@@ -291,9 +283,7 @@ export const WebhookSettingsComponent: React.FC<WebhookSettingsProps> = ({
     });
   };
 
-  const handleToggleWebhookWrapped = (url: string, active: boolean) => {
-    requirePremium(() => handleToggleWebhook(url, active));
-  };
+  // handleToggleWebhookWrapped removed - was not being used
 
   const handleDeleteWebhookWrapped = (url: string) => {
     requirePremium(() => handleDeleteWebhook(url));
@@ -1146,70 +1136,68 @@ ${failures > 0 ? `${t('settings.bulkData.failedToSendTo')} ${failures} ${failure
   );
 
   return (
-    <>
-      <Modal
-        visible={visible}
-        animationType={Platform.OS === 'web' ? 'none' : 'slide'}
-        transparent={false}
-        onRequestClose={onClose}
-      >
-        <SafeAreaView style={{ flex: 1, backgroundColor: '#121212' }}>
-          <View style={{ flex: 1, backgroundColor: '#121212' }}>
-            <View style={styles.header}>
-              {/* New Back Button on Left */}
-              <TouchableOpacity onPress={onClose} style={styles.headerBackButton}>
-                <AppIcon name="arrow-left" size={24} color="#fff" />
-              </TouchableOpacity>
+    <Modal
+      visible={visible}
+      animationType={Platform.OS === 'web' ? 'none' : 'slide'}
+      transparent={false}
+      onRequestClose={onClose}
+    >
+      <SafeAreaView style={{ flex: 1, backgroundColor: '#121212' }}>
+        <View style={{ flex: 1, backgroundColor: '#121212' }}>
+          <View style={styles.header}>
+            {/* New Back Button on Left */}
+            <TouchableOpacity onPress={onClose} style={styles.headerBackButton}>
+              <AppIcon name="arrow-left" size={24} color="#fff" />
+            </TouchableOpacity>
 
-              {/* Title and Settings Icon (centered group) */}
-              <View style={styles.headerTitleGroup}>
-                <AppIcon name="cog" size={24} color="#fff" style={{ marginRight: 8 }} />
-                <Text style={styles.modalTitle}>{t('settings.title')}</Text>
-              </View>
-
-              {/* Premium Button - only shown for non-premium users */}
-              {!isPremium ? (
-                <TouchableOpacity
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    backgroundColor: 'transparent',
-                    paddingHorizontal: 0,
-                    paddingVertical: 0,
-                    elevation: 0,
-                    shadowOpacity: 0,
-                  }}
-                  onPress={() => setShowPremiumModal(true)}
-                  activeOpacity={0.7}
-                >
-                  <AppIcon name="crown-outline" size={22} color="#ff9500" />
-                  <Text
-                    style={{ color: '#ff9500', fontWeight: 'bold', fontSize: 14, marginLeft: 4 }}
-                  >
-                    {t('common.pro')}
-                  </Text>
-                </TouchableOpacity>
-              ) : (
-                <View style={styles.headerRightPlaceholder} />
-              )}
+            {/* Title and Settings Icon (centered group) */}
+            <View style={styles.headerTitleGroup}>
+              <AppIcon name="cog" size={24} color="#fff" style={{ marginRight: 8 }} />
+              <Text style={styles.modalTitle}>{t('settings.title')}</Text>
             </View>
 
-            {ScrollViewContent}
+            {/* Premium Button - only shown for non-premium users */}
+            {!isPremium ? (
+              <TouchableOpacity
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  backgroundColor: 'transparent',
+                  paddingHorizontal: 0,
+                  paddingVertical: 0,
+                  elevation: 0,
+                  shadowOpacity: 0,
+                }}
+                onPress={() => setShowPremiumModal(true)}
+                activeOpacity={0.7}
+              >
+                <AppIcon name="crown-outline" size={22} color="#ff9500" />
+                <Text
+                  style={{ color: '#ff9500', fontWeight: 'bold', fontSize: 14, marginLeft: 4 }}
+                >
+                  {t('common.pro')}
+                </Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.headerRightPlaceholder} />
+            )}
           </View>
-        </SafeAreaView>
-        <PremiumPaymentModal
-          visible={showPremiumModal}
-          onClose={() => setShowPremiumModal(false)}
-          onSuccess={() => {
-            setShowPremiumModal(false);
-            if (lastAttemptedAction) {
-              lastAttemptedAction();
-              setLastAttemptedAction(null);
-            }
-          }}
-        />
-      </Modal>
-    </>
+
+          {ScrollViewContent}
+        </View>
+      </SafeAreaView>
+      <PremiumPaymentModal
+        visible={showPremiumModal}
+        onClose={() => setShowPremiumModal(false)}
+        onSuccess={() => {
+          setShowPremiumModal(false);
+          if (lastAttemptedAction) {
+            lastAttemptedAction();
+            setLastAttemptedAction(null);
+          }
+        }}
+      />
+    </Modal>
   );
 };
 

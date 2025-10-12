@@ -91,7 +91,7 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
 
           if (cachedStatus && cachedTimestamp) {
             const status = cachedStatus === 'true';
-            const timestamp = parseInt(cachedTimestamp, 10);
+            const timestamp = Number.parseInt(cachedTimestamp, 10);
 
             setIsPremium(status);
             setLastChecked(timestamp);
@@ -104,7 +104,7 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
 
           if (cachedStatus && cachedTimestamp) {
             const status = cachedStatus === 'true';
-            const timestamp = parseInt(cachedTimestamp, 10);
+            const timestamp = Number.parseInt(cachedTimestamp, 10);
 
             setIsPremium(status);
             setLastChecked(timestamp);
@@ -146,7 +146,7 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
               Purchases.addCustomerInfoUpdateListener(async (customerInfo: any) => {
                 console.log('Customer info updated:', customerInfo);
                 // Check if premium entitlement is active
-                if (customerInfo.entitlements.active['premium']) {
+                if (customerInfo.entitlements.active.premium) {
                   console.log('Premium entitlement active');
 
                   // TODO: Update premium status via Cloudflare
@@ -215,7 +215,8 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
       setIsPremiumCached(true);
       await savePremiumStatus(premium, Date.now());
       return premium;
-    } catch (_error) {
+    } catch (error) {
+      console.error('Failed to check premium status:', error);
       setIsPremium(false);
       return false;
     }
@@ -305,7 +306,7 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
 
           if (Platform.OS === 'web') {
             // For web, open in the same tab
-            window.location.href = url;
+            globalThis.window.location.href = url;
           } else {
             // For other platforms, use WebBrowser
             const result = await WebBrowser.openBrowserAsync(url);

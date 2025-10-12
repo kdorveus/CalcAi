@@ -1,9 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import axios from 'axios';
-import { requestRecordingPermissionsAsync } from 'expo-audio';
 import * as Speech from 'expo-speech';
 import { evaluate } from 'mathjs';
-import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type React from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Dimensions, // Add Dimensions import for responsive layout
   type FlatList,
@@ -23,20 +22,18 @@ import {
 } from 'react-native';
 // Using our bundled AppIcon component instead of MaterialCommunityIcons
 import AppIcon from '../components/AppIcon';
+import BubbleListComponent from '../components/BubbleListComponent';
 import HistoryButton from '../components/HistoryButton';
-import { SPEECH_RECOGNITION_LANG_MAP } from '../constants/Languages';
+import HistoryModal from '../components/HistoryModal';
+import KeypadComponent from '../components/KeypadComponent';
+import { LANGUAGE_PATTERNS, type LanguagePatterns, SPEECH_RECOGNITION_LANG_MAP } from '../constants/Languages';
 import { useAuth } from '../contexts/AuthContext';
 import { useCalculationHistory } from '../contexts/CalculationHistoryContext';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useTranslation } from '../hooks/useTranslation';
 import { useWebhookManager } from '../hooks/useWebhookManager';
-
-// Dynamically import heavy components for code splitting
-const Settings = React.lazy(() => import('./components/Settings'));
-const HistoryModal = React.lazy(() => import('../components/HistoryModal'));
-const KeypadComponent = React.lazy(() => import('../components/KeypadComponent'));
-const BubbleListComponent = React.lazy(() => import('../components/BubbleListComponent'));
-
+// Direct imports for instant rendering - no lazy loading for critical UI
+import Settings from './components/Settings';
 
 // (Removed unused asset preload hook to avoid dead code)
 
@@ -50,38 +47,6 @@ interface ChatBubble {
   content: string;
 }
 
-
-
-interface AxiosFailurePayload {
-  url: string;
-  error: any;
-}
-
-// Define type for math patterns
-interface LanguagePatterns {
-  numbers: { [key: string]: string };
-  operations: {
-    addition: string[];
-    subtraction: string[];
-    multiplication: string[];
-    division: string[];
-    percentage: string[];
-    percentOf: string[];
-    power: string[];
-    sqrt: string[];
-    parentheses: {
-      open: string[];
-      close: string[];
-    };
-    decimal: string[];
-  };
-  specificPhrases: {
-    addTo: string;
-    subtractFrom: string;
-    multiplyBy: string;
-    divideBy: string;
-  };
-}
 
 // Wrapper component for Web Empty State
 const WebEmptyState: React.FC<{ t: (key: string) => string }> = ({ t }) => {
@@ -137,9 +102,9 @@ const MainScreen: React.FC = () => {
   }, []);
 
   // Language mapping for speech recognition
-  const getSpeechRecognitionLanguage = (lang: string): string => {
+  const getSpeechRecognitionLanguage = useCallback((lang: string): string => {
     return SPEECH_RECOGNITION_LANG_MAP[lang] || 'en-US';
-  };
+  }, []);
 
   // Setup animation values for swipe effects
   // const translateX = useSharedValue(0);
@@ -202,7 +167,8 @@ const MainScreen: React.FC = () => {
   const [showHistoryModal, setShowHistoryModal] = useState(false); // State for history modal
   const [historyEnabled, setHistoryEnabled] = useState(true); // State for history toggle
 
-  // State for tracking tooltip hover
+  // Keypad buttons
+  const [vibrationEnabled, setVibrationEnabled] = useState(true); // Add vibration state
   const [hoveredTooltip, setHoveredTooltip] = useState<string | null>(null);
   const [continuousMode, setContinuousMode] = useState(false);
 
@@ -227,8 +193,8 @@ const MainScreen: React.FC = () => {
     // Stop any ongoing speech when muted
     if (newMuteState) {
       if (Platform.OS === 'web') {
-        if (typeof window !== 'undefined' && window.speechSynthesis) {
-          window.speechSynthesis.cancel();
+        if (typeof globalThis.window !== 'undefined' && globalThis.window.speechSynthesis) {
+          globalThis.window.speechSynthesis.cancel();
         }
       } else {
         Speech.stop();
@@ -286,9 +252,9 @@ const MainScreen: React.FC = () => {
 
   // Initialize and cache the Google female voice on component mount (Web only)
   useEffect(() => {
-    if (Platform.OS === 'web' && typeof window !== 'undefined' && window.speechSynthesis) {
+    if (Platform.OS === 'web' && typeof globalThis.window !== 'undefined' && globalThis.window.speechSynthesis) {
       const selectBestVoice = () => {
-        const voices = window.speechSynthesis.getVoices();
+        const voices = globalThis.window.speechSynthesis.getVoices();
         if (voices.length === 0) return; // Voices not loaded yet
 
         const targetLang = getSpeechRecognitionLanguage(language);
@@ -337,10 +303,10 @@ const MainScreen: React.FC = () => {
         selectBestVoice();
       };
 
-      window.speechSynthesis.addEventListener('voiceschanged', handleVoicesChanged);
+      globalThis.window.speechSynthesis.addEventListener('voiceschanged', handleVoicesChanged);
 
       return () => {
-        window.speechSynthesis.removeEventListener('voiceschanged', handleVoicesChanged);
+        globalThis.window.speechSynthesis.removeEventListener('voiceschanged', handleVoicesChanged);
       };
     }
   }, [language, getSpeechRecognitionLanguage]);
@@ -351,611 +317,9 @@ const MainScreen: React.FC = () => {
   // Internal error constant for programming logic (never shown to user)
   const MATH_ERROR = 'MATH_ERROR_INTERNAL';
 
-  // Hoisted, static language patterns (module-scope style but kept here for minimal diff)
-  const LANGUAGE_PATTERNS: { [key: string]: LanguagePatterns } = {
-    en: {
-      numbers: {
-        zero: '0',
-        one: '1',
-        two: '2',
-        three: '3',
-        four: '4',
-        five: '5',
-        six: '6',
-        seven: '7',
-        eight: '8',
-        nine: '9',
-        ten: '10',
-        eleven: '11',
-        twelve: '12',
-        thirteen: '13',
-        fourteen: '14',
-        fifteen: '15',
-        sixteen: '16',
-        seventeen: '17',
-        eighteen: '18',
-        nineteen: '19',
-        twenty: '20',
-        thirty: '30',
-        forty: '40',
-        fifty: '50',
-        sixty: '60',
-        seventy: '70',
-        eighty: '80',
-        ninety: '90',
-        hundred: '100',
-        thousand: '1000',
-        million: '1000000',
-        billion: '1000000000',
-        trillion: '1000000000000',
-      },
-      operations: {
-        addition: ['plus', 'add', 'added', 'adding', 'and', 'sum', 'total', 'combine', 'combined'],
-        subtraction: [
-          'minus',
-          'subtract',
-          'subtracted',
-          'subtracting',
-          'less',
-          'take away',
-          'remove',
-          'removed',
-          'decrease',
-          'decreased',
-        ],
-        multiplication: [
-          'times',
-          'multiplied by',
-          'multiply',
-          'multiplying',
-          'x',
-          'product',
-          'product of',
-        ],
-        division: ['divided by', 'divided', 'divide', 'dividing', 'over', 'split', 'split by'],
-        percentage: ['percent', 'percentage', '%'],
-        percentOf: ['percent of', 'percentage of', '% of'],
-        power: [
-          'power',
-          'raised to',
-          'to the power of',
-          'to the power',
-          'squared',
-          'cubed',
-          'exponent',
-        ],
-        sqrt: ['square root of', 'root of', 'square root', 'root'],
-        parentheses: {
-          open: ['open parenthesis', 'left parenthesis', 'open bracket'],
-          close: ['close parenthesis', 'right parenthesis', 'close bracket'],
-        },
-        decimal: ['point', 'dot', 'decimal'],
-      },
-      specificPhrases: {
-        addTo: 'add (\\d+(?:\\.\\d+)?) to (\\d+(?:\\.\\d+)?)',
-        subtractFrom: 'subtract (\\d+(?:\\.\\d+)?) from (\\d+(?:\\.\\d+)?)',
-        multiplyBy: '(multiply|multiplied) (\\d+(?:\\.\\d+)?) by (\\d+(?:\\.\\d+)?)',
-        divideBy: '(divide|divided) (\\d+(?:\\.\\d+)?) by (\\d+(?:\\.\\d+)?)',
-      },
-    },
-    es: {
-      numbers: {
-        cero: '0',
-        uno: '1',
-        dos: '2',
-        tres: '3',
-        cuatro: '4',
-        cinco: '5',
-        seis: '6',
-        siete: '7',
-        ocho: '8',
-        nueve: '9',
-        diez: '10',
-        once: '11',
-        doce: '12',
-        trece: '13',
-        catorce: '14',
-        quince: '15',
-        dieciséis: '16',
-        diecisiete: '17',
-        dieciocho: '18',
-        diecinueve: '19',
-        veinte: '20',
-        treinta: '30',
-        cuarenta: '40',
-        cincuenta: '50',
-        sesenta: '60',
-        setenta: '70',
-        ochenta: '80',
-        noventa: '90',
-        cien: '100',
-        mil: '1000',
-        millón: '1000000',
-        'mil millones': '1000000000',
-        billón: '1000000000000',
-      },
-      operations: {
-        addition: [
-          'más',
-          'sumar',
-          'suma',
-          'sumado',
-          'y',
-          'añadir',
-          'añade',
-          'añadido',
-          'agregar',
-          'agrega',
-          'agregado',
-        ],
-        subtraction: [
-          'menos',
-          'restar',
-          'resta',
-          'restado',
-          'quitar',
-          'quita',
-          'quitado',
-          'sacar',
-          'saca',
-          'sacado',
-          'disminuir',
-          'disminuye',
-          'disminuido',
-        ],
-        multiplication: [
-          'por',
-          'multiplicado por',
-          'multiplicar',
-          'multiplica',
-          'veces',
-          'x',
-          'producto',
-          'producto de',
-        ],
-        division: ['dividido por', 'dividir', 'divide', 'dividido', 'sobre', 'entre'],
-        percentage: ['por ciento', 'porciento', 'porcentaje', '%'],
-        percentOf: ['por ciento de', 'porciento de', 'porcentaje de'],
-        power: [
-          'elevado a',
-          'elevado',
-          'a la potencia de',
-          'a la potencia',
-          'al cuadrado',
-          'al cubo',
-          'potencia',
-          'exponente',
-        ],
-        sqrt: ['raíz cuadrada de', 'raíz de', 'raíz cuadrada', 'raíz'],
-        parentheses: {
-          open: ['abrir paréntesis', 'paréntesis izquierdo', 'abrir corchete'],
-          close: ['cerrar paréntesis', 'paréntesis derecho', 'cerrar corchete'],
-        },
-        decimal: ['punto', 'coma', 'decimal'],
-      },
-      specificPhrases: {
-        addTo: 'sumar (\\d+(?:\\.\\d+)?) a (\\d+(?:\\.\\d+)?)',
-        subtractFrom: 'restar (\\d+(?:\\.\\d+)?) de (\\d+(?:\\.\\d+)?)',
-        multiplyBy: '(multiplicar|multiplicado) (\\d+(?:\\.\\d+)?) por (\\d+(?:\\.\\d+)?)',
-        divideBy: '(dividir|dividido) (\\d+(?:\\.\\d+)?) por (\\d+(?:\\.\\d+)?)',
-      },
-    },
-    fr: {
-      numbers: {
-        zéro: '0',
-        un: '1',
-        deux: '2',
-        trois: '3',
-        quatre: '4',
-        cinq: '5',
-        six: '6',
-        sept: '7',
-        huit: '8',
-        neuf: '9',
-        dix: '10',
-        onze: '11',
-        douze: '12',
-        treize: '13',
-        quatorze: '14',
-        quinze: '15',
-        seize: '16',
-        'dix-sept': '17',
-        'dix-huit': '18',
-        'dix-neuf': '19',
-        vingt: '20',
-        trente: '30',
-        quarante: '40',
-        cinquante: '50',
-        soixante: '60',
-        'soixante-dix': '70',
-        'quatre-vingts': '80',
-        'quatre-vingt-dix': '90',
-        cent: '100',
-        mille: '1000',
-        million: '1000000',
-        milliard: '1000000000',
-        trillion: '1000000000000',
-      },
-      operations: {
-        addition: [
-          'plus',
-          'ajouter',
-          'ajoute',
-          'ajouté',
-          'et',
-          'additionner',
-          'additionne',
-          'additionné',
-          'somme',
-          'sommer',
-          'somme de',
-          'rajouter',
-          'rajoute',
-          'rajouté',
-        ],
-        subtraction: [
-          'moins',
-          'soustraire',
-          'soustrait',
-          'soustraction',
-          'retirer',
-          'retire',
-          'retiré',
-          'enlever',
-          'enlève',
-          'enlevé',
-          'ôter',
-          'ôte',
-          'ôté',
-          'diminuer',
-          'diminue',
-          'diminué',
-        ],
-        multiplication: [
-          'fois',
-          'multiplié par',
-          'multiplier',
-          'multiplie',
-          'multiplication',
-          'x',
-          'par',
-          'produit',
-          'produit de',
-        ],
-        division: [
-          'divisé',
-          'divisé par',
-          'diviser',
-          'divise',
-          'division',
-          'sur',
-          'divisée par',
-          'divisée',
-        ],
-        percentage: ['pour cent', 'pourcent', 'pourcentage', '%'],
-        percentOf: ['pour cent de', 'pourcent de', 'pourcentage de'],
-        power: [
-          'puissance',
-          'élevé à',
-          'élevé',
-          'à la puissance de',
-          'à la puissance',
-          'au carré',
-          'au cube',
-          'exposant',
-        ],
-        sqrt: ['racine carrée de', 'racine de', 'racine carrée', 'racine'],
-        parentheses: {
-          open: ['ouvrir parenthèse', 'parenthèse gauche', 'ouvrir crochet', 'ouvre parenthèse'],
-          close: ['fermer parenthèse', 'parenthèse droite', 'fermer crochet', 'ferme parenthèse'],
-        },
-        decimal: ['virgule', 'point', 'décimal', 'décimale'],
-      },
-      specificPhrases: {
-        addTo:
-          '(ajouter|ajoute|additionner|additionne) (\\d+(?:\\.\\d+)?) (à|a) (\\d+(?:\\.\\d+)?)',
-        subtractFrom:
-          '(soustraire|soustrait|retirer|retire|enlever|enlève|ôter|ôte) (\\d+(?:\\.\\d+)?) (de|à|a) (\\d+(?:\\.\\d+)?)',
-        multiplyBy: '(multiplier|multiplie|multiplié) (\\d+(?:\\.\\d+)?) par (\\d+(?:\\.\\d+)?)',
-        divideBy: '(diviser|divise|divisé|divisée) (\\d+(?:\\.\\d+)?) par (\\d+(?:\\.\\d+)?)',
-      },
-    },
-    de: {
-      numbers: {
-        null: '0',
-        eins: '1',
-        zwei: '2',
-        drei: '3',
-        vier: '4',
-        fünf: '5',
-        sechs: '6',
-        sieben: '7',
-        acht: '8',
-        neun: '9',
-        zehn: '10',
-        elf: '11',
-        zwölf: '12',
-        dreizehn: '13',
-        vierzehn: '14',
-        fünfzehn: '15',
-        sechzehn: '16',
-        siebzehn: '17',
-        achtzehn: '18',
-        neunzehn: '19',
-        zwanzig: '20',
-        dreißig: '30',
-        vierzig: '40',
-        fünfzig: '50',
-        sechzig: '60',
-        siebzig: '70',
-        achtzig: '80',
-        neunzig: '90',
-        hundert: '100',
-        tausend: '1000',
-        million: '1000000',
-        milliarde: '1000000000',
-        trillion: '1000000000000',
-      },
-      operations: {
-        addition: [
-          'plus',
-          'addieren',
-          'addiere',
-          'addiert',
-          'und',
-          'hinzufügen',
-          'hinzufüge',
-          'hinzugefügt',
-          'dazu',
-          'summieren',
-          'summe',
-        ],
-        subtraction: [
-          'minus',
-          'subtrahieren',
-          'subtrahiere',
-          'subtrahiert',
-          'weniger',
-          'abziehen',
-          'ziehe ab',
-          'abgezogen',
-          'wegnehmen',
-          'nimm weg',
-        ],
-        multiplication: [
-          'mal',
-          'multipliziert mit',
-          'multiplizieren',
-          'multipliziere',
-          'x',
-          'produkt',
-          'produkt von',
-        ],
-        division: ['geteilt durch', 'dividiert durch', 'teilen', 'teile', 'über', 'durch'],
-        percentage: ['prozent', 'vom hundert', '%'],
-        percentOf: ['prozent von', 'prozent des'],
-        power: ['hoch', 'zur potenz', 'zur potenz von', 'quadrat', 'kubik', 'potenz', 'exponent'],
-        sqrt: ['quadratwurzel von', 'wurzel von', 'quadratwurzel', 'wurzel'],
-        parentheses: {
-          open: ['klammer auf', 'linke klammer', 'öffnende klammer'],
-          close: ['klammer zu', 'rechte klammer', 'schließende klammer'],
-        },
-        decimal: ['komma', 'punkt', 'dezimal'],
-      },
-      specificPhrases: {
-        addTo: 'addiere (\\d+(?:\\.\\d+)?) zu (\\d+(?:\\.\\d+)?)',
-        subtractFrom: 'subtrahiere (\\d+(?:\\.\\d+)?) von (\\d+(?:\\.\\d+)?)',
-        multiplyBy: '(multipliziere|multipliziert) (\\d+(?:\\.\\d+)?) mit (\\d+(?:\\.\\d+)?)',
-        divideBy: '(teile|geteilt) (\\d+(?:\\.\\d+)?) durch (\\d+(?:\\.\\d+)?)',
-      },
-    },
-    pt: {
-      numbers: {
-        zero: '0',
-        um: '1',
-        dois: '2',
-        três: '3',
-        quatro: '4',
-        cinco: '5',
-        seis: '6',
-        sete: '7',
-        oito: '8',
-        nove: '9',
-        dez: '10',
-        onze: '11',
-        doze: '12',
-        treze: '13',
-        quatorze: '14',
-        quinze: '15',
-        dezesseis: '16',
-        dezessete: '17',
-        dezoito: '18',
-        dezenove: '19',
-        vinte: '20',
-        trinta: '30',
-        quarenta: '40',
-        cinquenta: '50',
-        sessenta: '60',
-        setenta: '70',
-        oitenta: '80',
-        noventa: '90',
-        cem: '100',
-        mil: '1000',
-        milhão: '1000000',
-        bilhão: '1000000000',
-        trilhão: '1000000000000',
-      },
-      operations: {
-        addition: [
-          'mais',
-          'somar',
-          'soma',
-          'somado',
-          'e',
-          'adicionar',
-          'adiciona',
-          'adicionado',
-          'acrescentar',
-          'acrescenta',
-          'acrescentado',
-        ],
-        subtraction: [
-          'menos',
-          'subtrair',
-          'subtrai',
-          'subtraído',
-          'tirar',
-          'tira',
-          'tirado',
-          'retirar',
-          'retira',
-          'retirado',
-          'diminuir',
-          'diminui',
-          'diminuído',
-        ],
-        multiplication: [
-          'vezes',
-          'multiplicado por',
-          'multiplicar',
-          'multiplica',
-          'x',
-          'produto',
-          'produto de',
-        ],
-        division: ['dividido por', 'dividir', 'divide', 'dividido', 'sobre', 'por'],
-        percentage: ['por cento', 'porcento', 'percentagem', '%'],
-        percentOf: ['por cento de', 'porcento de', 'percentagem de'],
-        power: [
-          'elevado a',
-          'elevado',
-          'à potência de',
-          'à potência',
-          'ao quadrado',
-          'ao cubo',
-          'potência',
-          'expoente',
-        ],
-        sqrt: ['raiz quadrada de', 'raiz de', 'raiz quadrada', 'raiz'],
-        parentheses: {
-          open: ['abrir parênteses', 'parênteses esquerdo', 'abrir colchetes'],
-          close: ['fechar parênteses', 'parênteses direito', 'fechar colchetes'],
-        },
-        decimal: ['vírgula', 'ponto', 'decimal'],
-      },
-      specificPhrases: {
-        addTo: 'somar (\\d+(?:\\.\\d+)?) a (\\d+(?:\\.\\d+)?)',
-        subtractFrom: 'subtrair (\\d+(?:\\.\\d+)?) de (\\d+(?:\\.\\d+)?)',
-        multiplyBy: '(multiplicar|multiplicado) (\\d+(?:\\.\\d+)?) por (\\d+(?:\\.\\d+)?)',
-        divideBy: '(dividir|dividido) (\\d+(?:\\.\\d+)?) por (\\d+(?:\\.\\d+)?)',
-      },
-    },
-    it: {
-      numbers: {
-        zero: '0',
-        uno: '1',
-        due: '2',
-        tre: '3',
-        quattro: '4',
-        cinque: '5',
-        sei: '6',
-        sette: '7',
-        otto: '8',
-        nove: '9',
-        dieci: '10',
-        undici: '11',
-        dodici: '12',
-        tredici: '13',
-        quattordici: '14',
-        quindici: '15',
-        sedici: '16',
-        diciassette: '17',
-        diciotto: '18',
-        diciannove: '19',
-        venti: '20',
-        trenta: '30',
-        quaranta: '40',
-        cinquanta: '50',
-        sessanta: '60',
-        settanta: '70',
-        ottanta: '80',
-        novanta: '90',
-        cento: '100',
-        mille: '1000',
-        milione: '1000000',
-        miliardo: '1000000000',
-        trillione: '1000000000000',
-      },
-      operations: {
-        addition: [
-          'più',
-          'sommare',
-          'somma',
-          'sommato',
-          'e',
-          'aggiungere',
-          'aggiungi',
-          'aggiunto',
-          'addizionare',
-          'addiziona',
-          'addizionato',
-        ],
-        subtraction: [
-          'meno',
-          'sottrarre',
-          'sottrai',
-          'sottratto',
-          'togliere',
-          'togli',
-          'tolto',
-          'levare',
-          'leva',
-          'levato',
-          'diminuire',
-          'diminuisci',
-          'diminuito',
-        ],
-        multiplication: [
-          'per',
-          'moltiplicato per',
-          'moltiplicare',
-          'moltiplica',
-          'x',
-          'prodotto',
-          'prodotto di',
-        ],
-        division: ['diviso per', 'dividere', 'dividi', 'diviso', 'sopra', 'fratto'],
-        percentage: ['per cento', 'percento', 'percentuale', '%'],
-        percentOf: ['per cento di', 'percento di', 'percentuale di'],
-        power: [
-          'elevato a',
-          'elevato',
-          'alla potenza di',
-          'alla potenza',
-          'al quadrato',
-          'al cubo',
-          'potenza',
-          'esponente',
-        ],
-        sqrt: ['radice quadrata di', 'radice di', 'radice quadrata', 'radice'],
-        parentheses: {
-          open: ['apri parentesi', 'parentesi sinistra', 'apri quadre'],
-          close: ['chiudi parentesi', 'parentesi destra', 'chiudi quadre'],
-        },
-        decimal: ['virgola', 'punto', 'decimale'],
-      },
-      specificPhrases: {
-        addTo: 'sommare (\\d+(?:\\.\\d+)?) a (\\d+(?:\\.\\d+)?)',
-        subtractFrom: 'sottrarre (\\d+(?:\\.\\d+)?) da (\\d+(?:\\.\\d+)?)',
-        multiplyBy: '(moltiplicare|moltiplicato) (\\d+(?:\\.\\d+)?) per (\\d+(?:\\.\\d+)?)',
-        divideBy: '(dividere|diviso) (\\d+(?:\\.\\d+)?) per (\\d+(?:\\.\\d+)?)',
-      },
-    },
-  };
-
   // Get language-specific math patterns
   const getMathPatterns = useCallback((lang: string): LanguagePatterns => {
-    return LANGUAGE_PATTERNS[lang] ?? LANGUAGE_PATTERNS['en'];
+    return LANGUAGE_PATTERNS[lang] ?? LANGUAGE_PATTERNS.en;
   }, []); // Dependencies: none
 
   // Precompile regex per language to avoid rebuilding on every normalization
@@ -1053,7 +417,7 @@ const MainScreen: React.FC = () => {
       const compoundRegex =
         /(\d+)\s*(million|milliard|milliarde|milhão|milione|billion|mil millones|billón|bilhão|miliardo|trillion|trilhão|trillione)/g;
       normalized = normalized.replace(compoundRegex, (_match, number, multiplier) => {
-        const num = parseInt(number, 10);
+        const num = Number.parseInt(number, 10);
         let result = num;
 
         // Apply multiplier based on the word
@@ -1363,22 +727,19 @@ const MainScreen: React.FC = () => {
         return MATH_ERROR;
       }
 
-      let result = MATH_ERROR; // Default to internal error constant
-
       try {
         // Use math.evaluate for robust calculation
         const evaluatedResult = evaluate(expression);
         // Format the result according to user's locale
         if (typeof evaluatedResult === 'number') {
-          result = formatNumber(evaluatedResult, language);
+          return formatNumber(evaluatedResult, language);
         } else {
-          result = evaluatedResult.toString();
+          return evaluatedResult.toString();
         }
-      } catch (_error) {
-        // console.error('Calculation Error:', error);
-        result = MATH_ERROR;
+      } catch (error) {
+        console.error('Calculation Error:', error);
+        return MATH_ERROR;
       }
-      return result; // Return the calculated result or internal error constant
     },
     [normalizeSpokenMath, formatNumber, language]
   ); // Dependencies: normalizeSpokenMath (stable), formatNumber, language
@@ -1391,8 +752,8 @@ const MainScreen: React.FC = () => {
     (text: string) => {
       if (isTTSSpeaking.current) {
         if (Platform.OS === 'web') {
-          if (typeof window !== 'undefined' && window.speechSynthesis) {
-            window.speechSynthesis.cancel();
+          if (typeof globalThis.window !== 'undefined' && globalThis.window.speechSynthesis) {
+            globalThis.window.speechSynthesis.cancel();
           }
         } else {
           Speech.stop();
@@ -1403,9 +764,9 @@ const MainScreen: React.FC = () => {
 
       if (Platform.OS === 'web') {
         // Use Web Speech API for browser
-        if (typeof window !== 'undefined' && window.speechSynthesis) {
+        if (typeof globalThis.window !== 'undefined' && globalThis.window.speechSynthesis) {
           // Always cancel any queued speech for zero-queue guarantee
-          window.speechSynthesis.cancel();
+          globalThis.window.speechSynthesis.cancel();
 
           const utterance = new SpeechSynthesisUtterance(text);
           utterance.lang = getSpeechRecognitionLanguage(language);
@@ -1431,7 +792,7 @@ const MainScreen: React.FC = () => {
             speechRecognition.lastProcessedTranscriptRef.current = ''; // Reset duplicate prevention
           };
 
-          window.speechSynthesis.speak(utterance);
+          globalThis.window.speechSynthesis.speak(utterance);
         } else {
           // Fallback if speechSynthesis is not available
           isTTSSpeaking.current = false;
@@ -1463,7 +824,7 @@ const MainScreen: React.FC = () => {
         });
       }
     },
-    [language, speechRecognition.lastProcessedTranscriptRef]
+    [language, speechRecognition.lastProcessedTranscriptRef, getSpeechRecognitionLanguage]
   );
 
   // Helper function to handle calculation results (DRY principle - used by both keypad and speech)
@@ -1542,22 +903,196 @@ const MainScreen: React.FC = () => {
     ]
   );
 
-  // Keypad buttons
-  const [vibrationEnabled, setVibrationEnabled] = useState(true); // Add vibration state
+  // Extract scroll helper
+  const scrollToBottom = useCallback((delay = 50) => {
+    setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), delay);
+  }, []);
 
+  // Extracted key handler functions
+  const handleResetKey = useCallback((_key: string) => {
+    setBubbles([]);
+    setKeypadInput('');
+    setPreviewResult(null);
+    scrollToBottom(50);
+  }, [scrollToBottom]);
+
+  const handleExpectingFreshInput = useCallback((key: string) => {
+    const isEnterOrCheck = key === '=' || key === 'ok' || key === 'CHECK_ICON';
+    const isBackspace = key === '⌫';
+    const isClearingKey = isEnterOrCheck || isBackspace;
+
+    // Case 1: Enter/Check/Backspace - clear input and start new
+    if (isClearingKey) {
+      setKeypadInput('');
+      setPreviewResult(null);
+
+      setBubbles((prev) => {
+        const filtered = prev.filter((b) => b.type !== 'result-input');
+        return [
+          ...filtered,
+          { id: (bubbleIdRef.current++).toString(), type: 'user', content: '' },
+        ];
+      });
+
+      setExpectingFreshInput(false);
+      scrollToBottom(50);
+      return true; // Signal handled
+    }
+
+    // Case 2: Any other key - confirm result and continue
+    const currentResult = keypadInput;
+    const newInput = currentResult + key;
+    setKeypadInput(newInput);
+
+    setBubbles((prev) => {
+      const filtered = prev.filter((b) => b.type !== 'result-input');
+      return [
+        ...filtered,
+        { id: (bubbleIdRef.current++).toString(), type: 'user', content: newInput },
+      ];
+    });
+
+    setExpectingFreshInput(false);
+    scrollToBottom(50);
+    return true; // Signal handled
+  }, [keypadInput, scrollToBottom]);
+
+  const handleDotKey = useCallback(() => {
+    const newInput = `${keypadInput}.`;
+    setKeypadInput(newInput);
+    setBubbles((prev) => {
+      const others = prev.filter((b) => b.type !== 'user' || b.content !== keypadInput);
+      return [
+        ...others,
+        { id: (bubbleIdRef.current++).toString(), type: 'user', content: newInput },
+      ];
+    });
+    scrollToBottom(50);
+  }, [keypadInput, scrollToBottom]);
+
+  const handleClearKey = useCallback(() => {
+    setKeypadInput('');
+    setBubbles((prev) => prev.filter((b) => b.type !== 'user' || b.content !== keypadInput));
+    scrollToBottom(50);
+  }, [keypadInput, scrollToBottom]);
+
+  const handleBackspaceKey = useCallback(() => {
+    const newInput = keypadInput.slice(0, -1);
+    setKeypadInput(newInput);
+    setBubbles((prev) => {
+      const others = prev.filter((b) => b.type !== 'user' || b.content !== keypadInput);
+      if (newInput) {
+        return [
+          ...others,
+          { id: (bubbleIdRef.current++).toString(), type: 'user', content: newInput },
+        ];
+      }
+      return others;
+    });
+    scrollToBottom(50);
+  }, [keypadInput, scrollToBottom]);
+
+  const handleShiftBackspace = useCallback(() => {
+    setBubbles([]);
+    setKeypadInput('');
+    setPreviewResult(null);
+    scrollToBottom(100);
+  }, [scrollToBottom]);
+
+  const handleParenthesesKey = useCallback(() => {
+    const open = (keypadInput.match(/\(/g) || []).length;
+    const close = (keypadInput.match(/\)/g) || []).length;
+    const newInput = open > close ? `${keypadInput})` : `${keypadInput}(`;
+    setKeypadInput(newInput);
+    setBubbles((prev) => {
+      const others = prev.filter((b) => b.type !== 'user' || b.content !== keypadInput);
+      return [
+        ...others,
+        { id: (bubbleIdRef.current++).toString(), type: 'user', content: newInput },
+      ];
+    });
+    scrollToBottom(50);
+  }, [keypadInput, scrollToBottom]);
+
+  const handlePercentKey = useCallback(() => {
+    const newInput = `${keypadInput}%`;
+    setKeypadInput(newInput);
+    setBubbles((prev) => {
+      const others = prev.filter((b) => b.type !== 'user' || b.content !== keypadInput);
+      return [
+        ...others,
+        { id: (bubbleIdRef.current++).toString(), type: 'user', content: newInput },
+      ];
+    });
+    scrollToBottom(50);
+  }, [keypadInput, scrollToBottom]);
+
+  const handleEqualsKey = useCallback((_key: string) => {
+    const expressionToCalc = keypadInput;
+    const result = handleInput(expressionToCalc, 'keypad');
+
+    if (result !== MATH_ERROR) {
+      handleCalculationResult(expressionToCalc, result, 'keypad');
+      scrollToBottom(50);
+    } else {
+      const errorBubble: ChatBubble = {
+        id: (bubbleIdRef.current++).toString(),
+        type: 'error',
+        content: t('mainApp.mathErrors.error'),
+      };
+      setBubbles((prev) => [...prev, errorBubble]);
+      setKeypadInput('');
+      setPreviewResult(null);
+      setExpectingFreshInput(false);
+      scrollToBottom(50);
+    }
+  }, [keypadInput, handleInput, handleCalculationResult, t, scrollToBottom]);
+
+  const handleRegularKey = useCallback((key: string) => {
+    const newInput = `${keypadInput}${key}`;
+    setKeypadInput(newInput);
+    setBubbles((prev) => {
+      const others = prev.filter((b) => b.type !== 'user' || b.content !== keypadInput);
+      return [
+        ...others,
+        { id: (bubbleIdRef.current++).toString(), type: 'user', content: newInput },
+      ];
+    });
+    scrollToBottom(50);
+  }, [keypadInput, scrollToBottom]);
+
+  // Key handler map (memoized for stable references)
+  const keyHandlers = useMemo<Record<string, ((key: string) => boolean) | ((key: string) => void)>>(() => ({
+    '↺': handleResetKey,
+    '.': handleDotKey,
+    'C': handleClearKey,
+    '⌫': handleBackspaceKey,
+    'SHIFT_BACKSPACE': handleShiftBackspace,
+    '()': handleParenthesesKey,
+    '%': handlePercentKey,
+    'ok': handleEqualsKey,
+    '=': handleEqualsKey,
+  }), [
+    handleResetKey,
+    handleDotKey,
+    handleClearKey,
+    handleBackspaceKey,
+    handleShiftBackspace,
+    handleParenthesesKey,
+    handlePercentKey,
+    handleEqualsKey,
+  ]);
+
+  // Refactored onKeypadPress function
   const onKeypadPress = useCallback(
     (key: string) => {
       if (vibrationEnabled) {
-        Vibration.vibrate(5); // Changed from 10 to 3 for less aggressive vibration
+        Vibration.vibrate(5);
       }
 
-      // Add reset handling
-      if (key === '↺') {
-        setBubbles([]);
-        setKeypadInput('');
-        setPreviewResult(null);
-        setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 50);
-        return;
+      // Convert CHECK_ICON to 'ok' for simpler handling
+      if (key === 'CHECK_ICON') {
+        key = 'ok';
       }
 
       // Define helper variables for better readability
@@ -1565,8 +1100,7 @@ const MainScreen: React.FC = () => {
       const isBackspace = key === '⌫';
       const isClearingKey = isEnterOrCheck || isBackspace;
 
-      // Check if adding this key would exceed the 100 digit limit
-      // Only check for digit keys, not operators or special characters
+      // Check for digit limit (BEFORE expectingFreshInput check)
       if (!isClearingKey && /\d/.test(key)) {
         const digitCount = keypadInput.replace(/[^\d]/g, '').length;
         if (digitCount >= 100) {
@@ -1584,46 +1118,8 @@ const MainScreen: React.FC = () => {
 
       // Handle input after a calculation (when we have a gray result)
       if (expectingFreshInput) {
-        // Case 1: Enter/Check/Backspace - clear input and start new
-        if (isClearingKey) {
-          setKeypadInput('');
-          setPreviewResult(null);
-
-          // Remove the result-input bubble and add an empty user bubble
-          setBubbles((prev) => {
-            const filtered = prev.filter((b) => b.type !== 'result-input');
-            return [
-              ...filtered,
-              { id: (bubbleIdRef.current++).toString(), type: 'user', content: '' },
-            ];
-          });
-
-          setExpectingFreshInput(false);
-          // Scroll to bottom after clearing
-          setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 50);
-          return;
-        }
-
-        // Case 2: Any other key - confirm result and continue
-        const currentResult = keypadInput;
-
-        // Append the key to the current result
-        const newInput = currentResult + key;
-        setKeypadInput(newInput);
-
-        // Replace gray result with white result and continue
-        setBubbles((prev) => {
-          const filtered = prev.filter((b) => b.type !== 'result-input');
-          return [
-            ...filtered,
-            { id: (bubbleIdRef.current++).toString(), type: 'user', content: newInput },
-          ];
-        });
-
-        setExpectingFreshInput(false);
-        // Scroll to bottom after continuing
-        setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 50);
-        return;
+        const handled = handleExpectingFreshInput(key);
+        if (handled) return;
       }
 
       // Normal input flow (not after a calculation)
@@ -1632,124 +1128,23 @@ const MainScreen: React.FC = () => {
         setExpectingFreshInput(false);
       }
 
-      if (key === '.') {
-        // Add the dot to the input ONLY
-        const newInput = keypadInput + '.';
-        setKeypadInput(newInput);
-        setBubbles((prev) => {
-          const others = prev.filter((b) => b.type !== 'user' || b.content !== keypadInput);
-          return [
-            ...others,
-            { id: (bubbleIdRef.current++).toString(), type: 'user', content: newInput },
-          ];
-        });
-        // Scroll to bottom after adding dot
-        setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 50);
-        return;
-      }
-      if (key === 'C') {
-        // Note: 'C' is no longer on the keypad but logic kept for potential future use/safety
-        setKeypadInput('');
-        // Remove the live equation bubble if exists
-        setBubbles((prev) => prev.filter((b) => b.type !== 'user' || b.content !== keypadInput));
-        // Scroll to bottom after clearing
-        setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 50);
-        return;
-      }
-      if (key === '⌫') {
-        // Normal backspace behavior
-        const newInput = keypadInput.slice(0, -1);
-        setKeypadInput(newInput);
-        // Update or remove the live equation bubble
-        setBubbles((prev) => {
-          const others = prev.filter((b) => b.type !== 'user' || b.content !== keypadInput);
-          if (newInput) {
-            return [
-              ...others,
-              { id: (bubbleIdRef.current++).toString(), type: 'user', content: newInput },
-            ];
-          }
-          return others;
-        });
-        // Scroll to bottom after backspace
-        setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 50);
-        return;
-      }
-
-      // Shift+Backspace for reset
-      if (key === 'SHIFT_BACKSPACE') {
-        // Perform reset
-        setBubbles([]);
-        setKeypadInput('');
-        setPreviewResult(null);
-        setTimeout(() => {
-          flatListRef.current?.scrollToEnd({ animated: true });
-        }, 100);
-        return;
-      }
-
-      if (key === 'CHECK_ICON') {
-        // Handle check icon as 'ok' button
-        key = 'ok'; // Process as 'ok' for the rest of the function
-      }
-
-      let newInput = keypadInput;
-      if (key === '()') {
-        // Smart parenthesis: insert ( or ) depending on balance
-        const open = (keypadInput.match(/\(/g) || []).length;
-        const close = (keypadInput.match(/\)/g) || []).length;
-        if (open > close) {
-          newInput += ')';
-        } else {
-          newInput += '(';
-        }
-      } else if (key === '%') {
-        newInput += '%'; // Append percentage sign
-      } else if (key === 'ok' || key === '=') {
-        // Handle 'ok' and '=' for calculation
-        const expressionToCalc = keypadInput;
-
-        // Perform calculation
-        const result = handleInput(expressionToCalc, 'keypad');
-
-        if (result !== MATH_ERROR) {
-          // Use the consolidated helper function
-          handleCalculationResult(expressionToCalc, result, 'keypad');
-
-          // Scroll to bottom after calculation
-          setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 50);
-        } else {
-          const errorBubble: ChatBubble = {
-            id: (bubbleIdRef.current++).toString(),
-            type: 'error',
-            content: t('mainApp.mathErrors.error'),
-          };
-          setBubbles((prev) => [...prev, errorBubble]);
-          setKeypadInput('');
-          setPreviewResult(null);
-          setExpectingFreshInput(false);
-          // Scroll to bottom after error
-          setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 50);
-        }
-        return;
+      // Use key handler map or default to regular key handling
+      const handler = keyHandlers[key];
+      if (handler) {
+        handler(key);
       } else {
-        newInput += key; // Append digits, operators, dot
+        handleRegularKey(key);
       }
-      setKeypadInput(newInput);
-
-      // Update or add the live equation bubble
-      setBubbles((prev) => {
-        const others = prev.filter((b) => b.type !== 'user' || b.content !== keypadInput);
-        return [
-          ...others,
-          { id: (bubbleIdRef.current++).toString(), type: 'user', content: newInput },
-        ];
-      });
-
-      // Always scroll to bottom after any key press
-      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 50);
     },
-    [keypadInput, handleInput, handleCalculationResult, expectingFreshInput, vibrationEnabled, t]
+    [
+      vibrationEnabled,
+      keypadInput,
+      expectingFreshInput,
+      handleExpectingFreshInput,
+      keyHandlers,
+      handleRegularKey,
+      t,
+    ]
   );
 
   // Consolidated web keyboard handling (space to record, paste, keypad, mute, reset)
@@ -1759,7 +1154,7 @@ const MainScreen: React.FC = () => {
       if (e.code === 'Space') {
         e.preventDefault();
         if (!isRecording) {
-          startRecording();
+          speechRecognition.startRecording();
         } else {
           setIsRecording(false);
         }
@@ -1833,16 +1228,14 @@ const MainScreen: React.FC = () => {
         e.preventDefault();
       }
     },
-    [isRecording, onKeypadPress, toggleSpeechMute]
+    [isRecording, onKeypadPress, toggleSpeechMute, speechRecognition.startRecording]
   );
 
   useEffect(() => {
     if (Platform.OS !== 'web') return;
-    window.addEventListener('keydown', handleGlobalKeyDown);
-    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+    globalThis.window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => globalThis.window.removeEventListener('keydown', handleGlobalKeyDown);
   }, [handleGlobalKeyDown]);
-
-  // Removed in favor of consolidated handleGlobalKeyDown
 
   // Scroll management moved to FlatList onContentSizeChange to avoid timers
 
@@ -1867,7 +1260,7 @@ const MainScreen: React.FC = () => {
         const result = evaluate(expression);
         if (
           typeof result === 'number' ||
-          (typeof result === 'string' && !isNaN(parseFloat(result)))
+          (typeof result === 'string' && !Number.isNaN(Number.parseFloat(result)))
         ) {
           const formattedResult =
             typeof result === 'number' ? formatNumber(result, language) : result.toString();
@@ -1879,7 +1272,7 @@ const MainScreen: React.FC = () => {
         } else {
           setPreviewResult(null);
         }
-      } catch (error) {
+      } catch {
         setPreviewResult(null);
       }
     }, 100);
@@ -1908,7 +1301,7 @@ const MainScreen: React.FC = () => {
         /(?:what'?s|whats|calculate|find|get)?\s{0,3}(\d+(?:\.\d+)?)\s{0,3}(?:percent|%|percentage)\s{0,3}(?:of)?\s{0,3}(?:that|it|the last|previous|result)/i;
       const percentMatch = transcript.match(percentOfThatPattern);
       if (percentMatch && lastResultRef.current !== null) {
-        const percentage = parseFloat(percentMatch[1]);
+        const percentage = Number.parseFloat(percentMatch[1]);
         processedEquation = `${lastResultRef.current} * ${percentage} / 100`;
       }
 
@@ -1919,7 +1312,7 @@ const MainScreen: React.FC = () => {
       if (startsWithOperator) {
         const lastResult = lastResultRef.current;
         if (lastResult !== null) {
-          processedEquation = lastResult + ' ' + processedEquation;
+          processedEquation = `${lastResult} ${processedEquation}`;
         }
       }
 
@@ -2006,7 +1399,7 @@ const MainScreen: React.FC = () => {
         if (storedContinuousMode !== null) {
           setContinuousMode(JSON.parse(storedContinuousMode));
         }
-      } catch (error) {
+      } catch {
         // Silent error handling
       }
     };
@@ -2018,7 +1411,7 @@ const MainScreen: React.FC = () => {
     if (webhookManager.webhookSettingsLoaded) {
       webhookManager.saveSettings();
     }
-  }, [webhookManager.webhookUrls, webhookManager.sendEquation, webhookManager.streamResults]);
+  }, [webhookManager.webhookSettingsLoaded, webhookManager.saveSettings]);
 
   // Save app preferences when they change (avoid redundant writes)
   const previousPrefsRef = useRef({
@@ -2051,7 +1444,7 @@ const MainScreen: React.FC = () => {
         if (ops.length > 0) {
           await Promise.all(ops);
         }
-      } catch (error) {
+      } catch {
         // Silent error handling
       }
     };
@@ -2059,8 +1452,6 @@ const MainScreen: React.FC = () => {
   }, [openInCalcMode, isSpeechMuted, historyEnabled, continuousMode]);
 
   // --- Component Lifecycle & Effects ---
-
-  // Removed extra shortcuts listener; consolidated above
 
   // --- Webhook Logic Handlers ---
   // Use webhook manager's handler functions
@@ -2123,11 +1514,6 @@ const MainScreen: React.FC = () => {
     );
   };
 
-  const emptyComponent = useMemo(
-    () => (showKeypad ? null : Platform.OS === 'web' ? <WebEmptyState t={t} /> : <MobileEmptyState t={t} />),
-    [showKeypad, language]
-  );
-
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#121212" />
@@ -2153,113 +1539,105 @@ const MainScreen: React.FC = () => {
           {Platform.OS === 'web' ? <WebEmptyState t={t} /> : <MobileEmptyState t={t} />}
         </View>
       ) : (
-        <Suspense fallback={<View style={styles.chatArea} />}>
-          <BubbleListComponent
-            ref={flatListRef}
-            bubbles={bubbles}
-            keypadInput={keypadInput}
-            interimTranscript={interimTranscript}
-            previewResult={previewResult}
-            vibrationEnabled={vibrationEnabled}
-            emptyComponent={null}
-            t={t}
-            setBubbles={setBubbles}
-            bubbleIdRef={bubbleIdRef}
-            styles={{
-              chatArea: styles.chatArea,
-              userBubble: styles.userBubble,
-              userText: styles.userText,
-              resultBubble: styles.resultBubble,
-              resultText: styles.resultText,
-              errorBubble: styles.errorBubble,
-              errorText: styles.errorText,
-              currentUserBubbleContainer: styles.currentUserBubbleContainer,
-            }}
-          />
-        </Suspense>
+        <BubbleListComponent
+          ref={flatListRef}
+          bubbles={bubbles}
+          keypadInput={keypadInput}
+          interimTranscript={interimTranscript}
+          previewResult={previewResult}
+          vibrationEnabled={vibrationEnabled}
+          emptyComponent={null}
+          t={t}
+          setBubbles={setBubbles}
+          bubbleIdRef={bubbleIdRef}
+          styles={{
+            chatArea: styles.chatArea,
+            userBubble: styles.userBubble,
+            userText: styles.userText,
+            resultBubble: styles.resultBubble,
+            resultText: styles.resultText,
+            errorBubble: styles.errorBubble,
+            errorText: styles.errorText,
+            currentUserBubbleContainer: styles.currentUserBubbleContainer,
+          }}
+        />
       )}
 
       {showKeypad && (
-        <Suspense fallback={<View style={styles.calculatorArea} />}>
-          <KeypadComponent
-            onKeypadPress={onKeypadPress}
-            isWebMobile={isWebMobile}
-            styles={{
-              calculatorArea: styles.calculatorArea,
-              calculatorAreaMobileWeb: styles.calculatorAreaMobileWeb,
-              keypadContainer: styles.keypadContainer,
-              keypadRow: styles.keypadRow,
-              keypadKeyWeb: styles.keypadKeyWeb,
-              keypadKeyMobile: styles.keypadKeyMobile,
-              keypadKeyOperator: styles.keypadKeyOperator,
-              keypadKeyEnter: styles.keypadKeyEnter,
-              keypadKeyWebMobile: styles.keypadKeyWebMobile,
-              keypadKeyText: styles.keypadKeyText,
-            }}
-          />
-        </Suspense>
+        <KeypadComponent
+          onKeypadPress={onKeypadPress}
+          isWebMobile={isWebMobile}
+          styles={{
+            calculatorArea: styles.calculatorArea,
+            calculatorAreaMobileWeb: styles.calculatorAreaMobileWeb,
+            keypadContainer: styles.keypadContainer,
+            keypadRow: styles.keypadRow,
+            keypadKeyWeb: styles.keypadKeyWeb,
+            keypadKeyMobile: styles.keypadKeyMobile,
+            keypadKeyOperator: styles.keypadKeyOperator,
+            keypadKeyEnter: styles.keypadKeyEnter,
+            keypadKeyWebMobile: styles.keypadKeyWebMobile,
+            keypadKeyText: styles.keypadKeyText,
+          }}
+        />
       )}
 
       {/* Settings Modal */}
-      <Suspense fallback={null}>
-        <Settings
-          visible={isSettingsModalVisible}
-          onClose={() => setIsSettingsModalVisible(false)}
-          webhookUrls={webhookManager.webhookUrls}
-          newWebhookUrl={webhookManager.newWebhookUrl}
-          setNewWebhookUrl={webhookManager.setNewWebhookUrl}
-          newWebhookTitle={webhookManager.newWebhookTitle}
-          setNewWebhookTitle={webhookManager.setNewWebhookTitle}
-          handleAddWebhook={handleAddWebhook}
-          handleDeleteWebhook={handleDeleteWebhook}
-          handleToggleWebhook={handleToggleWebhook}
-          sendEquation={webhookManager.sendEquation}
-          setSendEquation={webhookManager.setSendEquation}
-          streamResults={webhookManager.streamResults}
-          setStreamResults={webhookManager.setStreamResults}
-          bulkData={webhookManager.bulkData}
-          setBulkData={webhookManager.setBulkData}
-          isSendingBulk={webhookManager.isSendingBulk}
-          clearBulkData={() => {
-            webhookManager.setBulkData([]);
-          }}
-          enterKeyNewLine={enterKeyNewLine}
-          setEnterKeyNewLine={setEnterKeyNewLine}
-          isSpeechMuted={isSpeechMuted}
-          toggleSpeechMute={toggleSpeechMute}
-          setWebhookUrls={webhookManager.setWebhookUrls}
-          handleSendBulkData={handleSendBulkData}
-          vibrationEnabled={vibrationEnabled}
-          setVibrationEnabled={setVibrationEnabled}
-          openInCalcMode={openInCalcMode}
-          setOpenInCalcMode={setOpenInCalcMode}
-          historyEnabled={historyEnabled}
-          setHistoryEnabled={setHistoryEnabled}
-          continuousMode={continuousMode}
-          setContinuousMode={setContinuousMode}
-        />
-      </Suspense>
+      <Settings
+        visible={isSettingsModalVisible}
+        onClose={() => setIsSettingsModalVisible(false)}
+        webhookUrls={webhookManager.webhookUrls}
+        newWebhookUrl={webhookManager.newWebhookUrl}
+        setNewWebhookUrl={webhookManager.setNewWebhookUrl}
+        newWebhookTitle={webhookManager.newWebhookTitle}
+        setNewWebhookTitle={webhookManager.setNewWebhookTitle}
+        handleAddWebhook={handleAddWebhook}
+        handleDeleteWebhook={handleDeleteWebhook}
+        handleToggleWebhook={handleToggleWebhook}
+        sendEquation={webhookManager.sendEquation}
+        setSendEquation={webhookManager.setSendEquation}
+        streamResults={webhookManager.streamResults}
+        setStreamResults={webhookManager.setStreamResults}
+        bulkData={webhookManager.bulkData}
+        setBulkData={webhookManager.setBulkData}
+        isSendingBulk={webhookManager.isSendingBulk}
+        clearBulkData={() => {
+          webhookManager.setBulkData([]);
+        }}
+        enterKeyNewLine={enterKeyNewLine}
+        setEnterKeyNewLine={setEnterKeyNewLine}
+        isSpeechMuted={isSpeechMuted}
+        toggleSpeechMute={toggleSpeechMute}
+        setWebhookUrls={webhookManager.setWebhookUrls}
+        handleSendBulkData={handleSendBulkData}
+        vibrationEnabled={vibrationEnabled}
+        setVibrationEnabled={setVibrationEnabled}
+        openInCalcMode={openInCalcMode}
+        setOpenInCalcMode={setOpenInCalcMode}
+        historyEnabled={historyEnabled}
+        setHistoryEnabled={setHistoryEnabled}
+        continuousMode={continuousMode}
+        setContinuousMode={setContinuousMode}
+      />
 
       {/* History Modal */}
-      <Suspense fallback={<View />}>
-        <HistoryModal
-          visible={showHistoryModal}
-          onClose={() => setShowHistoryModal(false)}
-          history={history}
-          onDelete={deleteCalculation} // Pass the actual delete function
-          onClearAll={clearAllCalculations} // Pass the actual clear all function
-          onSelect={(item) => {
-            if (item.result) {
-              setKeypadInput(item.result);
-              setShowHistoryModal(false);
-              if (Platform.OS === 'android') {
-                ToastAndroid.show(`Selected: ${item.result}`, ToastAndroid.SHORT);
-              }
+      <HistoryModal
+        visible={showHistoryModal}
+        onClose={() => setShowHistoryModal(false)}
+        history={history}
+        onDelete={deleteCalculation}
+        onClearAll={clearAllCalculations}
+        onSelect={(item) => {
+          if (item.result) {
+            setKeypadInput(item.result);
+            setShowHistoryModal(false);
+            if (Platform.OS === 'android') {
+              ToastAndroid.show(`Selected: ${item.result}`, ToastAndroid.SHORT);
             }
-          }}
-          isLoading={loading}
-        />
-      </Suspense>
+          }
+        }}
+        isLoading={loading}
+      />
 
       {/* Bottom bar with proper spacing and button sizes */}
       <View style={[styles.bottomBar, isWebMobile && styles.bottomBarWebMobile]}>
@@ -2323,8 +1701,8 @@ const MainScreen: React.FC = () => {
                   </View>
                   {webhookManager.webhookUrls
                     .filter((webhook) => webhook.active)
-                    .map((webhook, index) => (
-                      <View key={index} style={styles.webhookTooltipItem}>
+                    .map((webhook) => (
+                      <View key={webhook.url} style={styles.webhookTooltipItem}>
                         <Text
                           style={[styles.webhookTooltipText, { fontSize: 13 }]}
                           numberOfLines={1}
@@ -2363,15 +1741,15 @@ const MainScreen: React.FC = () => {
                   >
                     {t('mainApp.dataQueue')}
                   </Text>
-                  {webhookManager.bulkData.map((item, index) => (
+                  {webhookManager.bulkData.map((item) => (
                     <Text
-                      key={index}
+                      key={item.id}
                       style={[
                         styles.tooltipText,
                         {
                           fontSize: 13,
                           paddingVertical: 3,
-                          backgroundColor: index % 2 === 0 ? 'transparent' : '#333333',
+                          backgroundColor: item.id % 2 === 0 ? 'transparent' : '#333333',
                           marginBottom: 1,
                         },
                       ]}

@@ -35,7 +35,53 @@ interface KeypadComponentProps {
   };
 }
 
-const KeypadComponent: React.FC<KeypadComponentProps> = ({
+// Extracted helper function
+const getButtonStyle = (
+  key: string,
+  isWebMobile: boolean,
+  styles: KeypadComponentProps['styles']
+): ViewStyle => {
+  if (Platform.OS === 'web') {
+    if (isWebMobile) {
+      if (key === 'CHECK_ICON') return styles.keypadKeyEnter;
+      if (['+', '-', '×', '÷', '()', '%', '^'].includes(key)) {
+        return styles.keypadKeyOperator;
+      }
+      return styles.keypadKeyMobile;
+    }
+    return styles.keypadKeyWeb;
+  }
+
+  // Native mobile
+  if (key === 'CHECK_ICON') return styles.keypadKeyEnter;
+  if (['+', '-', '×', '÷'].includes(key)) return styles.keypadKeyOperator;
+  return styles.keypadKeyMobile;
+};
+
+// Extracted component
+const KeypadButton: React.FC<{
+  keyValue: string;
+  onPress: (key: string) => void;
+  style: ViewStyle | ViewStyle[];
+  styles: { keypadKeyText: TextStyle };
+}> = ({ keyValue, onPress, style, styles }) => (
+  <TouchableOpacity
+    style={style}
+    onPress={() => onPress(keyValue)}
+    activeOpacity={0.7}
+    delayPressIn={0}
+  >
+    {keyValue === '↺' ? (
+      <AppIcon name="refresh" size={28} color="#eee" style={{ transform: [{ scaleX: -1 }] }} />
+    ) : keyValue === 'CHECK_ICON' ? (
+      <AppIcon name="send" size={24} color="#eee" />
+    ) : (
+      <Text style={styles.keypadKeyText}>{keyValue}</Text>
+    )}
+  </TouchableOpacity>
+);
+
+const KeypadComponentV2: React.FC<KeypadComponentProps> = ({
   onKeypadPress,
   isWebMobile,
   styles,
@@ -59,54 +105,16 @@ const KeypadComponent: React.FC<KeypadComponentProps> = ({
         {KEYPAD_LAYOUT.map((row, i) => (
           <View key={i} style={styles.keypadRow}>
             {row.map((key) => {
-              // Determine the button style
-              let buttonStyle: ViewStyle;
-              if (Platform.OS === 'web') {
-                if (isWebMobile) {
-                  // WEB MOBILE: Apply native mobile styles directly
-                  if (key === 'CHECK_ICON') {
-                    buttonStyle = styles.keypadKeyEnter;
-                  } else if (['+', '-', '×', '÷', '()', '%', '^'].includes(key)) {
-                    buttonStyle = styles.keypadKeyOperator;
-                  } else {
-                    buttonStyle = styles.keypadKeyMobile;
-                  }
-                } else {
-                  // DESKTOP WEB: Use transparent web style
-                  buttonStyle = styles.keypadKeyWeb;
-                }
-              } else {
-                // NATIVE MOBILE: Existing logic (unchanged)
-                if (key === 'CHECK_ICON') {
-                  buttonStyle = styles.keypadKeyEnter;
-                } else if (['+', '-', '×', '÷'].includes(key)) {
-                  buttonStyle = styles.keypadKeyOperator;
-                } else {
-                  buttonStyle = styles.keypadKeyMobile;
-                }
-              }
+              const buttonStyle = getButtonStyle(key, isWebMobile, styles);
 
               return (
-                <TouchableOpacity
+                <KeypadButton
                   key={key}
-                  style={[buttonStyle, isWebMobile && styles.keypadKeyWebMobile]}
-                  onPress={() => onKeypadPress(key)}
-                  activeOpacity={0.7}
-                  delayPressIn={0}
-                >
-                  {key === '↺' ? (
-                    <AppIcon
-                      name="refresh"
-                      size={28}
-                      color="#eee"
-                      style={{ transform: [{ scaleX: -1 }] }}
-                    />
-                  ) : key === 'CHECK_ICON' ? (
-                    <AppIcon name="send" size={24} color="#eee" />
-                  ) : (
-                    <Text style={styles.keypadKeyText}>{key}</Text>
-                  )}
-                </TouchableOpacity>
+                  keyValue={key}
+                  onPress={onKeypadPress}
+                  style={isWebMobile ? [buttonStyle, styles.keypadKeyWebMobile] : buttonStyle}
+                  styles={styles}
+                />
               );
             })}
           </View>
@@ -116,4 +124,4 @@ const KeypadComponent: React.FC<KeypadComponentProps> = ({
   );
 };
 
-export default React.memo(KeypadComponent);
+export default React.memo(KeypadComponentV2);
