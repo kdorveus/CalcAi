@@ -62,54 +62,45 @@ export const PostHogProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, []);
 
   useEffect(() => {
-    // Defer PostHog initialization until after initial render to avoid blocking LCP
-    // Use requestIdleCallback for lowest priority, fallback to setTimeout
-    const scheduleInit = () => {
-      const initPostHog = async () => {
-        try {
-          if (POSTHOG_CONFIG.API_KEY && Platform.OS === 'web') {
-            // Use posthog-js for web
-            const posthog = await import(/* webpackChunkName: "posthog" */ 'posthog-js');
-            posthog.default.init(POSTHOG_CONFIG.API_KEY, {
-              api_host: POSTHOG_CONFIG.HOST,
-              capture_pageview: false, // We'll manually capture
-              autocapture: false, // Disable auto-capture for performance
-              loaded: (ph) => {
-                posthogClientRef.current = ph;
-                processQueue(ph);
-              },
-            });
-          } else if (POSTHOG_CONFIG.API_KEY) {
-            // Use posthog-react-native for mobile
-            const PostHog = (
-              await import(/* webpackChunkName: "posthog-native" */ 'posthog-react-native')
-            ).default;
-            posthogClientRef.current = new PostHog(POSTHOG_CONFIG.API_KEY, {
-              host: POSTHOG_CONFIG.HOST,
-              captureAppLifecycleEvents: true,
-            });
-            processQueue(posthogClientRef.current);
-          }
-        } catch (error) {
-          // Silent fail - PostHog is optional
-          console.warn('PostHog initialization failed:', error);
+    const initPostHog = async () => {
+      try {
+        if (POSTHOG_CONFIG.API_KEY && Platform.OS === 'web') {
+          // Use posthog-js for web
+          const posthog = await import(/* webpackChunkName: "posthog" */ 'posthog-js');
+          posthog.default.init(POSTHOG_CONFIG.API_KEY, {
+            api_host: POSTHOG_CONFIG.HOST,
+            capture_pageview: false,
+            autocapture: false,
+            loaded: (ph) => {
+              posthogClientRef.current = ph;
+              processQueue(ph);
+            },
+          });
+        } else if (POSTHOG_CONFIG.API_KEY) {
+          // Use posthog-react-native for mobile
+          const PostHog = (
+            await import(/* webpackChunkName: "posthog-native" */ 'posthog-react-native')
+          ).default;
+          posthogClientRef.current = new PostHog(POSTHOG_CONFIG.API_KEY, {
+            host: POSTHOG_CONFIG.HOST,
+            captureAppLifecycleEvents: true,
+          });
+          processQueue(posthogClientRef.current);
         }
-      };
-
-      // Use requestIdleCallback for web to defer until browser is idle
-      if (
-        Platform.OS === 'web' &&
-        typeof window !== 'undefined' &&
-        'requestIdleCallback' in window
-      ) {
-        (window as any).requestIdleCallback(initPostHog, { timeout: 2000 });
-      } else {
-        // Fallback: defer by 1 second to allow critical render to complete
-        setTimeout(initPostHog, 1000);
+      } catch (error) {
+        console.warn('PostHog initialization failed:', error);
       }
     };
 
-    scheduleInit();
+    // Defer PostHog to window.onload to completely avoid blocking page load
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      window.addEventListener('load', initPostHog, { once: true });
+      return () => window.removeEventListener('load', initPostHog);
+    } else {
+      // Mobile: defer by 1 second
+      const timer = setTimeout(initPostHog, 1000);
+      return () => clearTimeout(timer);
+    }
   }, [processQueue]);
 
   // Performance-optimized event capture
