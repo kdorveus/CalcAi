@@ -1717,8 +1717,7 @@ export const LANGUAGE_PATTERNS: { [key: string]: LanguagePatterns } = {
       decimal: ['virgule', 'point', 'décimal', 'décimale'],
     },
     specificPhrases: {
-      addTo:
-        '(ajouter|ajoute|additionner|additionne) (\\d+(?:\\.\\d+)?) (à|a) (\\d+(?:\\.\\d+)?)',
+      addTo: '(ajouter|ajoute|additionner|additionne) (\\d+(?:\\.\\d+)?) (à|a) (\\d+(?:\\.\\d+)?)',
       subtractFrom:
         '(soustraire|soustrait|retirer|retire|enlever|enlève|ôter|ôte) (\\d+(?:\\.\\d+)?) (de|à|a) (\\d+(?:\\.\\d+)?)',
       multiplyBy: '(multiplier|multiplie|multiplié) (\\d+(?:\\.\\d+)?) par (\\d+(?:\\.\\d+)?)',

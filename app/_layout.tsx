@@ -12,15 +12,21 @@ import { LanguageProvider } from '../contexts/LanguageContext';
 import { PostHogProvider } from '../contexts/PostHogContext';
 
 const PremiumProvider = lazy(() =>
-  import('../contexts/PremiumContext').then((m) => ({ default: m.PremiumProvider }))
-);
-const CalculationHistoryProvider = lazy(() =>
-  import('../contexts/CalculationHistoryContext').then((m) => ({
-    default: m.CalculationHistoryProvider,
+  import(/* webpackChunkName: "premium-context" */ '../contexts/PremiumContext').then((m) => ({
+    default: m.PremiumProvider,
   }))
 );
+const CalculationHistoryProvider = lazy(() =>
+  import(/* webpackChunkName: "history-context" */ '../contexts/CalculationHistoryContext').then(
+    (m) => ({
+      default: m.CalculationHistoryProvider,
+    })
+  )
+);
 const GoogleOneTapProvider = lazy(() =>
-  import('../components/GoogleOneTapProvider').then((m) => ({ default: m.GoogleOneTapProvider }))
+  import(/* webpackChunkName: "google-onetap" */ '../components/GoogleOneTapProvider').then(
+    (m) => ({ default: m.GoogleOneTapProvider })
+  )
 );
 
 // import { router } from 'expo-router'; // No longer directly needed here
@@ -205,15 +211,22 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
       </div>
     `;
 
-    // Remove after a short delay to avoid conflicts with React
-    setTimeout(() => {
+    // Remove placeholders when React hydrates - use passive observer to avoid forced reflows
+    const cleanupPlaceholders = () => {
       if (document.body.contains(iconSamples)) {
         document.body.removeChild(iconSamples);
       }
       if (document.body.contains(preBottomBar)) {
         document.body.removeChild(preBottomBar);
       }
-    }, 500);
+    };
+
+    // Use requestIdleCallback for non-blocking cleanup, fallback to setTimeout
+    if ('requestIdleCallback' in window) {
+      (window as any).requestIdleCallback(cleanupPlaceholders, { timeout: 1000 });
+    } else {
+      setTimeout(cleanupPlaceholders, 500);
+    }
 
     // Mark document as ready for render before JS is loaded
     document.documentElement.dataset.ready = 'true';

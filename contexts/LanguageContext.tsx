@@ -1,6 +1,14 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type React from 'react';
-import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import { Platform } from 'react-native';
 import {
   DEFAULT_LANGUAGE,
@@ -68,7 +76,7 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({ children }) 
     initializeLanguage();
   }, [getSystemLanguage]);
 
-  const setLanguage = async (lang: string) => {
+  const setLanguage = useCallback(async (lang: string) => {
     try {
       if (SUPPORTED_LANGUAGES.some((supportedLang) => supportedLang.code === lang)) {
         setLanguageState(lang);
@@ -77,52 +85,55 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({ children }) 
     } catch (error) {
       console.error('Failed to change language:', error);
     }
-  };
+  }, []);
 
   // Translation function
-  const t = (key: string): string => {
-    try {
-      const keys = key.split('.');
-      let translation: string | string[] | Translations = TRANSLATIONS[language];
+  const t = useCallback(
+    (key: string): string => {
+      try {
+        const keys = key.split('.');
+        let translation: string | string[] | Translations = TRANSLATIONS[language];
 
-      if (!translation) {
-        // Fallback to default language if current language not found
-        translation = TRANSLATIONS[DEFAULT_LANGUAGE];
-      }
-
-      for (const k of keys) {
-        if (
-          typeof translation === 'object' &&
-          !Array.isArray(translation) &&
-          translation[k] !== undefined
-        ) {
-          translation = translation[k];
-        } else {
-          // If key not found, try default language
-          let fallbackTranslation: string | string[] | Translations =
-            TRANSLATIONS[DEFAULT_LANGUAGE];
-          for (const fallbackKey of keys) {
-            if (
-              typeof fallbackTranslation === 'object' &&
-              !Array.isArray(fallbackTranslation) &&
-              fallbackTranslation[fallbackKey] !== undefined
-            ) {
-              fallbackTranslation = fallbackTranslation[fallbackKey];
-            } else {
-              // If still not found, return the key itself
-              return key;
-            }
-          }
-          return typeof fallbackTranslation === 'string' ? fallbackTranslation : key;
+        if (!translation) {
+          // Fallback to default language if current language not found
+          translation = TRANSLATIONS[DEFAULT_LANGUAGE];
         }
-      }
 
-      return typeof translation === 'string' ? translation : key;
-    } catch (error) {
-      console.error('Translation error:', error);
-      return key;
-    }
-  };
+        for (const k of keys) {
+          if (
+            typeof translation === 'object' &&
+            !Array.isArray(translation) &&
+            translation[k] !== undefined
+          ) {
+            translation = translation[k];
+          } else {
+            // If key not found, try default language
+            let fallbackTranslation: string | string[] | Translations =
+              TRANSLATIONS[DEFAULT_LANGUAGE];
+            for (const fallbackKey of keys) {
+              if (
+                typeof fallbackTranslation === 'object' &&
+                !Array.isArray(fallbackTranslation) &&
+                fallbackTranslation[fallbackKey] !== undefined
+              ) {
+                fallbackTranslation = fallbackTranslation[fallbackKey];
+              } else {
+                // If still not found, return the key itself
+                return key;
+              }
+            }
+            return typeof fallbackTranslation === 'string' ? fallbackTranslation : key;
+          }
+        }
+
+        return typeof translation === 'string' ? translation : key;
+      } catch (error) {
+        console.error('Translation error:', error);
+        return key;
+      }
+    },
+    [language]
+  );
 
   const contextValue: LanguageContextType = useMemo(
     () => ({

@@ -12,6 +12,13 @@ const { transformer, resolver } = config;
 config.transformer = {
   ...transformer,
   babelTransformerPath: require.resolve('react-native-svg-transformer'),
+  // Enable minification for production builds
+  minifierConfig: {
+    compress: {
+      // Remove console logs in production
+      drop_console: process.env.NODE_ENV === 'production',
+    },
+  },
 };
 
 config.resolver = {

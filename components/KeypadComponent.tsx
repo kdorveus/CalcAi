@@ -102,8 +102,8 @@ const KeypadComponentV2: React.FC<KeypadComponentProps> = ({
         <AppIcon name="backspace" size={28} color="#eee" />
       </TouchableOpacity>
       <View style={styles.keypadContainer}>
-        {KEYPAD_LAYOUT.map((row, i) => (
-          <View key={i} style={styles.keypadRow}>
+        {KEYPAD_LAYOUT.map((row) => (
+          <View key={row.join('-')} style={styles.keypadRow}>
             {row.map((key) => {
               const buttonStyle = getButtonStyle(key, isWebMobile, styles);
 

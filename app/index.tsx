@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Speech from 'expo-speech';
 import { evaluate } from 'mathjs';
 import type React from 'react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Dimensions, // Add Dimensions import for responsive layout
   type FlatList,
@@ -24,16 +24,23 @@ import {
 import AppIcon from '../components/AppIcon';
 import BubbleListComponent from '../components/BubbleListComponent';
 import HistoryButton from '../components/HistoryButton';
-import HistoryModal from '../components/HistoryModal';
 import KeypadComponent from '../components/KeypadComponent';
-import { LANGUAGE_PATTERNS, type LanguagePatterns, SPEECH_RECOGNITION_LANG_MAP } from '../constants/Languages';
+import {
+  LANGUAGE_PATTERNS,
+  type LanguagePatterns,
+  SPEECH_RECOGNITION_LANG_MAP,
+} from '../constants/Languages';
 import { useAuth } from '../contexts/AuthContext';
 import { useCalculationHistory } from '../contexts/CalculationHistoryContext';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useTranslation } from '../hooks/useTranslation';
 import { useWebhookManager } from '../hooks/useWebhookManager';
-// Direct imports for instant rendering - no lazy loading for critical UI
-import Settings from './components/Settings';
+
+// Lazy load non-critical modals to reduce initial bundle size
+const Settings = lazy(() => import(/* webpackChunkName: "settings" */ './components/Settings'));
+const HistoryModal = lazy(
+  () => import(/* webpackChunkName: "history-modal" */ '../components/HistoryModal')
+);
 
 // (Removed unused asset preload hook to avoid dead code)
 
@@ -46,7 +53,6 @@ interface ChatBubble {
   type: 'user' | 'result' | 'error' | 'speech' | 'calc' | 'result-input';
   content: string;
 }
-
 
 // Wrapper component for Web Empty State
 const WebEmptyState: React.FC<{ t: (key: string) => string }> = ({ t }) => {
@@ -130,19 +136,8 @@ const MainScreen: React.FC = () => {
     };
   }, []);
 
-  // --- Force immediate render of critical UI ---
-  useEffect(() => {
-    // High priority UI updates with requestAnimationFrame
-    if (Platform.OS === 'web') {
-      // Force immediate paint of critical UI elements
-      requestAnimationFrame(() => {
-        // This forces layout calculation
-        if (flatListRef.current) {
-          flatListRef.current.recordInteraction();
-        }
-      });
-    }
-  }, []);
+  // Removed forced reflow - recordInteraction() causes layout thrashing
+  // FlatList will handle its own interaction recording efficiently
 
   // Refs
   const flatListRef = useRef<FlatList>(null);
@@ -252,7 +247,11 @@ const MainScreen: React.FC = () => {
 
   // Initialize and cache the Google female voice on component mount (Web only)
   useEffect(() => {
-    if (Platform.OS === 'web' && typeof globalThis.window !== 'undefined' && globalThis.window.speechSynthesis) {
+    if (
+      Platform.OS === 'web' &&
+      typeof globalThis.window !== 'undefined' &&
+      globalThis.window.speechSynthesis
+    ) {
       const selectBestVoice = () => {
         const voices = globalThis.window.speechSynthesis.getVoices();
         if (voices.length === 0) return; // Voices not loaded yet
@@ -909,49 +908,55 @@ const MainScreen: React.FC = () => {
   }, []);
 
   // Extracted key handler functions
-  const handleResetKey = useCallback((_key: string) => {
-    setBubbles([]);
-    setKeypadInput('');
-    setPreviewResult(null);
-    scrollToBottom(50);
-  }, [scrollToBottom]);
-
-  const handleExpectingFreshInput = useCallback((key: string) => {
-    const isEnterOrCheck = key === '=' || key === 'ok' || key === 'CHECK_ICON';
-    const isBackspace = key === '⌫';
-    const isClearingKey = isEnterOrCheck || isBackspace;
-
-    // Case 1: Enter/Check/Backspace - clear input and start new
-    if (isClearingKey) {
+  const handleResetKey = useCallback(
+    (_key: string) => {
+      setBubbles([]);
       setKeypadInput('');
       setPreviewResult(null);
+      scrollToBottom(50);
+    },
+    [scrollToBottom]
+  );
 
-      setBubbles((prev) => {
-        const filtered = prev.filter((b) => b.type !== 'result-input');
-        return [
-          ...filtered,
-          { id: (bubbleIdRef.current++).toString(), type: 'user', content: '' },
-        ];
-      });
-    } else {
-      // Case 2: Any other key - confirm result and continue
-      const currentResult = keypadInput;
-      const newInput = currentResult + key;
-      setKeypadInput(newInput);
+  const handleExpectingFreshInput = useCallback(
+    (key: string) => {
+      const isEnterOrCheck = key === '=' || key === 'ok' || key === 'CHECK_ICON';
+      const isBackspace = key === '⌫';
+      const isClearingKey = isEnterOrCheck || isBackspace;
 
-      setBubbles((prev) => {
-        const filtered = prev.filter((b) => b.type !== 'result-input');
-        return [
-          ...filtered,
-          { id: (bubbleIdRef.current++).toString(), type: 'user', content: newInput },
-        ];
-      });
-    }
+      // Case 1: Enter/Check/Backspace - clear input and start new
+      if (isClearingKey) {
+        setKeypadInput('');
+        setPreviewResult(null);
 
-    setExpectingFreshInput(false);
-    scrollToBottom(50);
-    return true; // Signal handled
-  }, [keypadInput, scrollToBottom]);
+        setBubbles((prev) => {
+          const filtered = prev.filter((b) => b.type !== 'result-input');
+          return [
+            ...filtered,
+            { id: (bubbleIdRef.current++).toString(), type: 'user', content: '' },
+          ];
+        });
+      } else {
+        // Case 2: Any other key - confirm result and continue
+        const currentResult = keypadInput;
+        const newInput = currentResult + key;
+        setKeypadInput(newInput);
+
+        setBubbles((prev) => {
+          const filtered = prev.filter((b) => b.type !== 'result-input');
+          return [
+            ...filtered,
+            { id: (bubbleIdRef.current++).toString(), type: 'user', content: newInput },
+          ];
+        });
+      }
+
+      setExpectingFreshInput(false);
+      scrollToBottom(50);
+      return true; // Signal handled
+    },
+    [keypadInput, scrollToBottom]
+  );
 
   const handleDotKey = useCallback(() => {
     const newInput = `${keypadInput}.`;
@@ -1023,61 +1028,70 @@ const MainScreen: React.FC = () => {
     scrollToBottom(50);
   }, [keypadInput, scrollToBottom]);
 
-  const handleEqualsKey = useCallback((_key: string) => {
-    const expressionToCalc = keypadInput;
-    const result = handleInput(expressionToCalc, 'keypad');
+  const handleEqualsKey = useCallback(
+    (_key: string) => {
+      const expressionToCalc = keypadInput;
+      const result = handleInput(expressionToCalc, 'keypad');
 
-    if (result !== MATH_ERROR) {
-      handleCalculationResult(expressionToCalc, result, 'keypad');
-      scrollToBottom(50);
-    } else {
-      const errorBubble: ChatBubble = {
-        id: (bubbleIdRef.current++).toString(),
-        type: 'error',
-        content: t('mainApp.mathErrors.error'),
-      };
-      setBubbles((prev) => [...prev, errorBubble]);
-      setKeypadInput('');
-      setPreviewResult(null);
-      setExpectingFreshInput(false);
-      scrollToBottom(50);
-    }
-  }, [keypadInput, handleInput, handleCalculationResult, t, scrollToBottom]);
+      if (result !== MATH_ERROR) {
+        handleCalculationResult(expressionToCalc, result, 'keypad');
+        scrollToBottom(50);
+      } else {
+        const errorBubble: ChatBubble = {
+          id: (bubbleIdRef.current++).toString(),
+          type: 'error',
+          content: t('mainApp.mathErrors.error'),
+        };
+        setBubbles((prev) => [...prev, errorBubble]);
+        setKeypadInput('');
+        setPreviewResult(null);
+        setExpectingFreshInput(false);
+        scrollToBottom(50);
+      }
+    },
+    [keypadInput, handleInput, handleCalculationResult, t, scrollToBottom]
+  );
 
-  const handleRegularKey = useCallback((key: string) => {
-    const newInput = `${keypadInput}${key}`;
-    setKeypadInput(newInput);
-    setBubbles((prev) => {
-      const others = prev.filter((b) => b.type !== 'user' || b.content !== keypadInput);
-      return [
-        ...others,
-        { id: (bubbleIdRef.current++).toString(), type: 'user', content: newInput },
-      ];
-    });
-    scrollToBottom(50);
-  }, [keypadInput, scrollToBottom]);
+  const handleRegularKey = useCallback(
+    (key: string) => {
+      const newInput = `${keypadInput}${key}`;
+      setKeypadInput(newInput);
+      setBubbles((prev) => {
+        const others = prev.filter((b) => b.type !== 'user' || b.content !== keypadInput);
+        return [
+          ...others,
+          { id: (bubbleIdRef.current++).toString(), type: 'user', content: newInput },
+        ];
+      });
+      scrollToBottom(50);
+    },
+    [keypadInput, scrollToBottom]
+  );
 
   // Key handler map (memoized for stable references)
-  const keyHandlers = useMemo<Record<string, ((key: string) => boolean) | ((key: string) => void)>>(() => ({
-    '↺': handleResetKey,
-    '.': handleDotKey,
-    'C': handleClearKey,
-    '⌫': handleBackspaceKey,
-    'SHIFT_BACKSPACE': handleShiftBackspace,
-    '()': handleParenthesesKey,
-    '%': handlePercentKey,
-    'ok': handleEqualsKey,
-    '=': handleEqualsKey,
-  }), [
-    handleResetKey,
-    handleDotKey,
-    handleClearKey,
-    handleBackspaceKey,
-    handleShiftBackspace,
-    handleParenthesesKey,
-    handlePercentKey,
-    handleEqualsKey,
-  ]);
+  const keyHandlers = useMemo<Record<string, ((key: string) => boolean) | ((key: string) => void)>>(
+    () => ({
+      '↺': handleResetKey,
+      '.': handleDotKey,
+      C: handleClearKey,
+      '⌫': handleBackspaceKey,
+      SHIFT_BACKSPACE: handleShiftBackspace,
+      '()': handleParenthesesKey,
+      '%': handlePercentKey,
+      ok: handleEqualsKey,
+      '=': handleEqualsKey,
+    }),
+    [
+      handleResetKey,
+      handleDotKey,
+      handleClearKey,
+      handleBackspaceKey,
+      handleShiftBackspace,
+      handleParenthesesKey,
+      handlePercentKey,
+      handleEqualsKey,
+    ]
+  );
 
   // Refactored onKeypadPress function
   const onKeypadPress = useCallback(
@@ -1578,62 +1592,70 @@ const MainScreen: React.FC = () => {
         />
       )}
 
-      {/* Settings Modal */}
-      <Settings
-        visible={isSettingsModalVisible}
-        onClose={() => setIsSettingsModalVisible(false)}
-        webhookUrls={webhookManager.webhookUrls}
-        newWebhookUrl={webhookManager.newWebhookUrl}
-        setNewWebhookUrl={webhookManager.setNewWebhookUrl}
-        newWebhookTitle={webhookManager.newWebhookTitle}
-        setNewWebhookTitle={webhookManager.setNewWebhookTitle}
-        handleAddWebhook={handleAddWebhook}
-        handleDeleteWebhook={handleDeleteWebhook}
-        handleToggleWebhook={handleToggleWebhook}
-        sendEquation={webhookManager.sendEquation}
-        setSendEquation={webhookManager.setSendEquation}
-        streamResults={webhookManager.streamResults}
-        setStreamResults={webhookManager.setStreamResults}
-        bulkData={webhookManager.bulkData}
-        setBulkData={webhookManager.setBulkData}
-        isSendingBulk={webhookManager.isSendingBulk}
-        clearBulkData={() => {
-          webhookManager.setBulkData([]);
-        }}
-        enterKeyNewLine={enterKeyNewLine}
-        setEnterKeyNewLine={setEnterKeyNewLine}
-        isSpeechMuted={isSpeechMuted}
-        toggleSpeechMute={toggleSpeechMute}
-        setWebhookUrls={webhookManager.setWebhookUrls}
-        handleSendBulkData={handleSendBulkData}
-        vibrationEnabled={vibrationEnabled}
-        setVibrationEnabled={setVibrationEnabled}
-        openInCalcMode={openInCalcMode}
-        setOpenInCalcMode={setOpenInCalcMode}
-        historyEnabled={historyEnabled}
-        setHistoryEnabled={setHistoryEnabled}
-        continuousMode={continuousMode}
-        setContinuousMode={setContinuousMode}
-      />
+      {/* Settings Modal - Lazy loaded */}
+      {isSettingsModalVisible && (
+        <Suspense fallback={null}>
+          <Settings
+            visible={isSettingsModalVisible}
+            onClose={() => setIsSettingsModalVisible(false)}
+            webhookUrls={webhookManager.webhookUrls}
+            newWebhookUrl={webhookManager.newWebhookUrl}
+            setNewWebhookUrl={webhookManager.setNewWebhookUrl}
+            newWebhookTitle={webhookManager.newWebhookTitle}
+            setNewWebhookTitle={webhookManager.setNewWebhookTitle}
+            handleAddWebhook={handleAddWebhook}
+            handleDeleteWebhook={handleDeleteWebhook}
+            handleToggleWebhook={handleToggleWebhook}
+            sendEquation={webhookManager.sendEquation}
+            setSendEquation={webhookManager.setSendEquation}
+            streamResults={webhookManager.streamResults}
+            setStreamResults={webhookManager.setStreamResults}
+            bulkData={webhookManager.bulkData}
+            setBulkData={webhookManager.setBulkData}
+            isSendingBulk={webhookManager.isSendingBulk}
+            clearBulkData={() => {
+              webhookManager.setBulkData([]);
+            }}
+            enterKeyNewLine={enterKeyNewLine}
+            setEnterKeyNewLine={setEnterKeyNewLine}
+            isSpeechMuted={isSpeechMuted}
+            toggleSpeechMute={toggleSpeechMute}
+            setWebhookUrls={webhookManager.setWebhookUrls}
+            handleSendBulkData={handleSendBulkData}
+            vibrationEnabled={vibrationEnabled}
+            setVibrationEnabled={setVibrationEnabled}
+            openInCalcMode={openInCalcMode}
+            setOpenInCalcMode={setOpenInCalcMode}
+            historyEnabled={historyEnabled}
+            setHistoryEnabled={setHistoryEnabled}
+            continuousMode={continuousMode}
+            setContinuousMode={setContinuousMode}
+          />
+        </Suspense>
+      )}
 
-      {/* History Modal */}
-      <HistoryModal
-        visible={showHistoryModal}
-        onClose={() => setShowHistoryModal(false)}
-        history={history}
-        onDelete={deleteCalculation}
-        onClearAll={clearAllCalculations}
-        onSelect={(item) => {
-          if (item.result) {
-            setKeypadInput(item.result);
-            setShowHistoryModal(false);
-            if (Platform.OS === 'android') {
-              ToastAndroid.show(`Selected: ${item.result}`, ToastAndroid.SHORT);
-            }
-          }
-        }}
-        isLoading={loading}
-      />
+      {/* History Modal - Lazy loaded */}
+      {showHistoryModal && (
+        <Suspense fallback={null}>
+          <HistoryModal
+            visible={showHistoryModal}
+            onClose={() => setShowHistoryModal(false)}
+            history={history}
+            onDelete={deleteCalculation}
+            onClearAll={clearAllCalculations}
+            onSelect={(item) => {
+              if (item.result) {
+                setKeypadInput(item.result);
+                setShowHistoryModal(false);
+                if (Platform.OS === 'android') {
+                  ToastAndroid.show(`Selected: ${item.result}`, ToastAndroid.SHORT);
+                }
+              }
+            }}
+            isLoading={loading}
+          />
+        </Suspense>
+      )}
 
       {/* Bottom bar with proper spacing and button sizes */}
       <View style={[styles.bottomBar, isWebMobile && styles.bottomBarWebMobile]}>

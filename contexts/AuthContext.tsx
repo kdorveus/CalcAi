@@ -1,6 +1,14 @@
 import { useRouter, useSegments } from 'expo-router';
 import type React from 'react';
-import { createContext, type ReactNode, useContext, useEffect, useMemo, useState } from 'react';
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import * as authService from '../utils/authService';
 import { usePostHog } from './PostHogContext';
 
@@ -88,32 +96,32 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, [identifyUser]);
 
   // Sign In - Email/password not implemented yet
-  const signIn = async (_email: string) => {
+  const signIn = useCallback(async (_email: string) => {
     setAuthError('Please use Google Sign-In');
     return {
       error: { name: 'NotImplemented', message: 'Email sign-in not implemented' } as AuthError,
     };
-  };
+  }, []);
 
   // Verify OTP - Not implemented yet
-  const verifyOtp = async (_email: string, _token: string) => {
+  const verifyOtp = useCallback(async (_email: string, _token: string) => {
     return {
       error: { name: 'NotImplemented', message: 'OTP verification not implemented' } as AuthError,
     };
-  };
+  }, []);
 
   // Sign Up - Email/password not implemented yet
-  const signUp = async (_email: string) => {
+  const signUp = useCallback(async (_email: string) => {
     setAuthError('Please use Google Sign-In');
     return {
       error: { name: 'NotImplemented', message: 'Email sign-up not implemented' } as AuthError,
       session: null,
       user: null,
     };
-  };
+  }, []);
 
   // Sign Out
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     try {
       setLoading(true);
 
@@ -136,10 +144,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [postHogReset]);
 
   // Sign In with Google
-  const signInWithGoogle = async () => {
+  const signInWithGoogle = useCallback(async () => {
     try {
       setLoading(true);
       setAuthError(null);
@@ -169,40 +177,43 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [identifyUser]);
 
   // Sign In with Google One Tap
-  const signInWithGoogleOneTap = async (credential: string) => {
-    try {
-      setLoading(true);
-      setAuthError(null);
-
-      const { error, session: newSession } = await authService.signInWithGoogleOneTap(credential);
-
-      if (error) {
-        setAuthError(error.message);
-        return { error };
-      }
-
-      if (newSession) {
-        identifyUser(newSession.user.id, {
-          email: newSession.user.email,
-          name: newSession.user.name,
-        });
-        setUser(newSession.user);
-        setSession(newSession);
+  const signInWithGoogleOneTap = useCallback(
+    async (credential: string) => {
+      try {
+        setLoading(true);
         setAuthError(null);
-      }
 
-      return { error: null };
-    } catch (error: any) {
-      const authError = { name: 'GoogleOneTapError', message: error.message } as AuthError;
-      setAuthError(error.message);
-      return { error: authError };
-    } finally {
-      setLoading(false);
-    }
-  };
+        const { error, session: newSession } = await authService.signInWithGoogleOneTap(credential);
+
+        if (error) {
+          setAuthError(error.message);
+          return { error };
+        }
+
+        if (newSession) {
+          identifyUser(newSession.user.id, {
+            email: newSession.user.email,
+            name: newSession.user.name,
+          });
+          setUser(newSession.user);
+          setSession(newSession);
+          setAuthError(null);
+        }
+
+        return { error: null };
+      } catch (error: any) {
+        const authError = { name: 'GoogleOneTapError', message: error.message } as AuthError;
+        setAuthError(error.message);
+        return { error: authError };
+      } finally {
+        setLoading(false);
+      }
+    },
+    [identifyUser]
+  );
 
   const contextValue = useMemo(
     () => ({
@@ -217,14 +228,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       loading,
       authError,
     }),
-    [signIn, signUp, signOut, signInWithGoogle, signInWithGoogleOneTap, verifyOtp, user, session, loading, authError]
+    [
+      signIn,
+      signUp,
+      signOut,
+      signInWithGoogle,
+      signInWithGoogleOneTap,
+      verifyOtp,
+      user,
+      session,
+      loading,
+      authError,
+    ]
   );
 
-  return (
-    <AuthContext.Provider value={contextValue}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>;
 };
 
 // Export the hook to use the auth context

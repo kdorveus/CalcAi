@@ -416,9 +416,7 @@ const GeneralSettings: React.FC<{
   loading,
 }) => (
   <View style={styles.optionsDropdownMenu}>
-    <Text
-      style={[styles.settingLabel, { color: '#888', fontSize: 14, marginBottom: 8 }]}
-    >
+    <Text style={[styles.settingLabel, { color: '#888', fontSize: 14, marginBottom: 8 }]}>
       {t('settings.general.inputBehavior')}
     </Text>
     <TouchableOpacity
@@ -500,9 +498,7 @@ const GeneralSettings: React.FC<{
         borderTopColor: '#333',
       }}
     >
-      <Text
-        style={[styles.settingLabel, { color: '#888', fontSize: 14, marginBottom: 8 }]}
-      >
+      <Text style={[styles.settingLabel, { color: '#888', fontSize: 14, marginBottom: 8 }]}>
         {t('settings.general.webhooksSection')}
       </Text>
     </View>
@@ -511,9 +507,7 @@ const GeneralSettings: React.FC<{
       onPress={() => requirePremium(() => {})}
       activeOpacity={0.7}
     >
-      <Text style={styles.settingLabel}>
-        {t('settings.general.sendAnswerWithoutEquation')}
-      </Text>
+      <Text style={styles.settingLabel}>{t('settings.general.sendAnswerWithoutEquation')}</Text>
       <Switch
         value={!sendEquation}
         onValueChange={(v) => requirePremium(() => setSendEquation(!v))}
@@ -526,9 +520,7 @@ const GeneralSettings: React.FC<{
       onPress={() => requirePremium(() => {})}
       activeOpacity={0.7}
     >
-      <Text style={styles.settingLabel}>
-        {t('settings.general.queueResultsForManualSending')}
-      </Text>
+      <Text style={styles.settingLabel}>{t('settings.general.queueResultsForManualSending')}</Text>
       <Switch
         value={!streamResults}
         onValueChange={(v) => requirePremium(() => setStreamResults(!v))}
@@ -548,22 +540,14 @@ const LanguageSettings: React.FC<{
     {SUPPORTED_LANGUAGES.map((lang) => (
       <TouchableOpacity
         key={lang.code}
-        style={[
-          styles.languageOption,
-          language === lang.code && styles.languageOptionSelected,
-        ]}
+        style={[styles.languageOption, language === lang.code && styles.languageOptionSelected]}
         onPress={() => setLanguage(lang.code)}
         activeOpacity={0.6}
       >
         <View style={styles.languageOptionContent}>
           <Text style={styles.languageName}>{lang.nativeName}</Text>
         </View>
-        <View
-          style={[
-            styles.radioButton,
-            language === lang.code && styles.radioButtonSelected,
-          ]}
-        >
+        <View style={[styles.radioButton, language === lang.code && styles.radioButtonSelected]}>
           {language === lang.code && <View style={styles.radioButtonInner} />}
         </View>
       </TouchableOpacity>
@@ -637,8 +621,7 @@ const WebhookSettings: React.FC<{
       <TouchableOpacity
         style={[
           styles.addButton,
-          (!isPremium || !/^https?:\/\//.test(localWebhookUrl.trim())) &&
-            styles.addButtonDisabled,
+          (!isPremium || !/^https?:\/\//.test(localWebhookUrl.trim())) && styles.addButtonDisabled,
         ]}
         onPress={() => {
           if (!isPremium) {
@@ -712,11 +695,7 @@ const WebhookSettings: React.FC<{
             ) : (
               // Display UI
               <>
-                <Text
-                  style={styles.webhookUrlText}
-                  numberOfLines={1}
-                  ellipsizeMode="middle"
-                >
+                <Text style={styles.webhookUrlText} numberOfLines={1} ellipsizeMode="middle">
                   {item.title ? item.title : item.url}
                 </Text>
                 <View style={styles.webhookItemControls}>
@@ -726,9 +705,7 @@ const WebhookSettings: React.FC<{
                       requirePremium(() => {
                         handleToggleWebhook(item.url, value);
                         const updated = localWebhookUrls.map((webhook) =>
-                          webhook.url === item.url
-                            ? { ...webhook, active: value }
-                            : webhook
+                          webhook.url === item.url ? { ...webhook, active: value } : webhook
                         );
                         setLocalWebhookUrls(updated);
                       });
@@ -793,12 +770,7 @@ const AuthSection: React.FC<{
             style={{ width: 72, height: 72, borderRadius: 36, marginBottom: 12 }}
           />
         ) : (
-          <AppIcon
-            name="account-circle"
-            size={72}
-            color="#888"
-            style={{ marginBottom: 12 }}
-          />
+          <AppIcon name="account-circle" size={72} color="#888" style={{ marginBottom: 12 }} />
         )
       ) : (
         <Image
@@ -822,18 +794,13 @@ const AuthSection: React.FC<{
       >
         {user ? user.name || 'User' : t('auth.anonymousCat')}
       </Text>
-      <Text
-        style={[styles.userSubtitle, { fontSize: 14, color: '#888', textAlign: 'center' }]}
-      >
+      <Text style={[styles.userSubtitle, { fontSize: 14, color: '#888', textAlign: 'center' }]}>
         {user ? user.email : t('auth.guestUser')}
       </Text>
 
       {/* Button */}
       {user ? (
-        <TouchableOpacity
-          style={[styles.signOutButton, { marginTop: 4 }]}
-          onPress={handleSignOut}
-        >
+        <TouchableOpacity style={[styles.signOutButton, { marginTop: 4 }]} onPress={handleSignOut}>
           <AppIcon name="logout" size={18} color="#888" style={{ marginRight: 8 }} />
           <Text style={styles.signOutButtonText}>{t('auth.signOut')}</Text>
         </TouchableOpacity>
@@ -896,7 +863,12 @@ export const WebhookSettingsComponentV2: React.FC<WebhookSettingsProps> = ({
   const [openSection, setOpenSection] = useState<SectionName>(null);
 
   // Use extracted hooks
-  const webhookManagement = useWebhookManagement(webhookUrls, bulkData, setBulkData, setWebhookUrls);
+  const webhookManagement = useWebhookManagement(
+    webhookUrls,
+    bulkData,
+    setBulkData,
+    setWebhookUrls
+  );
   const premiumGate = usePremiumGate(checkPremiumStatus);
   const authHandlers = useAuthHandlers(signOut, signInWithGoogle);
 
@@ -959,7 +931,9 @@ export const WebhookSettingsComponentV2: React.FC<WebhookSettingsProps> = ({
         return;
       }
 
-      const urlExists = webhookManagement.localWebhookUrls.some((webhook) => webhook.url === validatedUrl);
+      const urlExists = webhookManagement.localWebhookUrls.some(
+        (webhook) => webhook.url === validatedUrl
+      );
 
       if (validatedUrl && !urlExists) {
         // Add new webhook with active state set to true and include title if provided
@@ -1208,7 +1182,8 @@ export const WebhookSettingsComponentV2: React.FC<WebhookSettingsProps> = ({
                             onPress={() => handleSendSingleItemWrapped(item)}
                             disabled={
                               webhookManagement.sendingItemId === item.id ||
-                              webhookManagement.localWebhookUrls.filter((webhook) => webhook.active).length === 0
+                              webhookManagement.localWebhookUrls.filter((webhook) => webhook.active)
+                                .length === 0
                             }
                           >
                             {webhookManagement.sendingItemId === item.id ? (
@@ -1218,7 +1193,9 @@ export const WebhookSettingsComponentV2: React.FC<WebhookSettingsProps> = ({
                                 name="send"
                                 size={18}
                                 color={
-                                  webhookManagement.localWebhookUrls.filter((webhook) => webhook.active).length > 0
+                                  webhookManagement.localWebhookUrls.filter(
+                                    (webhook) => webhook.active
+                                  ).length > 0
                                     ? '#0066cc'
                                     : '#666'
                                 }
@@ -1244,14 +1221,16 @@ export const WebhookSettingsComponentV2: React.FC<WebhookSettingsProps> = ({
               style={[
                 styles.bulkSendButton,
                 (bulkData.length === 0 ||
-                  webhookManagement.localWebhookUrls.filter((webhook) => webhook.active).length === 0 ||
+                  webhookManagement.localWebhookUrls.filter((webhook) => webhook.active).length ===
+                    0 ||
                   isSendingBulk) &&
                   styles.disabledButton,
               ]}
               onPress={handleSendBulkDataWrapped}
               disabled={
                 bulkData.length === 0 ||
-                webhookManagement.localWebhookUrls.filter((webhook) => webhook.active).length === 0 ||
+                webhookManagement.localWebhookUrls.filter((webhook) => webhook.active).length ===
+                  0 ||
                 isSendingBulk
               }
             >
@@ -1326,61 +1305,59 @@ export const WebhookSettingsComponentV2: React.FC<WebhookSettingsProps> = ({
       transparent={false}
       onRequestClose={onClose}
     >
-        <SafeAreaView style={{ flex: 1, backgroundColor: '#121212' }}>
-          <View style={{ flex: 1, backgroundColor: '#121212' }}>
-            <View style={styles.header}>
-              {/* New Back Button on Left */}
-              <TouchableOpacity onPress={onClose} style={styles.headerBackButton}>
-                <AppIcon name="arrow-left" size={24} color="#fff" />
-              </TouchableOpacity>
+      <SafeAreaView style={{ flex: 1, backgroundColor: '#121212' }}>
+        <View style={{ flex: 1, backgroundColor: '#121212' }}>
+          <View style={styles.header}>
+            {/* New Back Button on Left */}
+            <TouchableOpacity onPress={onClose} style={styles.headerBackButton}>
+              <AppIcon name="arrow-left" size={24} color="#fff" />
+            </TouchableOpacity>
 
-              {/* Title and Settings Icon (centered group) */}
-              <View style={styles.headerTitleGroup}>
-                <AppIcon name="cog" size={24} color="#fff" style={{ marginRight: 8 }} />
-                <Text style={styles.modalTitle}>{t('settings.title')}</Text>
-              </View>
-
-              {/* Premium Button - only shown for non-premium users */}
-              {!isPremium ? (
-                <TouchableOpacity
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    backgroundColor: 'transparent',
-                    paddingHorizontal: 0,
-                    paddingVertical: 0,
-                    elevation: 0,
-                    shadowOpacity: 0,
-                  }}
-                  onPress={() => premiumGate.setShowPremiumModal(true)}
-                  activeOpacity={0.7}
-                >
-                  <AppIcon name="crown-outline" size={22} color="#ff9500" />
-                  <Text
-                    style={{ color: '#ff9500', fontWeight: 'bold', fontSize: 14, marginLeft: 4 }}
-                  >
-                    {t('common.pro')}
-                  </Text>
-                </TouchableOpacity>
-              ) : (
-                <View style={styles.headerRightPlaceholder} />
-              )}
+            {/* Title and Settings Icon (centered group) */}
+            <View style={styles.headerTitleGroup}>
+              <AppIcon name="cog" size={24} color="#fff" style={{ marginRight: 8 }} />
+              <Text style={styles.modalTitle}>{t('settings.title')}</Text>
             </View>
 
-            {ScrollViewContent}
+            {/* Premium Button - only shown for non-premium users */}
+            {!isPremium ? (
+              <TouchableOpacity
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  backgroundColor: 'transparent',
+                  paddingHorizontal: 0,
+                  paddingVertical: 0,
+                  elevation: 0,
+                  shadowOpacity: 0,
+                }}
+                onPress={() => premiumGate.setShowPremiumModal(true)}
+                activeOpacity={0.7}
+              >
+                <AppIcon name="crown-outline" size={22} color="#ff9500" />
+                <Text style={{ color: '#ff9500', fontWeight: 'bold', fontSize: 14, marginLeft: 4 }}>
+                  {t('common.pro')}
+                </Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.headerRightPlaceholder} />
+            )}
           </View>
-        </SafeAreaView>
-        <PremiumPaymentModal
-          visible={premiumGate.showPremiumModal}
-          onClose={() => premiumGate.setShowPremiumModal(false)}
-          onSuccess={() => {
-            premiumGate.setShowPremiumModal(false);
-            if (premiumGate.lastAttemptedAction) {
-              premiumGate.lastAttemptedAction();
-              premiumGate.setLastAttemptedAction(null);
-            }
-          }}
-        />
+
+          {ScrollViewContent}
+        </View>
+      </SafeAreaView>
+      <PremiumPaymentModal
+        visible={premiumGate.showPremiumModal}
+        onClose={() => premiumGate.setShowPremiumModal(false)}
+        onSuccess={() => {
+          premiumGate.setShowPremiumModal(false);
+          if (premiumGate.lastAttemptedAction) {
+            premiumGate.lastAttemptedAction();
+            premiumGate.setLastAttemptedAction(null);
+          }
+        }}
+      />
     </Modal>
   );
 };

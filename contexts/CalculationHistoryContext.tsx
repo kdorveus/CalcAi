@@ -1,6 +1,14 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type React from 'react';
-import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 
 // Define the shape of a calculation history item
 export interface CalculationHistoryItem {
@@ -63,53 +71,59 @@ export const CalculationHistoryProvider: React.FC<CalculationHistoryProviderProp
   }, [loadHistory]);
 
   // Save history to AsyncStorage
-  const saveHistory = async (newHistory: CalculationHistoryItem[]) => {
+  const saveHistory = useCallback(async (newHistory: CalculationHistoryItem[]) => {
     try {
       await AsyncStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(newHistory));
     } catch (error) {
       console.error('Error saving calculation history:', error);
     }
-  };
+  }, []);
 
   // Add a new calculation to history
-  const addCalculation = async (expression: string, result: string) => {
-    try {
-      // Create a new history item
-      const newItem: CalculationHistoryItem = {
-        expression,
-        result,
-        created_at: new Date().toISOString(),
-      };
+  const addCalculation = useCallback(
+    async (expression: string, result: string) => {
+      try {
+        // Create a new history item
+        const newItem: CalculationHistoryItem = {
+          expression,
+          result,
+          created_at: new Date().toISOString(),
+        };
 
-      // Update state and storage
-      const updatedHistory = [newItem, ...history];
-      setHistory(updatedHistory);
-      await saveHistory(updatedHistory);
-    } catch (error) {
-      console.error('Error adding calculation:', error);
-    }
-  };
+        // Update state and storage
+        const updatedHistory = [newItem, ...history];
+        setHistory(updatedHistory);
+        await saveHistory(updatedHistory);
+      } catch (error) {
+        console.error('Error adding calculation:', error);
+      }
+    },
+    [history, saveHistory]
+  );
 
   // Delete a calculation from history - KISS approach
-  const deleteCalculation = async (created_at: string) => {
-    try {
-      const updatedHistory = history.filter((item) => item.created_at !== created_at);
-      setHistory(updatedHistory);
-      await saveHistory(updatedHistory);
-    } catch (error) {
-      console.error('Error deleting calculation:', error);
-    }
-  };
+  const deleteCalculation = useCallback(
+    async (created_at: string) => {
+      try {
+        const updatedHistory = history.filter((item) => item.created_at !== created_at);
+        setHistory(updatedHistory);
+        await saveHistory(updatedHistory);
+      } catch (error) {
+        console.error('Error deleting calculation:', error);
+      }
+    },
+    [history, saveHistory]
+  );
 
   // Clear all calculations - KISS approach
-  const clearAllCalculations = async () => {
+  const clearAllCalculations = useCallback(async () => {
     try {
       setHistory([]);
       await AsyncStorage.removeItem(HISTORY_STORAGE_KEY);
     } catch (error) {
       console.error('Error clearing calculation history:', error);
     }
-  };
+  }, []);
 
   const contextValue = useMemo(
     () => ({

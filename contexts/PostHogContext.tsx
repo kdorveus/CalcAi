@@ -1,5 +1,13 @@
 import type React from 'react';
-import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { Platform } from 'react-native';
 import { POSTHOG_CONFIG } from '../constants/Config';
 
@@ -54,37 +62,54 @@ export const PostHogProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, []);
 
   useEffect(() => {
-    // Initialize PostHog as soon as the provider mounts. It's async and won't block.
-    const initPostHog = async () => {
-      try {
-        if (POSTHOG_CONFIG.API_KEY && Platform.OS === 'web') {
-          // Use posthog-js for web
-          const posthog = await import('posthog-js');
-          posthog.default.init(POSTHOG_CONFIG.API_KEY, {
-            api_host: POSTHOG_CONFIG.HOST,
-            capture_pageview: false, // We'll manually capture
-            autocapture: false, // Disable auto-capture for performance
-            loaded: (ph) => {
-              posthogClientRef.current = ph;
-              processQueue(ph);
-            },
-          });
-        } else if (POSTHOG_CONFIG.API_KEY) {
-          // Use posthog-react-native for mobile
-          const PostHog = (await import('posthog-react-native')).default;
-          posthogClientRef.current = new PostHog(POSTHOG_CONFIG.API_KEY, {
-            host: POSTHOG_CONFIG.HOST,
-            captureAppLifecycleEvents: true,
-          });
-          processQueue(posthogClientRef.current);
+    // Defer PostHog initialization until after initial render to avoid blocking LCP
+    // Use requestIdleCallback for lowest priority, fallback to setTimeout
+    const scheduleInit = () => {
+      const initPostHog = async () => {
+        try {
+          if (POSTHOG_CONFIG.API_KEY && Platform.OS === 'web') {
+            // Use posthog-js for web
+            const posthog = await import(/* webpackChunkName: "posthog" */ 'posthog-js');
+            posthog.default.init(POSTHOG_CONFIG.API_KEY, {
+              api_host: POSTHOG_CONFIG.HOST,
+              capture_pageview: false, // We'll manually capture
+              autocapture: false, // Disable auto-capture for performance
+              loaded: (ph) => {
+                posthogClientRef.current = ph;
+                processQueue(ph);
+              },
+            });
+          } else if (POSTHOG_CONFIG.API_KEY) {
+            // Use posthog-react-native for mobile
+            const PostHog = (
+              await import(/* webpackChunkName: "posthog-native" */ 'posthog-react-native')
+            ).default;
+            posthogClientRef.current = new PostHog(POSTHOG_CONFIG.API_KEY, {
+              host: POSTHOG_CONFIG.HOST,
+              captureAppLifecycleEvents: true,
+            });
+            processQueue(posthogClientRef.current);
+          }
+        } catch (error) {
+          // Silent fail - PostHog is optional
+          console.warn('PostHog initialization failed:', error);
         }
-      } catch (error) {
-        // Silent fail - PostHog is optional
-        console.warn('PostHog initialization failed:', error);
+      };
+
+      // Use requestIdleCallback for web to defer until browser is idle
+      if (
+        Platform.OS === 'web' &&
+        typeof window !== 'undefined' &&
+        'requestIdleCallback' in window
+      ) {
+        (window as any).requestIdleCallback(initPostHog, { timeout: 2000 });
+      } else {
+        // Fallback: defer by 1 second to allow critical render to complete
+        setTimeout(initPostHog, 1000);
       }
     };
 
-    initPostHog();
+    scheduleInit();
   }, [processQueue]);
 
   // Performance-optimized event capture
@@ -150,9 +175,5 @@ export const PostHogProvider: React.FC<{ children: React.ReactNode }> = ({ child
     [isInitialized, captureEvent, identifyUser, captureScreen, resetUser]
   );
 
-  return (
-    <PostHogContext.Provider value={contextValue}>
-      {children}
-    </PostHogContext.Provider>
-  );
+  return <PostHogContext.Provider value={contextValue}>{children}</PostHogContext.Provider>;
 };
