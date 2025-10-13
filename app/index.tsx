@@ -119,21 +119,24 @@ const MainScreen: React.FC = () => {
   // No longer needed as we directly inject the font
   // const fallbackNeeded = false;
 
-  // Add responsive dimensions
-  const [isWebMobile, setIsWebMobile] = useState(false);
+  // Add responsive dimensions - lazy initialization to avoid forced reflow
+  const [isWebMobile, setIsWebMobile] = useState(() => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      return Dimensions.get('window').width < 768;
+    }
+    return false;
+  });
 
   useEffect(() => {
+    if (Platform.OS !== 'web') return;
+
     const updateLayout = () => {
       const { width } = Dimensions.get('window');
-      setIsWebMobile(Platform.OS === 'web' && width < 768);
+      setIsWebMobile(width < 768);
     };
 
-    updateLayout();
     const subscription = Dimensions.addEventListener('change', updateLayout);
-
-    return () => {
-      subscription.remove();
-    };
+    return () => subscription.remove();
   }, []);
 
   // Removed forced reflow - recordInteraction() causes layout thrashing
