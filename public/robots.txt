@@ -1,8 +1,4 @@
-# robots.txt for CalcAI
-# Allow all search engines to crawl the site
-
 User-agent: *
 Allow: /
 
-# Sitemap location
 Sitemap: https://calc.tearhappy.com/sitemap.xml

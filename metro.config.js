@@ -39,6 +39,11 @@ config.transformer = {
       // Use ASCII only for better compatibility
       ascii_only: true,
     },
+    sourceMap: {
+      // Generate source maps for production debugging
+      filename: true,
+      url: true,
+    },
   },
 };
 

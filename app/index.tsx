@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Head from 'expo-router/head';
 import * as Speech from 'expo-speech';
 import { evaluate } from 'mathjs';
 import type React from 'react';
@@ -1529,6 +1530,17 @@ const MainScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container}>
+      <Head>
+        <title>CalcAI - AI-Powered Calculator with Voice Recognition</title>
+        <meta
+          name="description"
+          content="CalcAI is an intelligent calculator app with voice recognition, natural language processing, and advanced mathematical capabilities. Solve complex calculations effortlessly with AI assistance."
+        />
+        <meta
+          name="viewport"
+          content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover"
+        />
+      </Head>
       <StatusBar barStyle="light-content" backgroundColor="#121212" />
 
       {/* Render Header Controls */}

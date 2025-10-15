@@ -37,7 +37,6 @@ import { useColorScheme } from 'react-native';
 if (Platform.OS === 'web' && typeof document !== 'undefined') {
   // Immediate execution to ensure fastest possible loading
   (() => {
-  
     // Add critical CSS after Material Icons (still high priority)
     const criticalCss = document.createElement('style');
     criticalCss.id = 'critical-css';
