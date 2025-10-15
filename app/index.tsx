@@ -1547,20 +1547,14 @@ const MainScreen: React.FC = () => {
       {/* Render Header Controls */}
       {renderHeaderControls()}
 
-      {/* Instant Logo Render - Independent of lazy loading */}
+      {/* Text Logo - Optimized for performance */}
       {!showKeypad && bubbles.length === 0 ? (
         <View style={styles.centeredEmptyStateWrapper}>
           <View style={styles.logoContainer}>
-            <Image
-              source={require('../assets/images/LOGO.webp')}
-              style={{
-                width: Platform.OS === 'web' ? 200 : 180,
-                height: Platform.OS === 'web' ? 80 : 72,
-              }}
-              resizeMode="contain"
-              fadeDuration={0}
-            />
-            <Text style={styles.betaText}>BETA</Text>
+            <View style={styles.textLogoContainer}>
+              <Text style={styles.textLogo}>calc+AI</Text>
+              <Text style={styles.betaText}>BETA</Text>
+            </View>
           </View>
           {Platform.OS === 'web' ? <WebEmptyState t={t} /> : <MobileEmptyState t={t} />}
         </View>
@@ -1859,6 +1853,8 @@ interface ComponentStyles {
   keypadKeyEnter: ViewStyle;
   resetButton: ViewStyle;
   logoContainer: ViewStyle;
+  textLogoContainer: ViewStyle;
+  textLogo: TextStyle;
   betaText: TextStyle;
 }
 
@@ -2045,10 +2041,28 @@ const styles = StyleSheet.create<ComponentStyles>({
     justifyContent: 'center',
     marginBottom: 30,
   },
+  textLogoContainer: {
+    position: 'relative',
+    alignItems: 'flex-end',
+    flexDirection: 'row',
+    justifyContent: 'center',
+  },
+  textLogo: {
+    fontSize: 72,
+    fontWeight: '400',
+    color: '#fff',
+    letterSpacing: -3,
+    fontFamily: Platform.select({
+      ios: 'System',
+      android: 'sans-serif-black',
+      web: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+    }),
+  },
   betaText: {
-    position: 'absolute',
-    top: 10,
-    right: -42,
+    position: 'relative',
+    top: -50,
+    right: 0,
+    marginLeft: 8,
     backgroundColor: '#0066cc',
     color: '#fff',
     fontSize: 10,
