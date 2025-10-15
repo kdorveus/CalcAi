@@ -37,44 +37,7 @@ import { useColorScheme } from 'react-native';
 if (Platform.OS === 'web' && typeof document !== 'undefined') {
   // Immediate execution to ensure fastest possible loading
   (() => {
-    // Force Material Icons to load first - highest priority
-    const materialIconsStyle = document.createElement('style');
-    materialIconsStyle.id = 'critical-material-icons';
-    materialIconsStyle.textContent = `
-      /* Material Icons Font Face - Inline for instant loading */
-      @font-face {
-        font-family: 'Material Icons';
-        font-style: normal;
-        font-weight: 400;
-        font-display: block; /* Critical font - block render until loaded */
-        src: url(data:application/font-woff2;charset=utf-8;base64,d09GMgABAAAAAAVIAAsAAAAAC3wAAAT6AAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHFQGVgCDTAqJMIcsATYCJAMcCxAABCAFhGcHgSUbnQkjETaLkrIg+4uE2RPWhyehtJRdUk5JOTmUQ6mUb/e9vU8AwfH9fu3c9/FPLCFJNOrdzXQSzSSCJbFIiEQjFEKFUJmGl/+hL/1Rm2GBZBlYLh9QAQiwXP7/uXa6QdnB8gPNJW+KrAMcJdBAFEULCuiNeMIN42l6EQqoD08TaLeoErm+e2AEshLQL7BWuZXBXJkpNXSEVlNdsrKId1DTpqfkGnhrf18+jbHIoGo0AXs1NV2awm+eP3t2Hs7xCOV0HsA5nQksR8QSSBD9pTov5kS0LE60vd6sfQg0WqqCN4p6Es9mnp1nEHOiudnUBi0SRUNjQqrY/+M1qCb4zgPqN4T45vlMVEHAM+QjUOCZj0g51WJ10JBpAyUcgRXYB8QrEI9CHlI6PNrR2sYGCIDRxYEqLj4+JqbfIyUtNSWxz+2emJGY6JGelJDQpjGmFbPGmVsxW/5OlU4dJyIx/cYNZG5GTr9x7Rp97RrLXXv7NbK3c8pMa2LXppgXmUmZTbdBb+aM62sDFrGVSe17h9aWZYZcrYbcJg4zeTkwaErxhLbxjQMF/frFgP4R2o2CkZH74n5qBNGE+mfpRw9VrlkpZ6GgCFqFJGYgKtCvXfvRhP2bVwn2pAbHfG2e8bm1QO/pqU29j6WCPxL05t/3sCevOCl4JE3KNXr6/lNjl2EJ6+IW7j29Zg1XMr5y9WL9rlDliQnNTNw1M25YDGbRl1tJbvW4Np5xS8qVbp0+v0AwWD9l3sOVjlCQw2YeXfSofOGcuAXLFi+IW7Bk2fEFK5SztFrF4UMh4eDQEUNsylJL15NNQYdEQdCh4vBQoTh4ShwYOiweHDoiiNNQ2lXLVUlO7N7WlXQkp30l3L3zyTcdP6uMGm/KfnAny4GbHtwpZbTwpgDJgRKJsiJ3LI+K8MjuXRU7JXWkLN+4MZcxF27YmMNYuOF+Tkx04/0cYeGG3H4kEZaVu34Ll5XFOSU53ilskVmweNHq1X9+RebOWxdvnT9vLpnXf6N6OY2KR2tWvDMqfnv0mGjdOFXsCOlZ56lkmPSX8uy9K+Wvgw93JB8/dujnbPLf5FRlRvBQ26/rVzUdPHRrv+/0Pu5Kbb+pU1m5V50W1iSgXnGS/n4ZfeUP+t+kKJCnFJ5yxOqsqpUKqWRVVSm1jPBm36YzJkzMejDCd+RjKS0U9EgInBdKOilQmyJiYa42TKPF5c1JU2bF5S5ZnMctPZE7a5bLrLi8xUvyGPIFbwdLsI+I6dGXfUnMeq52j0fY4xhP6zHs+6Xwv9+PuRqEMH/L1g1fZ/j+mBGnMFYAwF+YAKBxYb4bOJCv58LvR/wffh3W0HHNQ2vVdCxq4r/xZ39Nqo7rXz22jdSz1rN/KFz9/P39JXz2vwqDPxV8KoAlYexPSxOr4o+YmfenD8vAgTkdYC3tDrQ2fQzSz/U3AARt5Wz+n3y9E0kUGtOToNJYBFFrGiQJWwS1DqugodURtDsxeX6HURhJSg2WvA0Qer0KlW5fQdTrOkjC3gdNv4+hMRggaLcZ6jt2mAjWKcPIFDofUzSIpZwjqBbmMCmJozQyQ74ZJ4mZcZYozQgXvBiPE3XDHCbxMUm5HKFDERPlmMyRocUYJYoaWD8S8Xi8Hu35DEFSFjQwRoqOHkZhoMw4HEJVgzmY7Nf3f2YwJjGO2KwIZf8GZwSOIa/Qpu2RrFdZxd12VWo4DAsfyEicGEGHVMjrQmMUY+DQKNRi5oORiAvnReg5m+6fpB+xPWmXV7nfpUKDFjqNdl5TnSJDpcw5Z7hfvGDalDATGb0GAAAA) format('woff2');
-      }
-
-      /* Critical class styles */
-      .material-icons {
-        font-family: 'Material Icons';
-        font-weight: normal;
-        font-style: normal;
-        font-size: 24px;
-        line-height: 1;
-        letter-spacing: normal;
-        text-transform: none;
-        display: inline-block;
-        white-space: nowrap;
-        word-wrap: normal;
-        direction: ltr;
-        -webkit-font-feature-settings: 'liga';
-        -webkit-font-smoothing: antialiased;
-      }
-    `;
-
-    // Insert at the beginning of head for highest priority
-    if (document.head.firstChild) {
-      document.head.insertBefore(materialIconsStyle, document.head.firstChild);
-    } else {
-      document.head.appendChild(materialIconsStyle);
-    }
-
+  
     // Add critical CSS after Material Icons (still high priority)
     const criticalCss = document.createElement('style');
     criticalCss.id = 'critical-css';

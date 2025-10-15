@@ -46,6 +46,12 @@ export default {
       bundler: 'metro',
       output: 'static',
       favicon: './assets/images/favicon.png',
+      // Performance optimizations
+      build: {
+        babel: {
+          include: ['@babel/plugin-transform-react-jsx'],
+        },
+      },
     },
     plugins: [
       'expo-router',

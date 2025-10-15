@@ -17,6 +17,27 @@ config.transformer = {
     compress: {
       // Remove console logs in production
       drop_console: process.env.NODE_ENV === 'production',
+      // Additional optimizations
+      dead_code: true,
+      unused: true,
+      // Remove debugger statements
+      drop_debugger: true,
+      // Optimize boolean expressions
+      booleans: true,
+      // Optimize loops
+      loops: true,
+      // Inline simple functions
+      inline: 2,
+    },
+    mangle: {
+      // Mangle variable names for smaller bundle
+      toplevel: process.env.NODE_ENV === 'production',
+    },
+    output: {
+      // Remove comments
+      comments: false,
+      // Use ASCII only for better compatibility
+      ascii_only: true,
     },
   },
 };
