@@ -1,7 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Head from 'expo-router/head';
 import * as Speech from 'expo-speech';
-import { evaluate } from 'mathjs';
+// Import only evaluate from mathjs to reduce bundle size
+import { evaluate } from 'mathjs/number';
 import type React from 'react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {

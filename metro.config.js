@@ -6,6 +6,14 @@ const config = getDefaultConfig(__dirname, {
   isCSSEnabled: true,
 });
 
+// Enable tree shaking for better bundle optimization
+config.transformer.getTransformOptions = async () => ({
+  transform: {
+    experimentalImportSupport: false,
+    inlineRequires: true,
+  },
+});
+
 // Configure react-native-svg-transformer
 const { transformer, resolver } = config;
 
