@@ -16,10 +16,16 @@ interface GoogleOneTapConfig {
   context?: 'signin' | 'signup' | 'use';
 }
 
+interface MomentNotification {
+  isSkippedMoment: () => boolean;
+  isDismissedMoment: () => boolean;
+  getDismissedReason: () => string;
+}
+
 interface GoogleAccounts {
   id: {
     initialize: (config: any) => void;
-    prompt: (callback?: (notification: any) => void) => void;
+    prompt: () => void;
     cancel: () => void;
   };
 }
@@ -126,10 +132,14 @@ export function useGoogleOneTap(config: GoogleOneTapConfig) {
 
     // Require a valid clientId before initializing
     if (!config.clientId || config.clientId.trim().length === 0) {
+      // Reset initialization flag when clientId is not valid
+      // This allows re-initialization when clientId becomes available
+      initAttemptedRef.current = false;
+      setIsInitialized(false);
       return;
     }
 
-    // Prevent multiple initializations
+    // Prevent multiple initializations with the same clientId
     if (initAttemptedRef.current) {
       return;
     }
@@ -149,6 +159,22 @@ export function useGoogleOneTap(config: GoogleOneTapConfig) {
         auto_select: config.autoSelect ?? false,
         cancel_on_tap_outside: config.cancelOnTapOutside ?? true,
         context: config.context ?? 'signin',
+        // Opt-in to FedCM and use the new moment notification callback
+        // This is the modern, FedCM-compliant way to handle UI status.
+        use_fedcm_for_prompt: true,
+        moment_notification: (notification: MomentNotification) => {
+          // Handle skipped moment (user closed the prompt without action)
+          if (notification.isSkippedMoment()) {
+            // One Tap was skipped. This is normal user behavior.
+            // You can add logging here if needed for debugging.
+          }
+          // Handle dismissed moment (user actively dismissed the prompt)
+          if (notification.isDismissedMoment()) {
+            const reason = notification.getDismissedReason();
+            // You can add logging here if needed for debugging.
+            console.debug('Google One Tap dismissed:', reason);
+          }
+        },
       });
 
       setIsInitialized(true);
@@ -178,12 +204,7 @@ export function useGoogleOneTap(config: GoogleOneTapConfig) {
     }
 
     try {
-      globalThis.window.google.accounts.id.prompt((notification: any) => {
-        if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-          // One Tap was not displayed or was skipped
-          // This is normal behavior - user may have dismissed it before
-        }
-      });
+      globalThis.window.google.accounts.id.prompt();
     } catch (error) {
       console.error('Google One Tap prompt error:', error);
       config.onError?.(error as Error);
