@@ -17,13 +17,21 @@ export default function Root({ children }: { children: ReactNode }) {
         />
         <meta
           httpEquiv="Content-Security-Policy"
-          content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://us.i.posthog.com https://us-assets.i.posthog.com https://static.cloudflareinsights.com https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com data:; img-src 'self' data: https:; connect-src 'self' https://us.i.posthog.com https://us-assets.i.posthog.com https://calcai.liljcool45.workers.dev; frame-src 'self' https://challenges.cloudflare.com; worker-src 'self' blob:;"
+          content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://us.i.posthog.com https://us-assets.i.posthog.com https://static.cloudflareinsights.com https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com data:; img-src 'self' data: https:; connect-src 'self' https://us.i.posthog.com https://us-assets.i.posthog.com https://calcai.liljcool45.workers.dev; frame-src 'self' https://challenges.cloudflare.com; worker-src 'self' blob:;"
+        />
+
+        {/* Google Fonts - Material Icons with optimized font-display */}
+        <link
+          href="https://fonts.googleapis.com/css2?family=Material+Icons&display=swap"
+          rel="stylesheet"
         />
 
         {/* DNS prefetch for external resources */}
         <link rel="dns-prefetch" href="https://fonts.gstatic.com" />
+        <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
 
         {/* Preconnect to critical origins */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
 
         {/* 
@@ -46,15 +54,7 @@ export default function Root({ children }: { children: ReactNode }) {
 // Critical CSS to be inlined in the head of the document
 // This prevents a flash of unstyled content (FOUC)
 const criticalStyles = `
-  /* Material Icons Font Face - Inline for instant loading */
-  @font-face {
-    font-family: 'Material Icons';
-    font-style: normal;
-    font-weight: 400;
-    font-display: block; /* Critical font - block render until loaded */
-    src: url(https://fonts.gstatic.com/s/materialicons/v140/flUhRq6tzZclQEJ-Vdg-IuiaDsNc.woff2) format('woff2');
-  }
-
+  /* Material Icons class styles - font loaded via Google Fonts link */
   .material-icons {
     font-family: 'Material Icons';
     font-weight: normal;
