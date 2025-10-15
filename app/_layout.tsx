@@ -193,46 +193,6 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
     // Mark document as ready for render before JS is loaded
     document.documentElement.dataset.ready = 'true';
     document.documentElement.classList.add('force-instant-display');
-
-    // Define type for preload assets
-    interface PreloadAsset {
-      href: string;
-      as: 'image' | 'script' | 'style' | 'font'; // Add other valid 'as' values if needed
-      type?: string; // type is optional
-    }
-
-    // Preload critical assets
-    const assetsToPreload: PreloadAsset[] = [
-      { href: require('../assets/images/LOGO.webp').uri, as: 'image' },
-      // Example for SVG if needed:
-      // { href: require('../assets/icons/microphone.svg').uri, as: 'image', type: 'image/svg+xml' },
-    ];
-
-    assetsToPreload.forEach((asset) => {
-      const link = document.createElement('link');
-      link.rel = 'preload';
-      link.href = asset.href;
-      link.as = asset.as;
-      if (asset.type) {
-        link.type = asset.type;
-      }
-      // Set fetchpriority to high for critical assets
-      link.setAttribute('fetchpriority', 'high');
-      document.head.appendChild(link);
-    });
-
-    // Preload main JS bundle (heuristic)
-    // This path might need adjustment based on actual build output
-    const mainBundleLink = document.createElement('link');
-    mainBundleLink.rel = 'modulepreload';
-    // Adjust href if you know the exact main bundle name/path from your build output
-    // For Expo Web, it often includes content hashing, making this tricky without build info.
-    // A common pattern might be '/_expo/static/js/web/entry-<hash>.js'
-    // As a generic placeholder, we can try a common entry point name if known or defer this step.
-    // For now, let's assume a common pattern or skip if too uncertain.
-    // Example: mainBundleLink.href = '/path/to/main-bundle.js';
-    // document.head.appendChild(mainBundleLink);
-    // --> Given the uncertainty of the bundle name, I will comment this out for now.
   })();
 }
 
