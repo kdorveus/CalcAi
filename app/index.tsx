@@ -8,7 +8,6 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import {
   Dimensions, // Add Dimensions import for responsive layout
   type FlatList,
-  Image,
   Platform,
   Pressable,
   SafeAreaView,
