@@ -16,7 +16,7 @@ export const GoogleOneTapProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const [hasPrompted, setHasPrompted] = useState(false);
   const [clientId, setClientId] = useState<string | null>(null);
 
-  // Fetch Google Client ID from worker
+  // Fetch Google Client ID from worker - non-blocking
   useEffect(() => {
     if (Platform.OS !== 'web') return;
 
@@ -30,18 +30,37 @@ export const GoogleOneTapProvider: React.FC<{ children: React.ReactNode }> = ({ 
       }
     };
 
-    fetchClientId();
+    // Use requestIdleCallback to fetch client ID without blocking main thread
+    if ('requestIdleCallback' in window) {
+      const idleCallbackId = (window as any).requestIdleCallback(fetchClientId);
+      return () => {
+        (window as any).cancelIdleCallback(idleCallbackId);
+      };
+    } else {
+      // Fallback: fetch asynchronously but immediately
+      fetchClientId();
+      return () => {};
+    }
   }, []);
 
   const { isInitialized, prompt } = useGoogleOneTap({
     clientId: clientId || '',
     onSuccess: (credential) => {
-      (async () => {
+      // Process authentication non-blocking
+      const processAuth = async () => {
         const { error } = await signInWithGoogleOneTap(credential);
         if (error) {
           console.error('Google One Tap authentication failed:', error);
         }
-      })();
+      };
+
+      // Use requestIdleCallback to process auth without blocking UI
+      if ('requestIdleCallback' in window) {
+        (window as any).requestIdleCallback(processAuth);
+      } else {
+        // Fallback: process immediately but asynchronously
+        processAuth();
+      }
     },
     onError: (error) => {
       console.error('Google One Tap error:', error);
@@ -59,13 +78,9 @@ export const GoogleOneTapProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     // Only prompt once per session and only if user is not logged in and we have clientId
     if (isInitialized && !user && !hasPrompted && clientId) {
-      // Delay prompt to ensure app is fully loaded
-      const timeoutId = setTimeout(() => {
-        prompt();
-        setHasPrompted(true);
-      }, 2000); // 2 second delay after initialization
-
-      return () => clearTimeout(timeoutId);
+      // Prompt immediately - the hook already handles async loading
+      prompt();
+      setHasPrompted(true);
     }
   }, [isInitialized, user, hasPrompted, clientId, prompt]);
 

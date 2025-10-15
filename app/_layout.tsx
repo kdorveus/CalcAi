@@ -250,15 +250,15 @@ export default function RootLayout() {
     <PostHogProvider>
       <LanguageProvider>
         <AuthProvider>
-          <GoogleOneTapProvider>
-            <Suspense fallback={<View style={{ flex: 1, backgroundColor: '#121212' }} />}>
-              <PremiumProvider>
-                <CalculationHistoryProvider>
+          <Suspense fallback={<View style={{ flex: 1, backgroundColor: '#121212' }} />}>
+            <PremiumProvider>
+              <CalculationHistoryProvider>
+                <GoogleOneTapProvider>
                   <RootLayoutNav />
-                </CalculationHistoryProvider>
-              </PremiumProvider>
-            </Suspense>
-          </GoogleOneTapProvider>
+                </GoogleOneTapProvider>
+              </CalculationHistoryProvider>
+            </PremiumProvider>
+          </Suspense>
         </AuthProvider>
       </LanguageProvider>
     </PostHogProvider>

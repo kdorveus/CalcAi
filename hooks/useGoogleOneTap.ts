@@ -93,17 +93,25 @@ export function useGoogleOneTap(config: GoogleOneTapConfig) {
       });
     };
 
-    // Load script after a short delay to not block initial render
-    const timeoutId = setTimeout(() => {
+    // Use requestIdleCallback to load script without blocking main thread
+    // Falls back to immediate execution if requestIdleCallback is not available
+    const scheduleLoad = () => {
       loadScript().catch((error) => {
         console.error('Google One Tap script load error:', error);
         config.onError?.(error);
       });
-    }, 1000); // 1 second delay to ensure app loads first
-
-    return () => {
-      clearTimeout(timeoutId);
     };
+
+    if ('requestIdleCallback' in window) {
+      const idleCallbackId = (window as any).requestIdleCallback(scheduleLoad);
+      return () => {
+        (window as any).cancelIdleCallback(idleCallbackId);
+      };
+    } else {
+      // Fallback: load immediately but asynchronously
+      scheduleLoad();
+      return () => {};
+    }
   }, [config.onError]);
 
   // Initialize Google One Tap
