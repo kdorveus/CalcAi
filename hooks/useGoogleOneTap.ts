@@ -124,6 +124,11 @@ export function useGoogleOneTap(config: GoogleOneTapConfig) {
       return;
     }
 
+    // Require a valid clientId before initializing
+    if (!config.clientId || config.clientId.trim().length === 0) {
+      return;
+    }
+
     // Prevent multiple initializations
     if (initAttemptedRef.current) {
       return;
