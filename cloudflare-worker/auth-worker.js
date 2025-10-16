@@ -23,60 +23,79 @@ const ERROR_MESSAGES = {
   PREMIUM_REQUIRED: 'Premium subscription required',
 };
 
+// Helper to create a JSON response
+const jsonResponse = (data, options = {}, corsHeaders) => {
+  return new Response(JSON.stringify(data), {
+    ...options,
+    headers: {
+      ...corsHeaders,
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+};
+
+const ALLOWED_ORIGINS = ['https://calc.tearhappy.com'];
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const path = url.pathname;
 
+    // Get origin from request
+    const origin = request.headers.get('Origin');
+
     // CORS headers for mobile/web app
     const corsHeaders = {
-      'Access-Control-Allow-Origin': env.ALLOWED_ORIGIN || '*', // Use env var for production, fallback to wildcard
+      'Access-Control-Allow-Origin': ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0],
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Allow-Credentials': 'true',
+      Vary: 'Origin',
     };
 
     // Handle CORS preflight
     if (request.method === 'OPTIONS') {
       return new Response(null, { headers: corsHeaders });
     }
-
+    
     try {
-      // Route handling
-      if (path === '/auth/google') {
-        return handleGoogleAuth(request, env, corsHeaders, ctx);
-      } else if (path === '/auth/google-one-tap') {
-        return handleGoogleOneTap(request, env, corsHeaders, ctx);
-      } else if (path === '/auth/callback') {
-        return handleGoogleCallback(request, env, corsHeaders, ctx);
-      } else if (path === '/auth/verify') {
-        return handleVerifyToken(request, env, corsHeaders, ctx);
-      } else if (path === '/auth/refresh') {
-        return handleRefreshToken(request, env, corsHeaders, ctx);
-      } else if (path === '/auth/logout') {
-        return handleLogout(request, env, corsHeaders, ctx);
-      } else if (path === '/webhook/send') {
-        return handleWebhookProxy(request, env, corsHeaders, ctx);
-      } else if (path === '/premium/check') {
-        return handlePremiumCheck(request, env, corsHeaders, ctx);
-      } else if (path === '/premium/create-checkout') {
-        return handleCreateCheckout(request, env, corsHeaders, ctx);
-      } else if (path === '/stripe/webhook') {
-        return handleStripeWebhook(request, env, corsHeaders);
-      } else if (path === '/contact/send') {
-        return handleContactForm(request, env, corsHeaders, ctx);
-      } else if (path === '/auth/google-client-id') {
-        return handleGetGoogleClientId(request, env, corsHeaders);
-      } else if (path === '/health') {
-        return new Response(JSON.stringify({ status: 'ok' }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+      const router = {
+        '/auth/google': { GET: handleGoogleAuth },
+        '/auth/google-one-tap': { POST: handleGoogleOneTap },
+        '/auth/callback': { GET: handleGoogleCallback },
+        '/auth/verify': { GET: handleVerifyToken },
+        '/auth/refresh': { GET: handleRefreshToken },
+        '/auth/logout': { POST: handleLogout },
+        '/webhook/send': { POST: handleWebhookProxy },
+        '/premium/check': { GET: handlePremiumCheck },
+        '/premium/create-checkout': { POST: handleCreateCheckout },
+        '/stripe/webhook': { POST: handleStripeWebhook },
+        '/contact/send': { POST: handleContactForm },
+        '/auth/google-client-id': { GET: handleGetGoogleClientId },
+        '/health': {
+          GET: () => jsonResponse({ status: 'ok' }, {}, corsHeaders),
+        },
+      };
+
+      const route = router[path];
+      if (route) {
+        const handler = route[request.method];
+        if (handler) {
+          return await handler(request, env, corsHeaders, ctx);
+        }
+        return jsonResponse(
+          { error: ERROR_MESSAGES.METHOD_NOT_ALLOWED },
+          { status: 405 },
+          corsHeaders
+        );
       }
 
-      return new Response('Not Found', { status: 404, headers: corsHeaders });
+      return jsonResponse({ error: 'Not Found' }, { status: 404 }, corsHeaders);
     } catch (error) {
       console.error('Worker error:', error);
       return new Response(
-        JSON.stringify({ error: 'Internal server error', message: error.message }),
+        JSON.stringify({ error: 'Internal server error' }), // Avoid leaking error messages
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -117,22 +136,14 @@ async function handleGoogleAuth(request, env, corsHeaders, _ctx) {
   authUrl.searchParams.set('access_type', 'offline');
   authUrl.searchParams.set('prompt', 'select_account'); // Only show account picker, not permissions every time
 
-  return new Response(
-    JSON.stringify({
-      authUrl: authUrl.toString(),
-      state,
-    }),
-    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-  );
+  return jsonResponse({ authUrl: authUrl.toString(), state }, {}, corsHeaders);
 }
 
 /**
  * Returns Google Client ID for One Tap initialization
  */
 async function handleGetGoogleClientId(_request, env, corsHeaders) {
-  return new Response(JSON.stringify({ clientId: env.GOOGLE_CLIENT_ID }), {
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  });
+  return jsonResponse({ clientId: env.GOOGLE_CLIENT_ID }, {}, corsHeaders);
 }
 
 /**
@@ -140,31 +151,16 @@ async function handleGetGoogleClientId(_request, env, corsHeaders) {
  * Verifies JWT credential from Google and creates session
  */
 async function handleGoogleOneTap(request, env, corsHeaders, _ctx) {
-  if (request.method !== 'POST') {
-    return new Response(JSON.stringify({ error: ERROR_MESSAGES.METHOD_NOT_ALLOWED }), {
-      status: 405,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-  }
-
   let body;
   try {
     body = await request.json();
   } catch (error) {
-    console.error('Invalid JSON in request body:', error);
-    return new Response(JSON.stringify({ error: ERROR_MESSAGES.INVALID_JSON }), {
-      status: 400,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return jsonResponse({ error: ERROR_MESSAGES.INVALID_JSON }, { status: 400 }, corsHeaders);
   }
 
   const { credential } = body;
-
   if (!credential) {
-    return new Response(JSON.stringify({ error: ERROR_MESSAGES.MISSING_CREDENTIAL }), {
-      status: 400,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return jsonResponse({ error: ERROR_MESSAGES.MISSING_CREDENTIAL }, { status: 400 }, corsHeaders);
   }
 
   // Verify the JWT token with Google
@@ -177,23 +173,17 @@ async function handleGoogleOneTap(request, env, corsHeaders, _ctx) {
       .json()
       .catch(() => ({ error: 'Failed to parse Google error response' }));
     console.error('Google token verification failed:', errorDetails);
-    return new Response(
-      JSON.stringify({
+    return jsonResponse({
         error: 'Invalid credential',
         details: errorDetails.error_description || 'Verification failed',
-      }),
-      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+      }, { status: 401 }, corsHeaders);
   }
 
   const tokenInfo = await verifyResponse.json();
 
   // Verify the token is for our app
   if (tokenInfo.aud !== env.GOOGLE_CLIENT_ID) {
-    return new Response(JSON.stringify({ error: ERROR_MESSAGES.INVALID_AUDIENCE }), {
-      status: 401,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return jsonResponse({ error: ERROR_MESSAGES.INVALID_AUDIENCE }, { status: 401 }, corsHeaders);
   }
 
   // Extract user info from verified token
@@ -223,8 +213,7 @@ async function handleGoogleOneTap(request, env, corsHeaders, _ctx) {
   ); // 7 days
 
   // Return session data
-  return new Response(
-    JSON.stringify({
+  return jsonResponse({
       sessionToken,
       user: {
         id: userId,
@@ -233,9 +222,7 @@ async function handleGoogleOneTap(request, env, corsHeaders, _ctx) {
         picture: userInfo.picture,
       },
       expiresIn: 604800,
-    }),
-    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-  );
+    }, {}, corsHeaders);
 }
 
 /**
@@ -249,26 +236,17 @@ async function handleGoogleCallback(request, env, corsHeaders, _ctx) {
   const error = url.searchParams.get('error');
 
   if (error) {
-    return new Response(JSON.stringify({ error: 'OAuth error', details: error }), {
-      status: 400,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return jsonResponse({ error: 'OAuth error', details: error }, { status: 400 }, corsHeaders);
   }
 
   if (!code || !state) {
-    return new Response(JSON.stringify({ error: 'Missing code or state parameter' }), {
-      status: 400,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return jsonResponse({ error: 'Missing code or state parameter' }, { status: 400 }, corsHeaders);
   }
 
   // Verify state parameter
   const stateData = await env.AUTH_STATE.get(state);
   if (!stateData) {
-    return new Response(JSON.stringify({ error: 'Invalid or expired state parameter' }), {
-      status: 400,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return jsonResponse({ error: 'Invalid or expired state parameter' }, { status: 400 }, corsHeaders);
   }
 
   const { platform } = JSON.parse(stateData);
@@ -292,10 +270,7 @@ async function handleGoogleCallback(request, env, corsHeaders, _ctx) {
 
   if (!tokenResponse.ok) {
     const errorData = await tokenResponse.text();
-    return new Response(JSON.stringify({ error: 'Token exchange failed', details: errorData }), {
-      status: 400,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return jsonResponse({ error: 'Token exchange failed', details: errorData }, { status: 400 }, corsHeaders);
   }
 
   const tokens = await tokenResponse.json();
@@ -304,12 +279,8 @@ async function handleGoogleCallback(request, env, corsHeaders, _ctx) {
   const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
     headers: { Authorization: `Bearer ${tokens.access_token}` },
   });
-
   if (!userInfoResponse.ok) {
-    return new Response(JSON.stringify({ error: 'Failed to fetch user info' }), {
-      status: 400,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return jsonResponse({ error: 'Failed to fetch user info' }, { status: 400 }, corsHeaders);
   }
 
   const userInfo = await userInfoResponse.json();
@@ -361,14 +332,10 @@ async function handleVerifyToken(request, env, corsHeaders, _ctx) {
     .first();
 
   if (!user) {
-    return new Response(JSON.stringify({ error: ERROR_MESSAGES.USER_NOT_FOUND }), {
-      status: 404,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return jsonResponse({ error: ERROR_MESSAGES.USER_NOT_FOUND }, { status: 404 }, corsHeaders);
   }
 
-  return new Response(
-    JSON.stringify({
+  return jsonResponse({
       valid: true,
       user: {
         id: user.id,
@@ -376,8 +343,9 @@ async function handleVerifyToken(request, env, corsHeaders, _ctx) {
         name: user.name,
         picture: user.picture,
       },
-    }),
-    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    },
+    {},
+    corsHeaders
   );
 }
 
@@ -408,13 +376,7 @@ async function handleRefreshToken(request, env, corsHeaders, _ctx) {
   // Delete old session
   await env.SESSIONS.delete(oldToken);
 
-  return new Response(
-    JSON.stringify({
-      sessionToken: newToken,
-      expiresIn: 604800,
-    }),
-    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-  );
+  return jsonResponse({ sessionToken: newToken, expiresIn: 604800 }, {}, corsHeaders);
 }
 
 /**
@@ -428,9 +390,7 @@ async function handleLogout(request, env, corsHeaders, ctx) {
   const { token } = authResult;
   ctx.waitUntil(env.SESSIONS.delete(token));
 
-  return new Response(JSON.stringify({ success: true }), {
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  });
+  return jsonResponse({ success: true }, {}, corsHeaders);
 }
 
 /**
@@ -483,20 +443,14 @@ async function generateSessionToken(userId) {
 async function verifyAuth(request, env, corsHeaders) {
   const authHeader = request.headers.get('Authorization');
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return new Response(JSON.stringify({ error: ERROR_MESSAGES.MISSING_AUTH_HEADER }), {
-      status: 401,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return jsonResponse({ error: ERROR_MESSAGES.MISSING_AUTH_HEADER }, { status: 401 }, corsHeaders);
   }
 
   const token = authHeader.substring(7);
   const sessionData = await env.SESSIONS.get(token);
 
   if (!sessionData) {
-    return new Response(JSON.stringify({ error: ERROR_MESSAGES.INVALID_SESSION }), {
-      status: 401,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return jsonResponse({ error: ERROR_MESSAGES.INVALID_SESSION }, { status: 401 }, corsHeaders);
   }
 
   try {
@@ -504,10 +458,7 @@ async function verifyAuth(request, env, corsHeaders) {
     return { session, token };
   } catch (error) {
     console.error('Failed to parse session data:', error);
-    return new Response(JSON.stringify({ error: ERROR_MESSAGES.INVALID_SESSION_FORMAT }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return jsonResponse({ error: ERROR_MESSAGES.INVALID_SESSION_FORMAT }, { status: 500 }, corsHeaders);
   }
 }
 
@@ -517,9 +468,7 @@ async function verifyAuth(request, env, corsHeaders) {
 async function handlePremiumCheck(request, env, corsHeaders, _ctx) {
   const authResult = await verifyAuth(request, env, corsHeaders);
   if (authResult instanceof Response) {
-    return new Response(JSON.stringify({ isPremium: false }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return authResult; // Propagate auth error response
   }
   const { session } = authResult;
 
@@ -527,22 +476,13 @@ async function handlePremiumCheck(request, env, corsHeaders, _ctx) {
     .bind(session.userId)
     .first();
 
-  return new Response(JSON.stringify({ isPremium: Boolean(user?.is_premium) }), {
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  });
+  return jsonResponse({ isPremium: Boolean(user?.is_premium) }, {}, corsHeaders);
 }
 
 /**
  * Creates a Stripe Checkout session for premium purchase
  */
 async function handleCreateCheckout(request, env, corsHeaders, _ctx) {
-  if (request.method !== 'POST') {
-    return new Response(JSON.stringify({ error: ERROR_MESSAGES.METHOD_NOT_ALLOWED }), {
-      status: 405,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-  }
-
   const authResult = await verifyAuth(request, env, corsHeaders);
   if (authResult instanceof Response) {
     return authResult;
@@ -555,10 +495,7 @@ async function handleCreateCheckout(request, env, corsHeaders, _ctx) {
     .first();
 
   if (!user) {
-    return new Response(JSON.stringify({ error: ERROR_MESSAGES.USER_NOT_FOUND }), {
-      status: 404,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return jsonResponse({ error: ERROR_MESSAGES.USER_NOT_FOUND }, { status: 404 }, corsHeaders);
   }
 
   // Parse request body
@@ -567,19 +504,13 @@ async function handleCreateCheckout(request, env, corsHeaders, _ctx) {
     body = await request.json();
   } catch (error) {
     console.error('Invalid JSON in checkout request:', error);
-    return new Response(JSON.stringify({ error: ERROR_MESSAGES.INVALID_JSON }), {
-      status: 400,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return jsonResponse({ error: ERROR_MESSAGES.INVALID_JSON }, { status: 400 }, corsHeaders);
   }
 
   const { priceId } = body;
 
   if (!priceId) {
-    return new Response(JSON.stringify({ error: ERROR_MESSAGES.MISSING_PRICE_ID }), {
-      status: 400,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return jsonResponse({ error: ERROR_MESSAGES.MISSING_PRICE_ID }, { status: 400 }, corsHeaders);
   }
 
   // Create or retrieve Stripe customer
@@ -601,10 +532,7 @@ async function handleCreateCheckout(request, env, corsHeaders, _ctx) {
 
     if (!customerResponse.ok) {
       const errorData = await customerResponse.text();
-      return new Response(
-        JSON.stringify({ error: 'Failed to create Stripe customer', details: errorData }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return jsonResponse({ error: 'Failed to create Stripe customer', details: errorData }, { status: 500 }, corsHeaders);
     }
 
     const customer = await customerResponse.json();
@@ -636,42 +564,22 @@ async function handleCreateCheckout(request, env, corsHeaders, _ctx) {
 
   if (!checkoutResponse.ok) {
     const errorData = await checkoutResponse.text();
-    return new Response(
-      JSON.stringify({ error: 'Failed to create checkout session', details: errorData }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return jsonResponse({ error: 'Failed to create checkout session', details: errorData }, { status: 500 }, corsHeaders);
   }
 
   const checkout = await checkoutResponse.json();
 
-  return new Response(
-    JSON.stringify({
-      sessionId: checkout.id,
-      url: checkout.url,
-    }),
-    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-  );
+  return jsonResponse({ sessionId: checkout.id, url: checkout.url }, {}, corsHeaders);
 }
 
 /**
  * Handles Stripe webhook events
  */
 async function handleStripeWebhook(request, env, corsHeaders) {
-  if (request.method !== 'POST') {
-    return new Response(JSON.stringify({ error: ERROR_MESSAGES.METHOD_NOT_ALLOWED }), {
-      status: 405,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-  }
-
   const signature = request.headers.get('stripe-signature');
   if (!signature) {
-    return new Response(JSON.stringify({ error: 'Missing stripe-signature header' }), {
-      status: 400,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return jsonResponse({ error: 'Missing stripe-signature header' }, { status: 400 }, corsHeaders);
   }
-
   let event;
   try {
     const body = await request.text();
@@ -680,10 +588,7 @@ async function handleStripeWebhook(request, env, corsHeaders) {
     event = await verifyStripeWebhook(body, signature, env.STRIPE_WEBHOOK_SECRET);
   } catch (err) {
     console.error('Webhook signature verification failed:', err.message);
-    return new Response(JSON.stringify({ error: 'Webhook signature verification failed' }), {
-      status: 400,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return jsonResponse({ error: 'Webhook signature verification failed' }, { status: 400 }, corsHeaders);
   }
 
   // Handle the event
@@ -705,15 +610,10 @@ async function handleStripeWebhook(request, env, corsHeaders) {
         console.log(`Unhandled event type: ${event.type}`);
     }
 
-    return new Response(JSON.stringify({ received: true }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return jsonResponse({ received: true }, {}, corsHeaders);
   } catch (error) {
     console.error('Error handling webhook:', error);
-    return new Response(JSON.stringify({ error: 'Webhook handler failed' }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return jsonResponse({ error: 'Webhook handler failed' }, { status: 500 }, corsHeaders);
   }
 }
 
@@ -722,43 +622,40 @@ async function handleStripeWebhook(request, env, corsHeaders) {
  */
 async function verifyStripeWebhook(payload, signature, secret) {
   const encoder = new TextEncoder();
-
-  // Extract timestamp and signatures from header
-  const signatureParts = signature.split(',');
-  let timestamp;
-  const signatures = [];
-
-  for (const part of signatureParts) {
-    const [key, value] = part.split('=');
-    if (key === 't') {
-      timestamp = value;
-    } else if (key === 'v1') {
-      signatures.push(value);
-    }
-  }
-
-  if (!timestamp || signatures.length === 0) {
-    throw new Error('Invalid signature format');
-  }
-
-  // Create the signed payload
-  const signedPayload = `${timestamp}.${payload}`;
   const key = await crypto.subtle.importKey(
     'raw',
     encoder.encode(secret),
     { name: 'HMAC', hash: 'SHA-256' },
     false,
-    ['sign']
+    ['verify']
   );
 
-  const signature_bytes = await crypto.subtle.sign('HMAC', key, encoder.encode(signedPayload));
+  const sigHex = signature
+    .split(',')
+    .find((s) => s.startsWith('v1='))
+    ?.substring(3);
 
-  const expectedSignature = Array.from(new Uint8Array(signature_bytes))
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
+  const timestamp = signature
+    .split(',')
+    .find((s) => s.startsWith('t='))
+    ?.substring(2);
 
-  // Compare signatures
-  if (!signatures.includes(expectedSignature)) {
+  if (!sigHex || !timestamp) {
+    throw new Error('Invalid signature format');
+  }
+
+  const signedPayload = `${timestamp}.${payload}`;
+
+  const sigBuffer = new Uint8Array(sigHex.match(/../g).map((h) => parseInt(h, 16)));
+
+  const verified = await crypto.subtle.verify(
+    'HMAC',
+    key,
+    sigBuffer,
+    encoder.encode(signedPayload)
+  );
+
+  if (!verified) {
     throw new Error('Signature verification failed');
   }
 
@@ -851,13 +748,6 @@ async function handleSubscriptionDeleted(subscription, env) {
  * Proxies webhook requests with authentication and rate limiting
  */
 async function handleWebhookProxy(request, env, corsHeaders, _ctx) {
-  if (request.method !== 'POST') {
-    return new Response(JSON.stringify({ error: ERROR_MESSAGES.METHOD_NOT_ALLOWED }), {
-      status: 405,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-  }
-
   const authResult = await verifyAuth(request, env, corsHeaders);
   if (authResult instanceof Response) {
     return authResult;
@@ -870,10 +760,7 @@ async function handleWebhookProxy(request, env, corsHeaders, _ctx) {
     .first();
 
   if (!user || !user.is_premium) {
-    return new Response(JSON.stringify({ error: ERROR_MESSAGES.PREMIUM_REQUIRED }), {
-      status: 403,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return jsonResponse({ error: ERROR_MESSAGES.PREMIUM_REQUIRED }, { status: 403 }, corsHeaders);
   }
 
   // Parse request body
@@ -882,19 +769,13 @@ async function handleWebhookProxy(request, env, corsHeaders, _ctx) {
     body = await request.json();
   } catch (error) {
     console.error('Invalid JSON in webhook proxy request:', error);
-    return new Response(JSON.stringify({ error: ERROR_MESSAGES.INVALID_JSON }), {
-      status: 400,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return jsonResponse({ error: ERROR_MESSAGES.INVALID_JSON }, { status: 400 }, corsHeaders);
   }
 
   const { webhookUrl, data } = body;
 
   if (!webhookUrl || !data) {
-    return new Response(JSON.stringify({ error: ERROR_MESSAGES.MISSING_WEBHOOK_DATA }), {
-      status: 400,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return jsonResponse({ error: ERROR_MESSAGES.MISSING_WEBHOOK_DATA }, { status: 400 }, corsHeaders);
   }
 
   // Validate webhook URL
@@ -902,12 +783,9 @@ async function handleWebhookProxy(request, env, corsHeaders, _ctx) {
     new URL(webhookUrl);
   } catch (error) {
     console.error('Invalid webhook URL format:', error);
-    return new Response(JSON.stringify({ error: ERROR_MESSAGES.INVALID_WEBHOOK_URL }), {
-      status: 400,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return jsonResponse({ error: ERROR_MESSAGES.INVALID_WEBHOOK_URL }, { status: 400 }, corsHeaders);
   }
-
+  
   // Send webhook with timeout
   try {
     const controller = new AbortController();
@@ -922,20 +800,22 @@ async function handleWebhookProxy(request, env, corsHeaders, _ctx) {
 
     clearTimeout(timeoutId);
 
-    return new Response(
-      JSON.stringify({
+    return jsonResponse(
+      {
         success: true,
         status: webhookResponse.status,
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      },
+      {},
+      corsHeaders
     );
   } catch (error) {
-    return new Response(
-      JSON.stringify({
+    return jsonResponse(
+      {
         success: false,
         error: error.name === 'AbortError' ? 'Webhook timeout' : 'Webhook failed',
-      }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      },
+      { status: 500 },
+      corsHeaders
     );
   }
 }
@@ -944,13 +824,6 @@ async function handleWebhookProxy(request, env, corsHeaders, _ctx) {
  * Handles contact form submissions
  */
 async function handleContactForm(request, env, corsHeaders, ctx) {
-  if (request.method !== 'POST') {
-    return new Response(JSON.stringify({ error: ERROR_MESSAGES.METHOD_NOT_ALLOWED }), {
-      status: 405,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-  }
-
   const authResult = await verifyAuth(request, env, corsHeaders);
   if (authResult instanceof Response) {
     return authResult;
@@ -963,10 +836,7 @@ async function handleContactForm(request, env, corsHeaders, ctx) {
     .first();
 
   if (!user) {
-    return new Response(JSON.stringify({ error: ERROR_MESSAGES.USER_NOT_FOUND }), {
-      status: 404,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return jsonResponse({ error: ERROR_MESSAGES.USER_NOT_FOUND }, { status: 404 }, corsHeaders);
   }
 
   // Parse request body
@@ -975,27 +845,18 @@ async function handleContactForm(request, env, corsHeaders, ctx) {
     body = await request.json();
   } catch (error) {
     console.error('Invalid JSON in contact form request:', error);
-    return new Response(JSON.stringify({ error: ERROR_MESSAGES.INVALID_JSON }), {
-      status: 400,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return jsonResponse({ error: ERROR_MESSAGES.INVALID_JSON }, { status: 400 }, corsHeaders);
   }
 
   const { message } = body;
 
   if (!message || typeof message !== 'string' || !message.trim()) {
-    return new Response(JSON.stringify({ error: ERROR_MESSAGES.MISSING_MESSAGE }), {
-      status: 400,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return jsonResponse({ error: ERROR_MESSAGES.MISSING_MESSAGE }, { status: 400 }, corsHeaders);
   }
 
   // Validate message length
   if (message.length > 1000) {
-    return new Response(JSON.stringify({ error: ERROR_MESSAGES.MESSAGE_TOO_LONG }), {
-      status: 400,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return jsonResponse({ error: ERROR_MESSAGES.MESSAGE_TOO_LONG }, { status: 400 }, corsHeaders);
   }
 
   // Prepare webhook payload
@@ -1042,11 +903,12 @@ async function handleContactForm(request, env, corsHeaders, ctx) {
   );
 
   // Immediately return a success response to the client
-  return new Response(
-    JSON.stringify({
+  return jsonResponse(
+    {
       success: true,
       message: 'Message is being sent.',
-    }),
-    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    },
+    {},
+    corsHeaders
   );
 }
