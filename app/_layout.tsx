@@ -140,44 +140,17 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
       document.head.appendChild(criticalCss);
     }
 
-    // Create inline icons for instant rendering
-    const iconSamples = document.createElement('div');
-    iconSamples.style.position = 'absolute';
-    iconSamples.style.visibility = 'hidden';
-    iconSamples.style.pointerEvents = 'none';
-
-    // Pre-render key icons to cache them
-    iconSamples.innerHTML = `
-      <i class="material-icons">calculate</i>
-      <i class="material-icons">mic</i>
-      <i class="material-icons">settings</i>
-      <i class="material-icons">send</i>
-      <i class="material-icons">space_bar</i>
-    `;
-
-    // Add to body to ensure they're rendered
-    document.body.appendChild(iconSamples);
-
     // Pre-render the bottom bar structure for immediate display
     const preBottomBar = document.createElement('div');
     preBottomBar.className = 'bottom-bar force-instant-display';
     preBottomBar.innerHTML = `
-      <div class="bottom-icon">
-        <i class="material-icons" style="color:#ccc;font-size:28px;">calculate</i>
-      </div>
-      <div class="center-button">
-        <i class="material-icons" style="color:#eee;font-size:60px;">mic</i>
-      </div>
-      <div class="bottom-icon">
-        <i class="material-icons" style="color:#ccc;font-size:28px;">settings</i>
-      </div>
+      <div class="bottom-icon"></div>
+      <div class="center-button"></div>
+      <div class="bottom-icon"></div>
     `;
 
     // Remove placeholders when React hydrates - use passive observer to avoid forced reflows
     const cleanupPlaceholders = () => {
-      if (document.body.contains(iconSamples)) {
-        document.body.removeChild(iconSamples);
-      }
       if (document.body.contains(preBottomBar)) {
         document.body.removeChild(preBottomBar);
       }

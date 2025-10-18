@@ -1494,7 +1494,7 @@ export const LANGUAGE_PATTERNS: { [key: string]: LanguagePatterns } = {
         open: ['open parenthesis', 'left parenthesis', 'open bracket'],
         close: ['close parenthesis', 'right parenthesis', 'close bracket'],
       },
-      decimal: ['point', 'dot', 'decimal'],
+      decimal: ['point', 'dot', 'decimal', 'comma'],
     },
     specificPhrases: {
       addTo: 'add (\\d+(?:\\.\\d+)?) to (\\d+(?:\\.\\d+)?)',

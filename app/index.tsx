@@ -36,6 +36,7 @@ import { useCalculationHistory } from '../contexts/CalculationHistoryContext';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useTranslation } from '../hooks/useTranslation';
 import { useWebhookManager } from '../hooks/useWebhookManager';
+const PERCENT_OF_THAT_PATTERN = /(?:what'?s|whats|calculate|find|get)?\s{0,3}(\d+(?:\.\d+)?)\s{0,3}(?:percent|%|percentage)\s{0,3}(?:of)?\s{0,3}(?:that|it|the last|previous|result)/i;
 
 // Lazy load non-critical modals to reduce initial bundle size
 const Settings = lazy(() => import(/* webpackChunkName: "settings" */ './components/Settings'));
@@ -458,7 +459,7 @@ const MainScreen: React.FC = () => {
       // IMPORTANT: Handle specific phrases BEFORE general replacements
       // First, remove spaces and commas from numbers (speech recognition adds these)
       // "1 000" → "1000", "10,000" → "10000"
-      normalized = normalized.replace(/(\d+)[\s,]+(\d+)/g, '$1$2');
+      normalized = normalized.replace(/\b(\d{1,3})(?:[ \u00A0\u202F]\d{3})+\b/g, (m) => m.replace(/[ \u00A0\u202F]/g, ''));
 
       // BULLETPROOF fraction logic - works for ANY fraction
       // "1/200 of 2562" → "(1/200) * 2562" = 12.81
@@ -585,34 +586,40 @@ const MainScreen: React.FC = () => {
         }
       );
 
+      normalized = normalized.replace(/[\u00A0\u202F\u2007]/g, ' ');
+      if (compiled.decimal) normalized = normalized.replace(compiled.decimal, '.');
+      normalized = normalized.replace(/(\d)\s*\.\s*(\d)/g, '$1.$2');
+      normalized = normalized.replace(/\b(\d{1,3})(?:,\d{3})+\b/g, (m) => m.replace(/,/g, ''));
+      normalized = normalized.replace(/\b(\d+),(\d+)\b/g, '$1.$2');
+
       // Advanced percentage handling BEFORE other replacements
       // Pattern: "give me 15% of 10" or "what's 15% of 10" → "10 * 0.15"
       // Optimized to prevent ReDoS: limit whitespace repetition
       normalized = normalized.replace(
-        /(\d+(?:\.\d+)?)\s?%\s+(?:of|de|di|von)\s+(\d+(?:\.\d+)?)/gi,
-        '($2 * $1 / 100)'
+        /(\d+(?:[ \u00A0\u202F]*[\.,][ \u00A0\u202F]*\d+)?)\s*%[\s\u00A0\u202F]+(?:of|de|di|von)[\s\u00A0\u202F]+(\d+(?:[ \u00A0\u202F]*[\.,][ \u00A0\u202F]*\d+)?)(?:[\s\u00A0\u202F]*%)?/gi,
+        (_m, p1, p2) => `(${String(p2).replace(/[ \u00A0\u202F]/g, '').replace(',', '.')} * ${String(p1).replace(/[ \u00A0\u202F]/g, '').replace(',', '.')} / 100)`
       );
 
       // Pattern: "add 15% to 10" or "10 + 15%" → "10 + (10 * 0.15)" = "10 * 1.15"
       // Optimized to prevent ReDoS: limit whitespace repetition
       normalized = normalized.replace(
-        /(?:add|ajouter|adicionar|hinzufügen|aggiungere)\s+(\d+(?:\.\d+)?)\s?%\s+(?:to|à|a|zu)\s+(\d+(?:\.\d+)?)/gi,
-        '($2 * (1 + $1 / 100))'
+        /(?:add|ajouter|adicionar|hinzufügen|aggiungere)[\s\u00A0\u202F]+(\d+(?:[ \u00A0\u202F]*[\.,][ \u00A0\u202F]*\d+)?)\s*%[\s\u00A0\u202F]+(?:to|à|a|zu)[\s\u00A0\u202F]+(\d+(?:[ \u00A0\u202F]*[\.,][ \u00A0\u202F]*\d+)?)/gi,
+        (_m, p1, p2) => `(${String(p2).replace(/[ \u00A0\u202F]/g, '').replace(',', '.')} * (1 + ${String(p1).replace(/[ \u00A0\u202F]/g, '').replace(',', '.')} / 100))`
       );
       normalized = normalized.replace(
-        /(\d+(?:\.\d+)?)\s?\+\s?(\d+(?:\.\d+)?)\s?%/gi,
-        '($1 * (1 + $2 / 100))'
+        /(\d+(?:[ \u00A0\u202F]*[\.,][ \u00A0\u202F]*\d+)?)\s*\+\s*(\d+(?:[ \u00A0\u202F]*[\.,][ \u00A0\u202F]*\d+)?)\s*%/gi,
+        (_m, base, pct) => `(${String(base).replace(/[ \u00A0\u202F]/g, '').replace(',', '.')} * (1 + ${String(pct).replace(/[ \u00A0\u202F]/g, '').replace(',', '.')} / 100))`
       );
 
       // Pattern: "subtract 15% from 10" or "10 - 15%" → "10 - (10 * 0.15)" = "10 * 0.85"
       // Optimized to prevent ReDoS: limit whitespace repetition
       normalized = normalized.replace(
-        /(?:subtract|soustraire|subtrair|subtrahieren|sottrarre)\s+(\d+(?:\.\d+)?)\s?%\s+(?:from|de|von|da)\s+(\d+(?:\.\d+)?)/gi,
-        '($2 * (1 - $1 / 100))'
+        /(?:subtract|soustraire|subtrair|subtrahieren|sottrarre)[\s\u00A0\u202F]+(\d+(?:[ \u00A0\u202F]*[\.,][ \u00A0\u202F]*\d+)?)\s*%[\s\u00A0\u202F]+(?:from|de|von|da)[\s\u00A0\u202F]+(\d+(?:[ \u00A0\u202F]*[\.,][ \u00A0\u202F]*\d+)?)/gi,
+        (_m, p1, p2) => `(${String(p2).replace(/[ \u00A0\u202F]/g, '').replace(',', '.')} * (1 - ${String(p1).replace(/[ \u00A0\u202F]/g, '').replace(',', '.')} / 100))`
       );
       normalized = normalized.replace(
-        /(\d+(?:\.\d+)?)\s?-\s?(\d+(?:\.\d+)?)\s?%/gi,
-        '($1 * (1 - $2 / 100))'
+        /(\d+(?:[ \u00A0\u202F]*[\.,][ \u00A0\u202F]*\d+)?)\s*-\s*(\d+(?:[ \u00A0\u202F]*[\.,][ \u00A0\u202F]*\d+)?)\s*%/gi,
+        (_m, base, pct) => `(${String(base).replace(/[ \u00A0\u202F]/g, '').replace(',', '.')} * (1 - ${String(pct).replace(/[ \u00A0\u202F]/g, '').replace(',', '.')} / 100))`
       );
 
       // Handle language-specific phrase patterns
@@ -640,7 +647,8 @@ const MainScreen: React.FC = () => {
       if (compiled.division) normalized = normalized.replace(compiled.division, ' / ');
 
       // Percentage "of"
-      if (compiled.percentOf) normalized = normalized.replace(compiled.percentOf, ' * 0.01 * ');
+      if (compiled.percentOf && !/%/.test(normalized))
+        normalized = normalized.replace(compiled.percentOf, ' * 0.01 * ');
 
       // Percentage
       if (compiled.percentage) normalized = normalized.replace(compiled.percentage, ' % ');
@@ -657,8 +665,7 @@ const MainScreen: React.FC = () => {
       // Close parentheses
       if (compiled.closeParen) normalized = normalized.replace(compiled.closeParen, ' ) ');
 
-      // Handle decimal points explicitly
-      if (compiled.decimal) normalized = normalized.replace(compiled.decimal, '.');
+      
 
       // Final cleanup:
       // 1) Preserve 'sqrt' tokens
@@ -688,6 +695,7 @@ const MainScreen: React.FC = () => {
       let expression = val;
       if (type === 'speech') {
         expression = normalizeSpokenMath(val);
+        expression = expression.replace(/,/g, '.');
       }
 
       // Replace visual operators with standard ones for mathjs
@@ -1306,54 +1314,69 @@ const MainScreen: React.FC = () => {
 
       // Keep interim transcript visible during processing
 
-      let processedEquation = normalizeSpokenMath(transcript);
-      processedEquation = processedEquation.trim();
+      const doHeavyProcessing = () => {
+        let processedEquation = normalizeSpokenMath(transcript);
+        processedEquation = processedEquation.trim();
+        processedEquation = processedEquation.replace(/[+\-*/%=\.,\s]+$/g, '').trim();
 
-      // Natural language: "what's X% of that" or "X percent of that" applies to last result
-      // Optimized to prevent ReDoS: limit optional groups and whitespace
-      const percentOfThatPattern =
-        /(?:what'?s|whats|calculate|find|get)?\s{0,3}(\d+(?:\.\d+)?)\s{0,3}(?:percent|%|percentage)\s{0,3}(?:of)?\s{0,3}(?:that|it|the last|previous|result)/i;
-      const percentMatch = transcript.match(percentOfThatPattern);
-      if (percentMatch && lastResultRef.current !== null) {
-        const percentage = Number.parseFloat(percentMatch[1]);
-        processedEquation = `${lastResultRef.current} * ${percentage} / 100`;
-      }
-
-      // Check if input starts with an operator and prepend last result if applicable
-      const startsWithOperator = ['+', '-', '*', '/', '%'].some((op) =>
-        processedEquation.startsWith(op)
-      );
-      if (startsWithOperator) {
-        const lastResult = lastResultRef.current;
-        if (lastResult !== null) {
-          processedEquation = `${lastResult} ${processedEquation}`;
+        // Natural language: "what's X% of that" or "X percent of that" applies to last result
+        // Optimized to prevent ReDoS: limit optional groups and whitespace
+        const percentOfThatPattern = PERCENT_OF_THAT_PATTERN;
+        const percentMatch = transcript.match(percentOfThatPattern);
+        if (percentMatch && lastResultRef.current !== null) {
+          const percentage = Number.parseFloat(percentMatch[1]);
+          processedEquation = `${lastResultRef.current} * ${percentage} / 100`;
         }
-      }
 
-      // Calculate the result
-      const result = handleInput(processedEquation, 'speech');
+        // Check if input starts with an operator and prepend last result if applicable
+        const startsWithOperator = ['+', '-', '*', '/', '%'].some((op) =>
+          processedEquation.startsWith(op)
+        );
+        if (startsWithOperator) {
+          const lastResult = lastResultRef.current;
+          if (lastResult !== null) {
+            processedEquation = `${lastResult} ${processedEquation}`;
+          }
+        }
 
-      if (result !== MATH_ERROR) {
-        // Clear interim transcript immediately on success so gray text disappears
-        setInterimTranscript('');
+        // Calculate the result
+        const result = handleInput(processedEquation, 'speech');
 
-        // Use the consolidated helper function
-        handleCalculationResult(processedEquation, result, 'speech');
+        if (result !== MATH_ERROR) {
+          // Clear interim transcript immediately on success so gray text disappears
+          setInterimTranscript('');
+
+          // Use the consolidated helper function
+          handleCalculationResult(processedEquation, result, 'speech');
+        } else {
+          // Clear interim transcript and show "Speech detected" bubble for MATH_ERROR
+          setInterimTranscript('');
+
+          // Add error bubble with original transcript shown
+          const errorBubble: ChatBubble = {
+            id: (bubbleIdRef.current++).toString(),
+            type: 'error',
+            content: `Speech detected: ${transcript}`,
+          };
+
+          setBubbles((prev) => [...prev, errorBubble]);
+
+          setKeypadInput('');
+          setExpectingFreshInput(false);
+        }
+      };
+
+      if (Platform.OS === 'web' && !continuousMode && source === 'web') {
+        const raf = (typeof globalThis !== 'undefined' && (globalThis as any).requestAnimationFrame) as
+          | ((cb: FrameRequestCallback) => number)
+          | undefined;
+        if (raf) {
+          raf(() => doHeavyProcessing());
+        } else {
+          doHeavyProcessing();
+        }
       } else {
-        // Clear interim transcript and show "Speech detected" bubble for MATH_ERROR
-        setInterimTranscript('');
-
-        // Add error bubble with original transcript shown
-        const errorBubble: ChatBubble = {
-          id: (bubbleIdRef.current++).toString(),
-          type: 'error',
-          content: `Speech detected: ${transcript}`,
-        };
-
-        setBubbles((prev) => [...prev, errorBubble]);
-
-        setKeypadInput('');
-        setExpectingFreshInput(false);
+        doHeavyProcessing();
       }
     },
     [
@@ -1361,6 +1384,7 @@ const MainScreen: React.FC = () => {
       handleInput,
       handleCalculationResult,
       speechRecognition.lastProcessedTranscriptRef,
+      continuousMode,
     ]
   );
 

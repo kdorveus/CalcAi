@@ -53,6 +53,9 @@ export const useSpeechRecognition = ({
   const lastTranscriptRef = useRef('');
   const silenceTimerRef = useRef<NodeJS.Timeout | number | null>(null);
   const lastProcessedTranscriptRef = useRef<string>('');
+  const rafPendingRef = useRef<number | null>(null);
+  const pendingInterimRef = useRef<string>('');
+  const lastInterimSentRef = useRef<string>('');
 
   const initializeSpeech = useCallback(async () => {
     if (Platform.OS === 'web') {
@@ -122,7 +125,31 @@ export const useSpeechRecognition = ({
         }
 
         if (interimText) {
-          setInterimTranscript(interimText);
+          if (!continuousMode) {
+            pendingInterimRef.current = interimText;
+            if (rafPendingRef.current == null) {
+              const raf = (globalThis as any).requestAnimationFrame as
+                | ((cb: FrameRequestCallback) => number)
+                | undefined;
+              if (raf) {
+                rafPendingRef.current = raf(() => {
+                  rafPendingRef.current = null;
+                  const text = pendingInterimRef.current;
+                  if (text && text !== lastInterimSentRef.current) {
+                    lastInterimSentRef.current = text;
+                    setInterimTranscript(text);
+                  }
+                });
+              } else {
+                if (interimText !== lastInterimSentRef.current) {
+                  lastInterimSentRef.current = interimText;
+                  setInterimTranscript(interimText);
+                }
+              }
+            }
+          } else {
+            setInterimTranscript(interimText);
+          }
         }
 
         if (finalTranscript) {
@@ -250,6 +277,17 @@ export const useSpeechRecognition = ({
     }
 
     if (Platform.OS === 'web') {
+      if (rafPendingRef.current != null) {
+        const caf = (globalThis as any).cancelAnimationFrame as
+          | ((handle: number) => void)
+          | undefined;
+        if (caf) {
+          caf(rafPendingRef.current);
+        }
+        rafPendingRef.current = null;
+        pendingInterimRef.current = '';
+        lastInterimSentRef.current = '';
+      }
       if (recognitionRef.current) {
         recognitionRef.current.stop();
       }

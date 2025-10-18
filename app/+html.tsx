@@ -16,19 +16,7 @@ export default function Root({ children }: { children: ReactNode }) {
           content="width=device-width, initial-scale=1, shrink-to-fit=no, user-scalable=no, viewport-fit=cover"
         />
 
-        {/* Google Fonts - Material Icons with optimized font-display */}
-        <link
-          href="https://fonts.googleapis.com/css2?family=Material+Icons&display=swap"
-          rel="stylesheet"
-        />
-
-        {/* DNS prefetch for external resources */}
-        <link rel="dns-prefetch" href="https://fonts.gstatic.com" />
-        <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
-
-        {/* Preconnect to critical origins */}
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        
 
         {/* 
           Disable body scrolling on web. This makes ScrollView components work closer to how they do on native. 
