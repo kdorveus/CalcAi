@@ -50,7 +50,7 @@ export function useGoogleOneTap(config: GoogleOneTapConfig) {
   // Load Google Identity Services script
   useEffect(() => {
     // Only run on web platform
-    if (Platform.OS !== 'web' || typeof globalThis.window === 'undefined') {
+    if (Platform.OS !== 'web' || globalThis.window === undefined) {
       return;
     }
 
@@ -77,7 +77,7 @@ export function useGoogleOneTap(config: GoogleOneTapConfig) {
 
   // Initialize Google One Tap
   useEffect(() => {
-    if (!isLoaded || Platform.OS !== 'web' || typeof globalThis.window === 'undefined') {
+    if (!isLoaded || Platform.OS !== 'web' || globalThis.window === undefined) {
       return;
     }
 
@@ -146,7 +146,7 @@ export function useGoogleOneTap(config: GoogleOneTapConfig) {
 
   // Prompt One Tap
   const prompt = () => {
-    if (!isInitialized || Platform.OS !== 'web' || typeof globalThis.window === 'undefined') {
+    if (!isInitialized || Platform.OS !== 'web' || globalThis.window === undefined) {
       return;
     }
 
@@ -164,7 +164,7 @@ export function useGoogleOneTap(config: GoogleOneTapConfig) {
 
   // Cancel One Tap
   const cancel = () => {
-    if (!isInitialized || Platform.OS !== 'web' || typeof globalThis.window === 'undefined') {
+    if (!isInitialized || Platform.OS !== 'web' || globalThis.window === undefined) {
       return;
     }
 

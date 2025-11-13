@@ -97,7 +97,7 @@ export async function signInWithGoogle(): Promise<{
 
     if (Platform.OS === 'web') {
       // For web, redirect to Google OAuth
-      window.location.href = authUrl;
+      globalThis.window.location.href = authUrl;
       return { error: null, session: null };
     } else {
       // For mobile, use WebBrowser

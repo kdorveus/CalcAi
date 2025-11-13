@@ -125,7 +125,9 @@ export const useSpeechRecognition = ({
         }
 
         if (interimText) {
-          if (!continuousMode) {
+          if (continuousMode) {
+            setInterimTranscript(interimText);
+          } else {
             pendingInterimRef.current = interimText;
             if (rafPendingRef.current == null) {
               const raf = (globalThis as any).requestAnimationFrame as
@@ -145,8 +147,6 @@ export const useSpeechRecognition = ({
                 setInterimTranscript(interimText);
               }
             }
-          } else {
-            setInterimTranscript(interimText);
           }
         }
 
