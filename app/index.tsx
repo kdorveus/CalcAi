@@ -389,7 +389,7 @@ const MainScreen: React.FC = () => {
   // Precompile regex per language to avoid rebuilding on every normalization
   const compiledLanguageRegex = useMemo(() => {
     const p = getMathPatterns(language);
-    const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
     const joinEscaped = (arr: string[]) => arr.map(escapeRegex).join('|');
 
     const numberWordsKeys = Object.keys(p.numbers).join('|');

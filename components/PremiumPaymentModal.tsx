@@ -76,7 +76,7 @@ const WebBubble: React.FC<{
           opacity: bubbleOpacity,
           ...Platform.select({
             web: {
-              transform: animatedTransform as any,
+              transform: animatedTransform,
             },
             default: {
               transform: [{ translateY: bubbleTranslateY }, { scale: bubbleScale }],

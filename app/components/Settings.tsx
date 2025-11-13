@@ -229,10 +229,10 @@ const useWebhookManagement = (
       const failures = results.filter((result) => result.status === 'rejected').length;
 
       // Show result to user
-      const successText = `Successfully sent to ${successes} endpoint${successes !== 1 ? 's' : ''}.`;
+      const successText = `Successfully sent to ${successes} endpoint${successes === 1 ? '' : 's'}.`;
       let failureText = '';
       if (failures > 0) {
-        const endpointText = failures !== 1 ? 'endpoints' : 'endpoint';
+        const endpointText = failures === 1 ? 'endpoint' : 'endpoints';
         failureText = ` Failed to send to ${failures} ${endpointText}.`;
       }
       Alert.alert('Send Complete', `${successText}${failureText}`);
@@ -335,8 +335,8 @@ const usePremiumGate = (checkPremiumStatus: () => Promise<boolean>) => {
 };
 
 const useAuthHandlers = (
-  signOut: () => Promise<{ error: any | null }>,
-  signInWithGoogle: () => Promise<{ error: any | null }>
+  signOut: () => Promise<{ error: any }>,
+  signInWithGoogle: () => Promise<{ error: any }>
 ) => {
   const [isLoading, setIsLoading] = useState(false);
 
@@ -504,7 +504,7 @@ const GeneralSettings: React.FC<{
         value={!sendEquation}
         onValueChange={(v) => requirePremium(() => setSendEquation(!v))}
         trackColor={{ false: '#333', true: '#0066cc' }}
-        thumbColor={!sendEquation ? '#0066cc' : '#f4f3f4'}
+        thumbColor={sendEquation ? '#f4f3f4' : '#0066cc'}
         disabled={loading}
       />
     </TouchableOpacity>
@@ -518,7 +518,7 @@ const GeneralSettings: React.FC<{
         value={!streamResults}
         onValueChange={(v) => requirePremium(() => setStreamResults(!v))}
         trackColor={{ false: '#333', true: '#0066cc' }}
-        thumbColor={!streamResults ? '#0066cc' : '#f4f3f4'}
+        thumbColor={streamResults ? '#f4f3f4' : '#0066cc'}
         disabled={loading}
       />
     </TouchableOpacity>
@@ -1338,7 +1338,9 @@ export const WebhookSettingsComponentV2: React.FC<WebhookSettingsProps> = ({
             </View>
 
             {/* Premium Button - only shown for non-premium users */}
-            {!isPremium ? (
+            {isPremium ? (
+              <View style={styles.headerRightPlaceholder} />
+            ) : (
               <TouchableOpacity
                 style={{
                   flexDirection: 'row',
@@ -1357,8 +1359,6 @@ export const WebhookSettingsComponentV2: React.FC<WebhookSettingsProps> = ({
                   PREMIUM
                 </Text>
               </TouchableOpacity>
-            ) : (
-              <View style={styles.headerRightPlaceholder} />
             )}
           </View>
 
