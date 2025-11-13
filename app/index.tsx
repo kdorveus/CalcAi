@@ -826,7 +826,7 @@ const MainScreen: React.FC = () => {
       // Allow trailing % interpreted as /100
       expression = expression.replace(/%/g, '/100');
 
-      const allowedChars = /^[\d+\-*/.()^\s/eqrt]+$/;
+      const allowedChars = /^[\d+\-*/.()^\seqrt]+$/;
       if (!allowedChars.test(expression)) {
         // console.error('Invalid characters detected in expression:', expression);
         // Optionally show an error message to the user

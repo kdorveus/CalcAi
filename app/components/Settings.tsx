@@ -617,6 +617,11 @@ const WebhookSettings: React.FC<{
         ]}
         onPress={() => {
           if (!isPremium) {
+            requirePremium(() => {
+              if (/^https?:\/\//.test(localWebhookUrl.trim())) {
+                handleAddWebhookLocal();
+              }
+            });
           } else if (/^https?:\/\//.test(localWebhookUrl.trim())) {
             handleAddWebhookLocal();
           }
