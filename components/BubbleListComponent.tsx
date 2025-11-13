@@ -197,7 +197,8 @@ const BubbleListComponentV2 = React.forwardRef<FlatList, BubbleListComponentProp
     );
 
     const renderBubble = useCallback(
-      ({ item, index }: { item: ChatBubble; index: number }) => {
+      (params: { item: ChatBubble; index: number }) => {
+        const { item, index } = params;
         const isLastBubble = index === bubbles.length - 1;
 
         if (item.type === 'result') {

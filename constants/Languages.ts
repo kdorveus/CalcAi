@@ -1495,10 +1495,10 @@ export const LANGUAGE_PATTERNS: { [key: string]: LanguagePatterns } = {
       decimal: ['point', 'dot', 'decimal', 'comma'],
     },
     specificPhrases: {
-      addTo: 'add (\\d+(?:\\.\\d+)?) to (\\d+(?:\\.\\d+)?)',
-      subtractFrom: 'subtract (\\d+(?:\\.\\d+)?) from (\\d+(?:\\.\\d+)?)',
-      multiplyBy: '(multiply|multiplied) (\\d+(?:\\.\\d+)?) by (\\d+(?:\\.\\d+)?)',
-      divideBy: '(divide|divided) (\\d+(?:\\.\\d+)?) by (\\d+(?:\\.\\d+)?)',
+      addTo: String.raw`add (\d+(?:\.\d+)?) to (\d+(?:\.\d+)?)`,
+      subtractFrom: String.raw`subtract (\d+(?:\.\d+)?) from (\d+(?:\.\d+)?)`,
+      multiplyBy: String.raw`(multiply|multiplied) (\d+(?:\.\d+)?) by (\d+(?:\.\d+)?)`,
+      divideBy: String.raw`(divide|divided) (\d+(?:\.\d+)?) by (\d+(?:\.\d+)?)`,
     },
   },
   es: {
@@ -1597,10 +1597,10 @@ export const LANGUAGE_PATTERNS: { [key: string]: LanguagePatterns } = {
       decimal: ['punto', 'coma', 'decimal'],
     },
     specificPhrases: {
-      addTo: 'sumar (\\d+(?:\\.\\d+)?) a (\\d+(?:\\.\\d+)?)',
-      subtractFrom: 'restar (\\d+(?:\\.\\d+)?) de (\\d+(?:\\.\\d+)?)',
-      multiplyBy: '(multiplicar|multiplicado) (\\d+(?:\\.\\d+)?) por (\\d+(?:\\.\\d+)?)',
-      divideBy: '(dividir|dividido) (\\d+(?:\\.\\d+)?) por (\\d+(?:\\.\\d+)?)',
+      addTo: String.raw`sumar (\d+(?:\.\d+)?) a (\d+(?:\.\d+)?)`,
+      subtractFrom: String.raw`restar (\d+(?:\.\d+)?) de (\d+(?:\.\d+)?)`,
+      multiplyBy: String.raw`(multiplicar|multiplicado) (\d+(?:\.\d+)?) por (\d+(?:\.\d+)?)`,
+      divideBy: String.raw`(dividir|dividido) (\d+(?:\.\d+)?) por (\d+(?:\.\d+)?)`,
     },
   },
   fr: {
@@ -1715,11 +1715,10 @@ export const LANGUAGE_PATTERNS: { [key: string]: LanguagePatterns } = {
       decimal: ['virgule', 'point', 'décimal', 'décimale'],
     },
     specificPhrases: {
-      addTo: '(ajouter|ajoute|additionner|additionne) (\\d+(?:\\.\\d+)?) (à|a) (\\d+(?:\\.\\d+)?)',
-      subtractFrom:
-        '(soustraire|soustrait|retirer|retire|enlever|enlève|ôter|ôte) (\\d+(?:\\.\\d+)?) (de|à|a) (\\d+(?:\\.\\d+)?)',
-      multiplyBy: '(multiplier|multiplie|multiplié) (\\d+(?:\\.\\d+)?) par (\\d+(?:\\.\\d+)?)',
-      divideBy: '(diviser|divise|divisé|divisée) (\\d+(?:\\.\\d+)?) par (\\d+(?:\\.\\d+)?)',
+      addTo: String.raw`(ajouter|ajoute|additionner|additionne) (\d+(?:\.\d+)?) (à|a) (\d+(?:\.\d+)?)`,
+      subtractFrom: String.raw`(soustraire|soustrait|retirer|retire|enlever|enlève|ôter|ôte) (\d+(?:\.\d+)?) (de|à|a) (\d+(?:\.\d+)?)`,
+      multiplyBy: String.raw`(multiplier|multiplie|multiplié) (\d+(?:\.\d+)?) par (\d+(?:\.\d+)?)`,
+      divideBy: String.raw`(diviser|divise|divisé|divisée) (\d+(?:\.\d+)?) par (\d+(?:\.\d+)?)`,
     },
   },
   de: {
@@ -1805,10 +1804,10 @@ export const LANGUAGE_PATTERNS: { [key: string]: LanguagePatterns } = {
       decimal: ['komma', 'punkt', 'dezimal'],
     },
     specificPhrases: {
-      addTo: 'addiere (\\d+(?:\\.\\d+)?) zu (\\d+(?:\\.\\d+)?)',
-      subtractFrom: 'subtrahiere (\\d+(?:\\.\\d+)?) von (\\d+(?:\\.\\d+)?)',
-      multiplyBy: '(multipliziere|multipliziert) (\\d+(?:\\.\\d+)?) mit (\\d+(?:\\.\\d+)?)',
-      divideBy: '(teile|geteilt) (\\d+(?:\\.\\d+)?) durch (\\d+(?:\\.\\d+)?)',
+      addTo: String.raw`addiere (\d+(?:\.\d+)?) zu (\d+(?:\.\d+)?)`,
+      subtractFrom: String.raw`subtrahiere (\d+(?:\.\d+)?) von (\d+(?:\.\d+)?)`,
+      multiplyBy: String.raw`(multipliziere|multipliziert) (\d+(?:\.\d+)?) mit (\d+(?:\.\d+)?)`,
+      divideBy: String.raw`(teile|geteilt) (\d+(?:\.\d+)?) durch (\d+(?:\.\d+)?)`,
     },
   },
   pt: {
@@ -1906,10 +1905,10 @@ export const LANGUAGE_PATTERNS: { [key: string]: LanguagePatterns } = {
       decimal: ['vírgula', 'ponto', 'decimal'],
     },
     specificPhrases: {
-      addTo: 'somar (\\d+(?:\\.\\d+)?) a (\\d+(?:\\.\\d+)?)',
-      subtractFrom: 'subtrair (\\d+(?:\\.\\d+)?) de (\\d+(?:\\.\\d+)?)',
-      multiplyBy: '(multiplicar|multiplicado) (\\d+(?:\\.\\d+)?) por (\\d+(?:\\.\\d+)?)',
-      divideBy: '(dividir|dividido) (\\d+(?:\\.\\d+)?) por (\\d+(?:\\.\\d+)?)',
+      addTo: String.raw`somar (\d+(?:\.\d+)?) a (\d+(?:\.\d+)?)`,
+      subtractFrom: String.raw`subtrair (\d+(?:\.\d+)?) de (\d+(?:\.\d+)?)`,
+      multiplyBy: String.raw`(multiplicar|multiplicado) (\d+(?:\.\d+)?) por (\d+(?:\.\d+)?)`,
+      divideBy: String.raw`(dividir|dividido) (\d+(?:\.\d+)?) por (\d+(?:\.\d+)?)`,
     },
   },
   it: {
@@ -2007,10 +2006,10 @@ export const LANGUAGE_PATTERNS: { [key: string]: LanguagePatterns } = {
       decimal: ['virgola', 'punto', 'decimale'],
     },
     specificPhrases: {
-      addTo: 'sommare (\\d+(?:\\.\\d+)?) a (\\d+(?:\\.\\d+)?)',
-      subtractFrom: 'sottrarre (\\d+(?:\\.\\d+)?) da (\\d+(?:\\.\\d+)?)',
-      multiplyBy: '(moltiplicare|moltiplicato) (\\d+(?:\\.\\d+)?) per (\\d+(?:\\.\\d+)?)',
-      divideBy: '(dividere|diviso) (\\d+(?:\\.\\d+)?) per (\\d+(?:\\.\\d+)?)',
+      addTo: String.raw`sommare (\d+(?:\.\d+)?) a (\d+(?:\.\d+)?)`,
+      subtractFrom: String.raw`sottrarre (\d+(?:\.\d+)?) da (\d+(?:\.\d+)?)`,
+      multiplyBy: String.raw`(moltiplicare|moltiplicato) (\d+(?:\.\d+)?) per (\d+(?:\.\d+)?)`,
+      divideBy: String.raw`(dividere|diviso) (\d+(?:\.\d+)?) per (\d+(?:\.\d+)?)`,
     },
   },
 };
