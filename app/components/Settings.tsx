@@ -230,8 +230,11 @@ const useWebhookManagement = (
 
       // Show result to user
       const successText = `Successfully sent to ${successes} endpoint${successes !== 1 ? 's' : ''}.`;
-      const failureText =
-        failures > 0 ? ` Failed to send to ${failures} endpoint${failures !== 1 ? 's' : ''}.` : '';
+      let failureText = '';
+      if (failures > 0) {
+        const endpointText = failures !== 1 ? 'endpoints' : 'endpoint';
+        failureText = ` Failed to send to ${failures} ${endpointText}.`;
+      }
       Alert.alert('Send Complete', `${successText}${failureText}`);
     } catch (_error: unknown) {
       Alert.alert('Error', 'Error sending data');

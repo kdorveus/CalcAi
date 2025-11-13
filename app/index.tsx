@@ -648,9 +648,9 @@ const MainScreen: React.FC = () => {
         (_m, p1, p2) =>
           `(${String(p2)
             .replace(/[ \u00A0\u202F]/g, '')
-            .replace(',', '.')} * ${String(p1)
+            .replaceAll(',', '.')} * ${String(p1)
             .replace(/[ \u00A0\u202F]/g, '')
-            .replace(',', '.')} / 100)`
+            .replaceAll(',', '.')} / 100)`
       );
 
       normalized = normalized.replace(
@@ -658,18 +658,18 @@ const MainScreen: React.FC = () => {
         (_m, p1, p2) =>
           `(${String(p2)
             .replace(/[ \u00A0\u202F]/g, '')
-            .replace(',', '.')} * (1 + ${String(p1)
+            .replaceAll(',', '.')} * (1 + ${String(p1)
             .replace(/[ \u00A0\u202F]/g, '')
-            .replace(',', '.')} / 100))`
+            .replaceAll(',', '.')} / 100))`
       );
       normalized = normalized.replace(
         /(\d+(?:[ \u00A0\u202F]{0,10}[.,][ \u00A0\u202F]{0,10}\d+)?)\s*\+\s*(\d+(?:[ \u00A0\u202F]{0,10}[.,][ \u00A0\u202F]{0,10}\d+)?)\s*%/gi,
         (_m, base, pct) =>
           `(${String(base)
             .replace(/[ \u00A0\u202F]/g, '')
-            .replace(',', '.')} * (1 + ${String(pct)
+            .replaceAll(',', '.')} * (1 + ${String(pct)
             .replace(/[ \u00A0\u202F]/g, '')
-            .replace(',', '.')} / 100))`
+            .replaceAll(',', '.')} / 100))`
       );
 
       const numberPattern = '\\d+(?:[ \\u00A0\\u202F]{0,10}[.,][ \\u00A0\\u202F]{0,10}\\d+)?';

@@ -240,16 +240,18 @@ const BubbleListComponentV2 = React.forwardRef<FlatList, BubbleListComponentProp
       <FlatList
         style={{ flex: 1 }}
         ref={ref}
-        data={
-          interimTranscript
-            ? [
-                ...bubbles,
-                { id: 'interim_speech', type: 'user' as const, content: interimTranscript },
-              ]
-            : previewResult
-              ? [...bubbles, { id: 'preview', type: 'result' as const, content: previewResult }]
-              : bubbles
-        }
+        data={(() => {
+          if (interimTranscript) {
+            return [
+              ...bubbles,
+              { id: 'interim_speech', type: 'user' as const, content: interimTranscript },
+            ];
+          }
+          if (previewResult) {
+            return [...bubbles, { id: 'preview', type: 'result' as const, content: previewResult }];
+          }
+          return bubbles;
+        })()}
         renderItem={renderBubble}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.chatArea}
