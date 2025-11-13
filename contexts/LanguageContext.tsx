@@ -33,7 +33,7 @@ interface LanguageProviderProps {
 const LANGUAGE_STORAGE_KEY = 'selectedLanguage';
 
 export const LanguageProvider: React.FC<LanguageProviderProps> = ({ children }) => {
-  const [language, setLanguageState] = useState<string>(DEFAULT_LANGUAGE);
+  const [language, setLanguageInternal] = useState<string>(DEFAULT_LANGUAGE);
   const [isLoading, setIsLoading] = useState(true);
 
   const getSystemLanguage = useCallback((): string => {
@@ -56,14 +56,14 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({ children }) 
       try {
         const savedLanguage = await AsyncStorage.getItem(LANGUAGE_STORAGE_KEY);
         if (savedLanguage && SUPPORTED_LANGUAGES.some((lang) => lang.code === savedLanguage)) {
-          setLanguageState(savedLanguage);
+          setLanguageInternal(savedLanguage);
         } else {
           const systemLanguage = getSystemLanguage();
           const supportedSystemLang = SUPPORTED_LANGUAGES.find(
             (lang) => lang.code === systemLanguage
           );
           if (supportedSystemLang) {
-            setLanguageState(systemLanguage);
+            setLanguageInternal(systemLanguage);
             await AsyncStorage.setItem(LANGUAGE_STORAGE_KEY, systemLanguage);
           }
         }
@@ -79,7 +79,7 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({ children }) 
   const setLanguage = useCallback(async (lang: string) => {
     try {
       if (SUPPORTED_LANGUAGES.some((supportedLang) => supportedLang.code === lang)) {
-        setLanguageState(lang);
+        setLanguageInternal(lang);
         await AsyncStorage.setItem(LANGUAGE_STORAGE_KEY, lang);
       }
     } catch (error) {

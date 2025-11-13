@@ -82,10 +82,13 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
   const [isPremium, setIsPremium] = useState<boolean>(false);
   const [isPremiumCached, setIsPremiumCached] = useState<boolean>(false);
   const [premiumLoading, setPremiumLoading] = useState<boolean>(false);
-  const [_lastChecked, setLastChecked] = useState<number>(0);
-  const [stripePaymentUrl, _setStripePaymentUrl] = useState<string>(''); // Deprecated
+  // biome-ignore lint/correctness/noUnusedVariables: Setter is used, value kept for symmetry
+  const [lastChecked, setLastChecked] = useState<number>(0);
+  // biome-ignore lint/correctness/noUnusedVariables: Value is used in context, setter kept for symmetry
+  const [stripePaymentUrl, setStripePaymentUrl] = useState<string>(''); // Deprecated
   const [productInfo, setProductInfo] = useState<ProductInfo | null>(null);
-  const [_isIapConnected, setIsIapConnected] = useState<boolean>(false);
+  // biome-ignore lint/correctness/noUnusedVariables: Setter is used, value kept for symmetry
+  const [isIapConnected, setIsIapConnected] = useState<boolean>(false);
 
   // Save premium status to secure storage
   const savePremiumStatus = useCallback(async (status: boolean, timestamp: number) => {

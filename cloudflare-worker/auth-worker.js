@@ -152,7 +152,7 @@ async function handleGoogleOneTap(request, env, corsHeaders, _ctx) {
   let body;
   try {
     body = await request.json();
-  } catch (_error) {
+  } catch {
     return jsonResponse({ error: ERROR_MESSAGES.INVALID_JSON }, corsHeaders, { status: 400 });
   }
 
