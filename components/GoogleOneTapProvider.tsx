@@ -7,44 +7,16 @@
 import type React from 'react';
 import { useEffect, useState } from 'react';
 import { Platform } from 'react-native';
-import { AUTH_ENDPOINTS } from '../constants/Config';
+import { GOOGLE_CLIENT_ID } from '../constants/Config';
 import { useAuth } from '../contexts/AuthContext';
 import { useGoogleOneTap } from '../hooks/useGoogleOneTap';
 
 export const GoogleOneTapProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, signInWithGoogleOneTap } = useAuth();
   const [hasPrompted, setHasPrompted] = useState(false);
-  const [clientId, setClientId] = useState<string | null>(null);
-
-  // Fetch Google Client ID from worker - non-blocking
-  useEffect(() => {
-    if (Platform.OS !== 'web') return;
-
-    const fetchClientId = async () => {
-      try {
-        const response = await fetch(AUTH_ENDPOINTS.GOOGLE_CLIENT_ID);
-        const data = await response.json();
-        setClientId(data.clientId);
-      } catch (error) {
-        console.error('Failed to fetch Google Client ID:', error);
-      }
-    };
-
-    // Use requestIdleCallback to fetch client ID without blocking main thread
-    if ('requestIdleCallback' in globalThis) {
-      const idleCallbackId = (globalThis as any).requestIdleCallback(fetchClientId);
-      return () => {
-        (globalThis as any).cancelIdleCallback(idleCallbackId);
-      };
-    } else {
-      // Fallback: fetch asynchronously but immediately
-      fetchClientId();
-      return () => {};
-    }
-  }, []);
 
   const { isInitialized, prompt } = useGoogleOneTap({
-    clientId: clientId || '',
+    clientId: GOOGLE_CLIENT_ID,
     onSuccess: (credential) => {
       // Process authentication non-blocking
       const processAuth = async () => {
@@ -77,12 +49,12 @@ export const GoogleOneTapProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
 
     // Only prompt once per session and only if user is not logged in and we have clientId
-    if (isInitialized && !user && !hasPrompted && clientId) {
+    if (isInitialized && !user && !hasPrompted && GOOGLE_CLIENT_ID) {
       // Prompt immediately - the hook already handles async loading
       prompt();
       setHasPrompted(true);
     }
-  }, [isInitialized, user, hasPrompted, clientId, prompt]);
+  }, [isInitialized, user, hasPrompted, prompt]);
 
   return <>{children}</>;
 };

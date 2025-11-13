@@ -28,7 +28,6 @@ export default function Login() {
 
   const handleGoogleLogin = async () => {
     setGoogleLoading(true);
-    console.log('Attempting Google Sign-In...');
     await signInWithGoogle();
     setGoogleLoading(false);
     // Let useProtectedRoute handle navigation after successful login

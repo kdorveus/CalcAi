@@ -22,9 +22,7 @@ let Purchases: typeof PurchasesModule | null = null;
 if (Platform.OS === 'android' || Platform.OS === 'ios') {
   try {
     Purchases = PurchasesModule;
-  } catch (e) {
-    console.warn('react-native-purchases not available', e);
-  }
+  } catch (_e) {}
 }
 
 // Product ID for Google Play
@@ -185,22 +183,14 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
                     currency: product.currencyCode,
                   });
                 }
-              } else {
-                console.warn('Purchases module not available');
               }
-            } catch (error) {
-              console.warn('Error initializing in-app purchases:', error);
-            }
+            } catch (_error) {}
 
             // Set up purchase listener
             if (Purchases) {
               Purchases.addCustomerInfoUpdateListener(async (customerInfo: any) => {
-                console.log('Customer info updated:', customerInfo);
                 // Check if premium entitlement is active
                 if (customerInfo.entitlements.active.premium) {
-                  console.log('Premium entitlement active');
-
-                  // TODO: Update premium status via Cloudflare
                   // For now, just update local state
                   setIsPremium(true);
                   setIsPremiumCached(true);
@@ -232,9 +222,6 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
 
   // Legacy check premium status
   const _checkPremiumStatusLegacy = async (): Promise<boolean> => {
-    // TODO: Replace with Cloudflare premium status check
-    console.log('[PremiumContext] checkPremiumStatus - awaiting Cloudflare integration');
-
     // For now, use only cached local status
     if (isPremiumCached) {
       return isPremium;
@@ -251,18 +238,14 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
       try {
         // For Android, use Google Play IAP
         if (Platform.OS === 'android') {
-          console.log('Using RevenueCat for premium purchase');
           setPremiumLoading(true);
 
           if (Purchases) {
             try {
               // Purchase the product
-              const { customerInfo } = await Purchases.purchaseProduct(GOOGLE_PLAY_PRODUCT_ID);
-              // The purchase listener will handle updating the premium status
-              console.log('Purchase completed:', customerInfo);
+              await Purchases.purchaseProduct(GOOGLE_PLAY_PRODUCT_ID);
             } catch (error: any) {
               if (error.userCancelled) {
-                console.log('User canceled the purchase');
               } else {
                 console.error('Error making purchase:', error);
                 Alert.alert(
@@ -285,7 +268,6 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
         }
         // For web and other platforms, use Stripe Checkout
         else {
-          console.log('Using Stripe Checkout for premium purchase');
           setPremiumLoading(true);
 
           try {

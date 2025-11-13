@@ -226,8 +226,6 @@ export default function RootLayout() {
   );
 }
 
-// RootLayout is already exported as default above
-
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
 

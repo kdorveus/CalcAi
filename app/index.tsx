@@ -49,9 +49,6 @@ const PremiumPaymentModal = lazy(
   () => import(/* webpackChunkName: "premium-modal" */ '../components/PremiumPaymentModal')
 );
 
-// (Removed unused asset preload hook to avoid dead code)
-
-// --- Module-level constants and caches (hoisted to avoid re-creation) ---
 const _numberFormattersByLocale = new Map<string, Intl.NumberFormat>();
 
 // Types
@@ -107,7 +104,6 @@ const MainScreen: React.FC = () => {
   const { history, addCalculation, deleteCalculation, clearAllCalculations, loading } =
     useCalculationHistory();
 
-  // Number formatting function - returns raw number string (no locale formatting)
   const formatNumber = useCallback((num: number, _lang: string): string => {
     // Return raw number string to avoid locale-specific formatting issues
     // (e.g., French locale would format 1.333 as "1,333" which looks like thousands)
@@ -118,13 +114,6 @@ const MainScreen: React.FC = () => {
   const getSpeechRecognitionLanguage = useCallback((lang: string): string => {
     return SPEECH_RECOGNITION_LANG_MAP[lang] || 'en-US';
   }, []);
-
-  // Setup animation values for swipe effects
-  // const translateX = useSharedValue(0);
-  // const translateY = useSharedValue(0);
-
-  // No longer needed as we directly inject the font
-  // const fallbackNeeded = false;
 
   // Add responsive dimensions - lazy initialization to avoid forced reflow
   const [isWebMobile, setIsWebMobile] = useState(() => {
@@ -160,7 +149,6 @@ const MainScreen: React.FC = () => {
   const [interimTranscript, setInterimTranscript] = useState('');
 
   const [showKeypad, setShowKeypad] = useState(false);
-  // const [recording, setRecording] = useState<Audio.Recording | null>(null); // Removed Audio.Recording type usage here
   const [isRecording, setIsRecording] = useState(false);
   const [keypadInput, setKeypadInput] = useState('');
   const lastResultRef = useRef<string | null>(null);
@@ -256,7 +244,6 @@ const MainScreen: React.FC = () => {
     speechRecognition.initializeSpeech();
   }, [speechRecognition]);
 
-  // Inactivity detection constants
   const INACTIVITY_TIMEOUT_MS = 5000;
 
   // Refs for inactivity detection
@@ -264,7 +251,6 @@ const MainScreen: React.FC = () => {
   const hasShownBubbleThisVisit = useRef(false);
   const isAppLoadedRef = useRef(false);
 
-  // Helper function to clear inactivity timer
   const clearInactivityTimer = useCallback(() => {
     if (inactivityTimerRef.current) {
       clearTimeout(inactivityTimerRef.current);
@@ -320,7 +306,6 @@ const MainScreen: React.FC = () => {
       inactivityTimerRef.current = null;
     }, INACTIVITY_TIMEOUT_MS);
 
-    // Cleanup function
     return clearInactivityTimer;
   }, [
     isRecording,
@@ -398,7 +383,6 @@ const MainScreen: React.FC = () => {
   const [previewResult, setPreviewResult] = useState<string | null>(null);
   const [expectingFreshInput, setExpectingFreshInput] = useState(false);
 
-  // Internal error constant for programming logic (never shown to user)
   const MATH_ERROR = 'MATH_ERROR_INTERNAL';
 
   // Get language-specific math patterns
@@ -828,8 +812,6 @@ const MainScreen: React.FC = () => {
 
       const allowedChars = /^[\d+\-*/.()^\seqrt]+$/;
       if (!allowedChars.test(expression)) {
-        // console.error('Invalid characters detected in expression:', expression);
-        // Optionally show an error message to the user
         return MATH_ERROR;
       }
 
@@ -850,10 +832,8 @@ const MainScreen: React.FC = () => {
     [normalizeSpokenMath, formatNumber, language]
   ); // Dependencies: normalizeSpokenMath (stable), formatNumber, language
 
-  // Use webhook manager's sendWebhookData function
   const sendWebhookData = webhookManager.sendWebhookData;
 
-  // Single TTS function to prevent duplicates
   const speakSingleResult = useCallback(
     (text: string) => {
       if (isTTSSpeaking.current) {
@@ -933,7 +913,6 @@ const MainScreen: React.FC = () => {
     [language, speechRecognition.lastProcessedTranscriptRef, getSpeechRecognitionLanguage]
   );
 
-  // Helper function to handle calculation results (DRY principle - used by both keypad and speech)
   const handleCalculationResult = useCallback(
     (equation: string, result: string, source: 'keypad' | 'speech') => {
       // Prioritize TTS: speak immediately for speech source before any UI work
@@ -988,8 +967,6 @@ const MainScreen: React.FC = () => {
         setKeypadInput(result);
       }
 
-      // Speech already triggered at the start of this function for speech source
-
       lastResultRef.current = result;
       setExpectingFreshInput(true);
 
@@ -1032,7 +1009,6 @@ const MainScreen: React.FC = () => {
     };
   }, []);
 
-  // Extracted key handler functions
   const handleResetKey = useCallback(
     (_key: string) => {
       setBubbles([]);
@@ -1218,7 +1194,6 @@ const MainScreen: React.FC = () => {
     ]
   );
 
-  // Refactored onKeypadPress function
   const onKeypadPress = useCallback(
     (key: string) => {
       if (vibrationEnabled) {
@@ -1456,7 +1431,6 @@ const MainScreen: React.FC = () => {
           // Clear interim transcript immediately on success so gray text disappears
           setInterimTranscript('');
 
-          // Use the consolidated helper function
           handleCalculationResult(processedEquation, result, 'speech');
         } else {
           // Clear interim transcript and show "Speech detected" bubble for MATH_ERROR
@@ -1502,12 +1476,8 @@ const MainScreen: React.FC = () => {
   // Assign processSpeechResult to the ref so the hook can use it
   processSpeechResultRef.current = processSpeechResult;
 
-  // Use the hook's startRecording and stopRecording functions
   const startRecording = speechRecognition.startRecording;
   const stopRecording = speechRecognition.stopRecording;
-
-  // --- Load/Save Settings (App Preferences Only) ---
-  // Note: Webhook settings are managed by useWebhookManager hook
 
   // Load app preferences on mount
   useEffect(() => {
@@ -1603,14 +1573,10 @@ const MainScreen: React.FC = () => {
   // --- Component Lifecycle & Effects ---
 
   // --- Webhook Logic Handlers ---
-  // Use webhook manager's handler functions
   const handleAddWebhook = webhookManager.handleAddWebhook;
   const handleDeleteWebhook = webhookManager.handleDeleteWebhook;
   const handleToggleWebhook = webhookManager.handleToggleWebhook;
   const handleSendBulkData = webhookManager.handleSendBulkData;
-
-  // Log rendering outside of JSX to avoid TypeScript errors
-  // console.log('CalculatorScreen rendering...');
 
   // Show header controls unless keypad is shown
   const renderHeaderControls = () => {

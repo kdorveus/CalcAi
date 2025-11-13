@@ -85,6 +85,9 @@ export default {
       router: {
         origin: false,
       },
+      googleClientId:
+        process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID ||
+        '696929660362-3g17582veuu9u1cs3ele6e4j0po57rva.apps.googleusercontent.com',
     },
     owner: 'kingalexander',
   },

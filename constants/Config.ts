@@ -3,6 +3,8 @@
  * Update WORKER_URL after deploying your Cloudflare Worker
  */
 
+import Constants from 'expo-constants';
+
 export const WORKER_URL = 'https://calcai.liljcool45.workers.dev';
 
 // Platform detection
@@ -42,3 +44,9 @@ export const POSTHOG_CONFIG = {
   HOST: 'https://us.i.posthog.com',
   PROJECT_ID: '125886',
 };
+
+// Google Client ID - Safe to expose in frontend (security comes from backend token verification)
+// Set via EXPO_PUBLIC_GOOGLE_CLIENT_ID environment variable or app.config.js extra.googleClientId
+// This is public information - security comes from backend token verification
+export const GOOGLE_CLIENT_ID =
+  process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID || Constants.expoConfig?.extra?.googleClientId || '';

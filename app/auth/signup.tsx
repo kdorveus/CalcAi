@@ -52,7 +52,6 @@ export default function SignUp() {
     }
 
     setLocalLoading(true);
-    console.log('Attempting sign up...');
     const { error, session, user } = await signUp(email);
     setLocalLoading(false);
 
@@ -62,8 +61,6 @@ export default function SignUp() {
       Alert.alert(t('auth.signUpPending'), t('auth.checkEmailVerification'), [
         { text: 'OK', onPress: () => router.replace('/auth/login') },
       ]);
-    } else if (session) {
-      console.log('Sign up successful, session created.');
     }
   };
 

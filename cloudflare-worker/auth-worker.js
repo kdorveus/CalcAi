@@ -644,7 +644,7 @@ async function handleStripeWebhook(request, env, corsHeaders) {
         await handleSubscriptionDeleted(event.data.object, env);
         break;
       default:
-        console.log(`Unhandled event type: ${event.type}`);
+        break;
     }
 
     return jsonResponse({ received: true }, {}, corsHeaders);
@@ -716,8 +716,6 @@ async function handleCheckoutCompleted(session, env) {
   )
     .bind(session.customer, userId)
     .run();
-
-  console.log(`Premium activated for user ${userId}`);
 }
 
 /**
@@ -737,8 +735,6 @@ async function handleInvoicePaid(invoice, env) {
     )
       .bind(user.id)
       .run();
-
-    console.log(`Premium activated for user ${user.id} via invoice payment`);
   }
 }
 
@@ -754,7 +750,6 @@ async function handlePaymentFailed(invoice, env) {
     .first();
 
   if (user) {
-    console.log(`Payment failed for user ${user.id}`);
     // Optionally deactivate premium after grace period
   }
 }
@@ -776,8 +771,6 @@ async function handleSubscriptionDeleted(subscription, env) {
     )
       .bind(user.id)
       .run();
-
-    console.log(`Premium deactivated for user ${user.id} due to subscription cancellation`);
   }
 }
 

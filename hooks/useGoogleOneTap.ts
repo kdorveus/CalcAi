@@ -45,7 +45,6 @@ declare global {
 export function useGoogleOneTap(config: GoogleOneTapConfig) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
-  const scriptLoadedRef = useRef(false);
   const initAttemptedRef = useRef(false);
 
   // Load Google Identity Services script
@@ -61,64 +60,20 @@ export function useGoogleOneTap(config: GoogleOneTapConfig) {
       return;
     }
 
-    // Prevent multiple script loads
-    if (scriptLoadedRef.current) {
-      return;
-    }
-
-    scriptLoadedRef.current = true;
-
-    // Lazy load the Google Identity Services script
-    const loadScript = () => {
-      return new Promise<void>((resolve, reject) => {
-        // Check if script already exists
-        const existingScript = document.querySelector(
-          'script[src*="accounts.google.com/gsi/client"]'
-        );
-        if (existingScript) {
-          resolve();
-          return;
-        }
-
-        const script = document.createElement('script');
-        script.src = 'https://accounts.google.com/gsi/client';
-        script.async = true;
-        script.defer = true;
-
-        script.onload = () => {
-          setIsLoaded(true);
-          resolve();
-        };
-
-        script.onerror = () => {
-          scriptLoadedRef.current = false;
-          reject(new Error('Failed to load Google Identity Services'));
-        };
-
-        document.head.appendChild(script);
-      });
+    // Script is loaded in HTML head - check if it's ready
+    // Per Google's official docs: script loads with async defer in head
+    const checkScriptReady = () => {
+      if (globalThis.window.google?.accounts?.id) {
+        setIsLoaded(true);
+        return;
+      }
+      // Script might still be loading, check again after a short delay
+      setTimeout(checkScriptReady, 100);
     };
 
-    // Use requestIdleCallback to load script without blocking main thread
-    // Falls back to immediate execution if requestIdleCallback is not available
-    const scheduleLoad = () => {
-      loadScript().catch((error) => {
-        console.error('Google One Tap script load error:', error);
-        config.onError?.(error);
-      });
-    };
-
-    if ('requestIdleCallback' in globalThis) {
-      const idleCallbackId = (globalThis as any).requestIdleCallback(scheduleLoad);
-      return () => {
-        (globalThis as any).cancelIdleCallback(idleCallbackId);
-      };
-    } else {
-      // Fallback: load immediately but asynchronously
-      scheduleLoad();
-      return () => {};
-    }
-  }, [config.onError]);
+    // Start checking when script is ready
+    checkScriptReady();
+  }, []);
 
   // Initialize Google One Tap
   useEffect(() => {
@@ -165,14 +120,10 @@ export function useGoogleOneTap(config: GoogleOneTapConfig) {
         moment_notification: (notification: MomentNotification) => {
           // Handle skipped moment (user closed the prompt without action)
           if (notification.isSkippedMoment()) {
-            // One Tap was skipped. This is normal user behavior.
-            // You can add logging here if needed for debugging.
           }
           // Handle dismissed moment (user actively dismissed the prompt)
           if (notification.isDismissedMoment()) {
-            const reason = notification.getDismissedReason();
-            // You can add logging here if needed for debugging.
-            console.debug('Google One Tap dismissed:', reason);
+            notification.getDismissedReason();
           }
         },
       });

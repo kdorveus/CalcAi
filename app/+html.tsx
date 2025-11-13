@@ -16,6 +16,9 @@ export default function Root({ children }: { readonly children: ReactNode }) {
           content="width=device-width, initial-scale=1, shrink-to-fit=no, user-scalable=no, viewport-fit=cover"
         />
 
+        {/* Google Identity Services - Loaded in head as per Google's official documentation */}
+        <script src="https://accounts.google.com/gsi/client" async defer />
+
         {/* 
           Disable body scrolling on web. This makes ScrollView components work closer to how they do on native. 
           However, body scrolling is often nice to have for mobile web. If you want to enable it, remove this line.
