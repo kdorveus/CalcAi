@@ -18,7 +18,7 @@ type QueuedEvent =
   | ['reset'];
 
 interface PostHogContextType {
-  posthog: any | null;
+  posthog: any;
   isInitialized: boolean;
   captureEvent: (eventName: string, properties?: Record<string, any>) => void;
   identifyUser: (userId: string, properties?: Record<string, any>) => void;
@@ -39,7 +39,7 @@ export const usePostHog = () => useContext(PostHogContext);
 
 export const PostHogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isInitialized, setIsInitialized] = useState(false);
-  const posthogClientRef = useRef<any | null>(null);
+  const posthogClientRef = useRef<any>(null);
   const eventQueueRef = useRef<QueuedEvent[]>([]);
 
   const processQueue = useCallback((client: any) => {
@@ -92,9 +92,9 @@ export const PostHogProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
 
     // Defer PostHog to window.onload to completely avoid blocking page load
-    if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      window.addEventListener('load', initPostHog, { once: true });
-      return () => window.removeEventListener('load', initPostHog);
+    if (Platform.OS === 'web' && globalThis.window !== undefined) {
+      globalThis.window.addEventListener('load', initPostHog, { once: true });
+      return () => globalThis.window.removeEventListener('load', initPostHog);
     } else {
       // Mobile: initialize immediately after mount (no delay)
       initPostHog();

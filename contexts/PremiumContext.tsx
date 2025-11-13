@@ -83,7 +83,7 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
   const [isPremiumCached, setIsPremiumCached] = useState<boolean>(false);
   const [premiumLoading, setPremiumLoading] = useState<boolean>(false);
   const [_lastChecked, setLastChecked] = useState<number>(0);
-  const [stripePaymentUrl] = useState<string>(''); // Deprecated
+  const [stripePaymentUrl, _setStripePaymentUrl] = useState<string>(''); // Deprecated
   const [productInfo, setProductInfo] = useState<ProductInfo | null>(null);
   const [_isIapConnected, setIsIapConnected] = useState<boolean>(false);
 

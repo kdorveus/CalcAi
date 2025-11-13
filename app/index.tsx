@@ -37,8 +37,11 @@ import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useTranslation } from '../hooks/useTranslation';
 import { useWebhookManager } from '../hooks/useWebhookManager';
 
-const PERCENT_OF_THAT_PATTERN =
-  /(?:what'?s|whats|calculate|find|get)?\s{0,3}(\d+(?:\.\d+)?)\s{0,3}(?:percent|%|percentage)\s{0,3}(?:of)?\s{0,3}(?:that|it|the last|previous|result)/i;
+const PERCENT_OF_THAT_PREFIX = "(?:what'?s|whats|calculate|find|get)?";
+const PERCENT_OF_THAT_PATTERN = new RegExp(
+  `${PERCENT_OF_THAT_PREFIX}\\s{0,3}(\\d+(?:\\.\\d+)?)\\s{0,3}(?:percent|%|percentage)\\s{0,3}(?:of)?\\s{0,3}(?:that|it|the last|previous|result)`,
+  'i'
+);
 
 // Lazy load non-critical modals to reduce initial bundle size
 const Settings = lazy(() => import(/* webpackChunkName: "settings" */ './components/Settings'));
@@ -117,7 +120,7 @@ const MainScreen: React.FC = () => {
 
   // Add responsive dimensions - lazy initialization to avoid forced reflow
   const [isWebMobile, setIsWebMobile] = useState(() => {
-    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    if (Platform.OS === 'web' && globalThis.window !== undefined) {
       return Dimensions.get('window').width < 768;
     }
     return false;
@@ -153,7 +156,6 @@ const MainScreen: React.FC = () => {
   const [keypadInput, setKeypadInput] = useState('');
   const lastResultRef = useRef<string | null>(null);
   const [isSettingsModalVisible, setIsSettingsModalVisible] = useState(false); // State for modal
-  const [_isUnsentDataModalVisible, setIsUnsentDataModalVisible] = useState(false); // State for unsent data alert modal
   const [isSpeechMuted, setIsSpeechMuted] = useState(false); // State for UI updates
   const speechMutedRef = useRef(false); // Ref for actual mute control
   const [openInCalcMode, setOpenInCalcMode] = useState(false); // State for calculator mode
@@ -643,8 +645,18 @@ const MainScreen: React.FC = () => {
       normalized = normalized.replace(/\b(\d{1,3})(?:,\d{3})+\b/g, (m) => m.replaceAll(',', ''));
       normalized = normalized.replace(/\b(\d+),(\d+)\b/g, '$1.$2');
 
+      // Extract common patterns to reduce regex complexity
+      const numberPattern = String.raw`\d+(?:[ \u00A0\u202F]{0,10}[.,][ \u00A0\u202F]{0,10}\d+)?`;
+      const wsPattern = String.raw`[\s\u00A0\u202F]{1,20}`;
+      const ofWords = '(?:of|de|di|von)';
+      const toWords = '(?:to|à|a|zu)';
+      const addWords = '(?:add|ajouter|adicionar|hinzufügen|aggiungere)';
+
       normalized = normalized.replace(
-        /(\d+(?:[ \u00A0\u202F]{0,10}[.,][ \u00A0\u202F]{0,10}\d+)?)\s*%[\s\u00A0\u202F]{1,20}(?:of|de|di|von)[\s\u00A0\u202F]{1,20}(\d+(?:[ \u00A0\u202F]{0,10}[.,][ \u00A0\u202F]{0,10}\d+)?)(?:[\s\u00A0\u202F]{0,10}%)?/gi,
+        new RegExp(
+          `(${numberPattern})\\s*%${wsPattern}${ofWords}${wsPattern}(${numberPattern})(?:${wsPattern}%)?`,
+          'gi'
+        ),
         (_m, p1, p2) =>
           `(${String(p2)
             .replace(/[ \u00A0\u202F]/g, '')
@@ -654,7 +666,10 @@ const MainScreen: React.FC = () => {
       );
 
       normalized = normalized.replace(
-        /(?:add|ajouter|adicionar|hinzufügen|aggiungere)[\s\u00A0\u202F]{1,20}(\d+(?:[ \u00A0\u202F]{0,10}[.,][ \u00A0\u202F]{0,10}\d+)?)\s*%[\s\u00A0\u202F]{1,20}(?:to|à|a|zu)[\s\u00A0\u202F]{1,20}(\d+(?:[ \u00A0\u202F]{0,10}[.,][ \u00A0\u202F]{0,10}\d+)?)/gi,
+        new RegExp(
+          `${addWords}${wsPattern}(${numberPattern})\\s*%${wsPattern}${toWords}${wsPattern}(${numberPattern})`,
+          'gi'
+        ),
         (_m, p1, p2) =>
           `(${String(p2)
             .replace(/[ \u00A0\u202F]/g, '')
@@ -663,7 +678,7 @@ const MainScreen: React.FC = () => {
             .replaceAll(',', '.')} / 100))`
       );
       normalized = normalized.replace(
-        /(\d+(?:[ \u00A0\u202F]{0,10}[.,][ \u00A0\u202F]{0,10}\d+)?)\s*\+\s*(\d+(?:[ \u00A0\u202F]{0,10}[.,][ \u00A0\u202F]{0,10}\d+)?)\s*%/gi,
+        new RegExp(`(${numberPattern})\\s*\\+\\s*(${numberPattern})\\s*%`, 'gi'),
         (_m, base, pct) =>
           `(${String(base)
             .replace(/[ \u00A0\u202F]/g, '')
@@ -672,10 +687,8 @@ const MainScreen: React.FC = () => {
             .replaceAll(',', '.')} / 100))`
       );
 
-      const numberPattern = '\\d+(?:[ \\u00A0\\u202F]{0,10}[.,][ \\u00A0\\u202F]{0,10}\\d+)?';
       const subtractWords = '(?:subtract|soustraire|subtrair|subtrahieren|sottrarre)';
       const fromWords = '(?:from|de|von|da)';
-      const wsPattern = '[\\s\\u00A0\\u202F]{1,20}';
       normalized = normalized.replace(
         new RegExp(
           `${subtractWords}${wsPattern}(${numberPattern})\\s*%${wsPattern}${fromWords}${wsPattern}(${numberPattern})`,
@@ -848,7 +861,7 @@ const MainScreen: React.FC = () => {
 
           const utterance = new SpeechSynthesisUtterance(text);
           utterance.lang = getSpeechRecognitionLanguage(language);
-          utterance.pitch = 1.0;
+          utterance.pitch = 1;
           utterance.rate = 1.1;
 
           // Use cached Google female voice for consistency and speed
@@ -879,7 +892,7 @@ const MainScreen: React.FC = () => {
         // Use expo-speech for native platforms
         Speech.speak(text, {
           language: getSpeechRecognitionLanguage(language),
-          pitch: 1.0,
+          pitch: 1,
           rate: 1.1,
           onDone: () => {
             // Clear flag and reset ALL speech-related state immediately when TTS finishes
@@ -1126,10 +1139,7 @@ const MainScreen: React.FC = () => {
       const expressionToCalc = keypadInput;
       const result = handleInput(expressionToCalc, 'keypad');
 
-      if (result !== MATH_ERROR) {
-        handleCalculationResult(expressionToCalc, result, 'keypad');
-        scrollToBottom(50);
-      } else {
+      if (result === MATH_ERROR) {
         const errorBubble: ChatBubble = {
           id: (bubbleIdRef.current++).toString(),
           type: 'error',
@@ -1140,7 +1150,10 @@ const MainScreen: React.FC = () => {
         setPreviewResult(null);
         setExpectingFreshInput(false);
         scrollToBottom(50);
+        return;
       }
+      handleCalculationResult(expressionToCalc, result, 'keypad');
+      scrollToBottom(50);
     },
     [keypadInput, handleInput, handleCalculationResult, t, scrollToBottom]
   );
@@ -1255,10 +1268,10 @@ const MainScreen: React.FC = () => {
       // Spacebar toggles recording
       if (e.code === 'Space') {
         e.preventDefault();
-        if (!isRecording) {
-          speechRecognition.startRecording();
-        } else {
+        if (isRecording) {
           setIsRecording(false);
+        } else {
+          speechRecognition.startRecording();
         }
         return;
       }
@@ -1398,8 +1411,7 @@ const MainScreen: React.FC = () => {
         processedEquation = processedEquation.trim();
         processedEquation = processedEquation.replace(/[+\-*/%=.,\s]+$/g, '').trim();
 
-        const percentOfThatPattern = PERCENT_OF_THAT_PATTERN;
-        const percentMatch = transcript.match(percentOfThatPattern);
+        const percentMatch = PERCENT_OF_THAT_PATTERN.exec(transcript);
         if (percentMatch && lastResultRef.current !== null) {
           const percentage = Number.parseFloat(percentMatch[1]);
           processedEquation = `${lastResultRef.current} * ${percentage} / 100`;
@@ -1419,12 +1431,7 @@ const MainScreen: React.FC = () => {
         // Calculate the result
         const result = handleInput(processedEquation, 'speech');
 
-        if (result !== MATH_ERROR) {
-          // Clear interim transcript immediately on success so gray text disappears
-          setInterimTranscript('');
-
-          handleCalculationResult(processedEquation, result, 'speech');
-        } else {
+        if (result === MATH_ERROR) {
           // Clear interim transcript and show "Speech detected" bubble for MATH_ERROR
           setInterimTranscript('');
 
@@ -1439,7 +1446,11 @@ const MainScreen: React.FC = () => {
 
           setKeypadInput('');
           setExpectingFreshInput(false);
+          return;
         }
+        // Clear interim transcript immediately on success so gray text disappears
+        setInterimTranscript('');
+        handleCalculationResult(processedEquation, result, 'speech');
       };
 
       if (Platform.OS === 'web' && !continuousMode && source === 'web') {
@@ -1816,7 +1827,7 @@ const MainScreen: React.FC = () => {
           {Platform.OS === 'web' && hoveredTooltip === 'webhook' && (
             <View style={styles.webhookTooltip}>
               {/* Active Webhooks Section */}
-              {webhookManager.webhookUrls.filter((webhook) => webhook.active).length > 0 ? (
+              {webhookManager.webhookUrls.some((webhook) => webhook.active) ? (
                 <View style={{ marginBottom: 10 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
                     <AppIcon name="webhook" size={16} color="#888" style={{ marginRight: 5 }} />
