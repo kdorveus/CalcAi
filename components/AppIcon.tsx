@@ -124,6 +124,33 @@ const LanguagesIcon = (props: SvgProps) => {
   );
 };
 
+const SlidersHorizontalIcon = (props: SvgProps) => {
+  const { width = 24, height = 24, color = 'currentColor', ...rest } = props;
+  return (
+    <Svg
+      viewBox="0 0 24 24"
+      width={width}
+      height={height}
+      fill="none"
+      stroke={color}
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      {...rest}
+    >
+      <Path d="M10 5H3" />
+      <Path d="M12 19H3" />
+      <Path d="M14 3v4" />
+      <Path d="M16 17v4" />
+      <Path d="M21 12h-9" />
+      <Path d="M21 19h-5" />
+      <Path d="M21 5h-7" />
+      <Path d="M8 10v4" />
+      <Path d="M8 12H3" />
+    </Svg>
+  );
+};
+
 // Map icon names to their components
 const iconMap: Record<string, React.FC<SvgProps>> = {
   webhook: WebhookIcon,
@@ -153,6 +180,7 @@ const iconMap: Record<string, React.FC<SvgProps>> = {
   'refresh-ccw': RefreshCcwIcon,
   language: LanguagesIcon,
   'audio-lines': AudioLinesIcon,
+  'sliders-horizontal': SlidersHorizontalIcon,
 };
 
 // Define props for our AppIcon component

@@ -23,7 +23,7 @@ import AppIcon from '../../components/AppIcon';
 import PremiumPaymentModal from '../../components/PremiumPaymentModal';
 import { SUPPORTED_LANGUAGES } from '../../constants/Languages';
 import { useAuth } from '../../contexts/AuthContext';
-import { usePremium } from '../../contexts/PremiumContext';
+import { usePremium, usePremiumGate } from '../../contexts/PremiumContext';
 import { useTranslation } from '../../hooks/useTranslation';
 import GoogleLogo from './GoogleLogo';
 
@@ -308,29 +308,6 @@ const useWebhookManagement = (
     saveEditedItem,
     deleteBulkItem,
     cancelEditing,
-  };
-};
-
-const usePremiumGate = (checkPremiumStatus: () => Promise<boolean>) => {
-  const [showPremiumModal, setShowPremiumModal] = useState(false);
-  const [lastAttemptedAction, setLastAttemptedAction] = useState<(() => void) | null>(null);
-
-  const requirePremium = async (action: () => void) => {
-    const hasPremium = await checkPremiumStatus();
-    if (!hasPremium) {
-      setLastAttemptedAction(() => action);
-      setShowPremiumModal(true);
-      return;
-    }
-    action();
-  };
-
-  return {
-    requirePremium,
-    showPremiumModal,
-    setShowPremiumModal,
-    lastAttemptedAction,
-    setLastAttemptedAction,
   };
 };
 
@@ -853,7 +830,7 @@ export const WebhookSettingsComponentV2: React.FC<WebhookSettingsProps> = ({
   setContinuousMode,
 }) => {
   const { user, loading, signOut, authError, signInWithGoogle } = useAuth();
-  const { isPremium, checkPremiumStatus } = usePremium();
+  const { isPremium } = usePremium();
   const { t, language, setLanguage } = useTranslation();
 
   // Single state for accordion - only one section can be open at a time
@@ -867,7 +844,7 @@ export const WebhookSettingsComponentV2: React.FC<WebhookSettingsProps> = ({
     setBulkData,
     setWebhookUrls
   );
-  const premiumGate = usePremiumGate(checkPremiumStatus);
+  const premiumGate = usePremiumGate();
   const authHandlers = useAuthHandlers(signOut, signInWithGoogle);
 
   useEffect(() => {
@@ -980,7 +957,7 @@ export const WebhookSettingsComponentV2: React.FC<WebhookSettingsProps> = ({
             activeOpacity={1}
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <AppIcon name="cog" size={20} color="#888" />
+              <AppIcon name="sliders-horizontal" size={20} color="#888" />
               <Text
                 style={[
                   styles.subHeader,

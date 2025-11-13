@@ -339,3 +339,35 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
 
 // Export the hook to use the premium context
 export const usePremium = () => useContext(PremiumContext);
+
+export const usePremiumGate = () => {
+  const { isPremium, checkPremiumStatus } = useContext(PremiumContext);
+  const [showPremiumModal, setShowPremiumModal] = useState(false);
+  const [lastAttemptedAction, setLastAttemptedAction] = useState<(() => void) | null>(null);
+
+  const requirePremium = useCallback(
+    async (action: () => void) => {
+      if (isPremium) {
+        action();
+        return;
+      }
+
+      const hasPremium = await checkPremiumStatus();
+      if (!hasPremium) {
+        setLastAttemptedAction(() => action);
+        setShowPremiumModal(true);
+        return;
+      }
+      action();
+    },
+    [isPremium, checkPremiumStatus]
+  );
+
+  return {
+    requirePremium,
+    showPremiumModal,
+    setShowPremiumModal,
+    lastAttemptedAction,
+    setLastAttemptedAction,
+  };
+};

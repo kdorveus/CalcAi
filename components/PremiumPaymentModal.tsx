@@ -43,6 +43,7 @@ interface PremiumPaymentModalProps {
   visible: boolean;
   onClose: () => void;
   forceFullModal?: boolean; // Force full modal even on web
+  onSuccess?: () => void;
 }
 
 type PlanType = 'yearly' | 'lifetime';
@@ -135,8 +136,9 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
   visible,
   onClose,
   forceFullModal = false,
+  onSuccess,
 }) => {
-  const { showPremiumPayment, premiumLoading } = usePremium();
+  const { isPremium, showPremiumPayment, premiumLoading } = usePremium();
   const { user, signInWithGoogle } = useAuth();
   const { t } = useTranslation();
   const { captureEvent } = usePostHog();
@@ -202,7 +204,7 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
     let scaleListenerId: string | null = null;
     let isMounted = true;
 
-    if (visible && isWeb && !showFullModal && !forceFullModal) {
+    if (visible && isWeb && !showFullModal && !forceFullModal && !isPremium) {
       // Reset animation values
       bubbleOpacity.setValue(0);
       bubbleTranslateY.setValue(INITIAL_TRANSLATE_Y);
@@ -282,6 +284,7 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
     bubbleTranslateY,
     bubbleScale,
     buildTransformString,
+    isPremium,
   ]);
 
   const handlePayment = async () => {
@@ -345,6 +348,9 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
     if (!isLoading && !isRestoring) {
       setShowFullModal(false);
       onClose();
+      if (isPremium && onSuccess) {
+        onSuccess();
+      }
     }
   };
 
@@ -370,7 +376,8 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
   // Web: Show non-intrusive bubble, Mobile: Show full modal
   // If user clicks bubble, showFullModal becomes true and full modal appears
   // If forceFullModal is true (e.g., from PRO button), skip bubble and show full modal
-  if (isWeb && visible && !showFullModal && !forceFullModal) {
+  // Premium users never see the upgrade bubble.
+  if (isWeb && visible && !showFullModal && !forceFullModal && !isPremium) {
     return (
       <WebBubble
         visible={visible}
