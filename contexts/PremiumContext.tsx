@@ -82,13 +82,10 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
   const [isPremium, setIsPremium] = useState<boolean>(false);
   const [isPremiumCached, setIsPremiumCached] = useState<boolean>(false);
   const [premiumLoading, setPremiumLoading] = useState<boolean>(false);
-  // biome-ignore lint/correctness/noUnusedVariables: Setter is used, value kept for symmetry
-  const [lastChecked, setLastChecked] = useState<number>(0);
-  // biome-ignore lint/correctness/noUnusedVariables: Value is used in context, setter kept for symmetry
-  const [stripePaymentUrl, setStripePaymentUrl] = useState<string>(''); // Deprecated
   const [productInfo, setProductInfo] = useState<ProductInfo | null>(null);
-  // biome-ignore lint/correctness/noUnusedVariables: Setter is used, value kept for symmetry
-  const [isIapConnected, setIsIapConnected] = useState<boolean>(false);
+
+  // Deprecated - will be generated dynamically
+  const stripePaymentUrl = '';
 
   // Save premium status to secure storage
   const savePremiumStatus = useCallback(async (status: boolean, timestamp: number) => {
@@ -142,10 +139,8 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
 
           if (cachedStatus && cachedTimestamp) {
             const status = cachedStatus === 'true';
-            const timestamp = Number.parseInt(cachedTimestamp, 10);
 
             setIsPremium(status);
-            setLastChecked(timestamp);
             setIsPremiumCached(true);
           }
         } else {
@@ -155,10 +150,8 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
 
           if (cachedStatus && cachedTimestamp) {
             const status = cachedStatus === 'true';
-            const timestamp = Number.parseInt(cachedTimestamp, 10);
 
             setIsPremium(status);
-            setLastChecked(timestamp);
             setIsPremiumCached(true);
           }
 
@@ -170,7 +163,6 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
                 Purchases.configure({
                   apiKey: process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_KEY || '',
                 });
-                setIsIapConnected(true);
 
                 // Get the products
                 const products = await Purchases.getProducts([GOOGLE_PLAY_PRODUCT_ID]);
@@ -337,7 +329,6 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
       checkPremiumStatus,
       showPremiumPayment,
       premiumLoading,
-      stripePaymentUrl,
       isPremiumCached,
       productInfo,
     ]
