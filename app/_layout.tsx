@@ -6,7 +6,6 @@ import * as SplashScreen from 'expo-splash-screen';
 import { lazy, Suspense, useEffect } from 'react';
 import 'react-native-reanimated';
 import * as Linking from 'expo-linking';
-import { Platform, View } from 'react-native';
 import { AuthProvider, useProtectedRoute } from '../contexts/AuthContext';
 import { LanguageProvider } from '../contexts/LanguageContext';
 import { PostHogProvider } from '../contexts/PostHogContext';
@@ -29,9 +28,7 @@ const GoogleOneTapProvider = lazy(() =>
   )
 );
 
-// import { router } from 'expo-router'; // No longer directly needed here
-
-import { useColorScheme } from 'react-native';
+import { Platform, useColorScheme, View } from 'react-native';
 
 // Ultra-fast icon loading for web - preload critical icons as base64
 if (Platform.OS === 'web' && typeof document !== 'undefined') {
@@ -143,13 +140,13 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
     // Remove placeholders when React hydrates - use passive observer to avoid forced reflows
     const cleanupPlaceholders = () => {
       if (document.body.contains(preBottomBar)) {
-        document.body.removeChild(preBottomBar);
+        preBottomBar.remove();
       }
     };
 
     // Use requestIdleCallback for non-blocking cleanup, fallback to setTimeout
-    if ('requestIdleCallback' in window) {
-      (window as any).requestIdleCallback(cleanupPlaceholders, { timeout: 1000 });
+    if ('requestIdleCallback' in globalThis) {
+      (globalThis as any).requestIdleCallback(cleanupPlaceholders, { timeout: 1000 });
     } else {
       setTimeout(cleanupPlaceholders, 500);
     }

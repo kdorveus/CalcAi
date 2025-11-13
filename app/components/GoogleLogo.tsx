@@ -2,7 +2,7 @@ import { View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
 interface GoogleLogoProps {
-  size?: number;
+  readonly size?: number;
 }
 
 export default function GoogleLogo({ size = 24 }: GoogleLogoProps) {

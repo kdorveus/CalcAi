@@ -44,13 +44,6 @@ interface WebhookSettingsProps {
   visible: boolean;
   onClose: () => void;
   webhookUrls: WebhookItem[];
-  newWebhookUrl: string;
-  setNewWebhookUrl: (url: string) => void;
-  newWebhookTitle: string;
-  setNewWebhookTitle: (title: string) => void;
-  handleAddWebhook: () => void;
-  handleDeleteWebhook: (url: string) => void;
-  handleToggleWebhook: (url: string, active: boolean) => void;
   sendEquation: boolean;
   setSendEquation: (value: boolean) => void;
   streamResults: boolean;
@@ -69,8 +62,6 @@ interface WebhookSettingsProps {
   setVibrationEnabled?: (value: boolean) => void;
   openInCalcMode?: boolean;
   setOpenInCalcMode?: (value: boolean) => void;
-  historyEnabled?: boolean;
-  setHistoryEnabled?: (value: boolean) => void;
   continuousMode?: boolean;
   setContinuousMode?: (value: boolean) => void;
 }
@@ -107,7 +98,6 @@ const validateWebhookUrl = (url: string): string | null => {
     // Create URL object to validate and parse
     const parsedUrl = new URL(trimmedUrl);
 
-    // Check for valid protocol (extra safety)
     if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') return null;
 
     return trimmedUrl;
@@ -627,7 +617,6 @@ const WebhookSettings: React.FC<{
         ]}
         onPress={() => {
           if (!isPremium) {
-            // Premium modal will be shown
           } else if (/^https?:\/\//.test(localWebhookUrl.trim())) {
             handleAddWebhookLocal();
           }
@@ -874,7 +863,6 @@ export const WebhookSettingsComponentV2: React.FC<WebhookSettingsProps> = ({
   const premiumGate = usePremiumGate(checkPremiumStatus);
   const authHandlers = useAuthHandlers(signOut, signInWithGoogle);
 
-  // Auth error display
   useEffect(() => {
     if (authError) {
       Alert.alert(t('auth.authError'), authError);
@@ -885,9 +873,7 @@ export const WebhookSettingsComponentV2: React.FC<WebhookSettingsProps> = ({
     setOpenSection((prevOpenSection) => (prevOpenSection === sectionName ? null : sectionName));
   };
 
-  // Wrapped handlers using premium gate
   const handleToggleWebhook = (url: string, active: boolean) => {
-    // This would normally come from parent via props, but for v2 we handle it locally
     const updated = webhookManagement.localWebhookUrls.map((webhook) =>
       webhook.url === url ? { ...webhook, active } : webhook
     );

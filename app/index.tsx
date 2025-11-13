@@ -484,14 +484,13 @@ const MainScreen: React.FC = () => {
   // Normalize spoken math expressions
   const normalizeSpokenMath = useCallback(
     (text: string): string => {
+      if (text.length > 1000) {
+        return text.substring(0, 1000).toLowerCase();
+      }
       let normalized = text.toLowerCase();
       const compiled = compiledLanguageRegex;
       const patterns = compiled.patterns;
 
-      // CRITICAL FIX: Remove hyphens that are part of words (not mathematical operators)
-      // This fixes French phrases like "peut-tu me dire" being interpreted as "peut - tu me dire"
-      // Pattern: letter-letter → letterletter (removes hyphens between letters)
-      // This preserves actual minus operations like "5 - 3" or "10-2" (number-number)
       normalized = normalized.replace(
         /([a-zàáâãäåèéêëìíîïòóôõöùúûüýÿ])-([a-zàáâãäåèéêëìíîïòóôõöùúûüýÿ])/gi,
         '$1$2'
@@ -536,9 +535,6 @@ const MainScreen: React.FC = () => {
         normalized = normalized.replace(compiled.numberWordsRegex, (match) => numWords[match]);
       }
 
-      // IMPORTANT: Handle specific phrases BEFORE general replacements
-      // First, remove spaces and commas from numbers (speech recognition adds these)
-      // "1 000" → "1000", "10,000" → "10000"
       normalized = normalized.replace(/\b(\d{1,3})(?:[ \u00A0\u202F]\d{3})+\b/g, (m) =>
         m.replace(/[ \u00A0\u202F]/g, '')
       );
@@ -548,8 +544,6 @@ const MainScreen: React.FC = () => {
       // "3 fourths of 100" → "(3/4) * 100" = 75
       // "1 third of 90" → "(1/3) * 90" = 30
 
-      // Pattern 1: Direct fraction notation "1/200 of 2562"
-      // Optimized to prevent ReDoS: limit whitespace repetition
       normalized = normalized.replace(
         /(\d+)\s?\/\s?(\d+)\s+(?:of|de|di|von)\s+(\d+(?:\.\d+)?)/gi,
         '(($1/$2) * $3)'
@@ -654,9 +648,6 @@ const MainScreen: React.FC = () => {
         sechstel: 6,
       };
 
-      // Replace fraction phrases with division
-      // Matches: "3 fourths of 100", "1 third of 90", "1/200 of 2562"
-      // Optimized to prevent ReDoS: use bounded character class
       normalized = normalized.replace(
         /(\d+)\s+([a-zàáâãäåèéêëìíîïòóôõöùúûüýÿ]{2,20})\s+(?:of|de|di|von)\s+(\d+(?:\.\d+)?)/gi,
         (match, numerator, fractionWord, number) => {
@@ -674,11 +665,8 @@ const MainScreen: React.FC = () => {
       normalized = normalized.replace(/\b(\d{1,3})(?:,\d{3})+\b/g, (m) => m.replace(/,/g, ''));
       normalized = normalized.replace(/\b(\d+),(\d+)\b/g, '$1.$2');
 
-      // Advanced percentage handling BEFORE other replacements
-      // Pattern: "give me 15% of 10" or "what's 15% of 10" → "10 * 0.15"
-      // Optimized to prevent ReDoS: limit whitespace repetition
       normalized = normalized.replace(
-        /(\d+(?:[ \u00A0\u202F]*[.,][ \u00A0\u202F]*\d+)?)\s*%[\s\u00A0\u202F]+(?:of|de|di|von)[\s\u00A0\u202F]+(\d+(?:[ \u00A0\u202F]*[.,][ \u00A0\u202F]*\d+)?)(?:[\s\u00A0\u202F]*%)?/gi,
+        /(\d+(?:[ \u00A0\u202F]{0,10}[.,][ \u00A0\u202F]{0,10}\d+)?)\s*%[\s\u00A0\u202F]{1,20}(?:of|de|di|von)[\s\u00A0\u202F]{1,20}(\d+(?:[ \u00A0\u202F]{0,10}[.,][ \u00A0\u202F]{0,10}\d+)?)(?:[\s\u00A0\u202F]{0,10}%)?/gi,
         (_m, p1, p2) =>
           `(${String(p2)
             .replace(/[ \u00A0\u202F]/g, '')
@@ -687,10 +675,8 @@ const MainScreen: React.FC = () => {
             .replace(',', '.')} / 100)`
       );
 
-      // Pattern: "add 15% to 10" or "10 + 15%" → "10 + (10 * 0.15)" = "10 * 1.15"
-      // Optimized to prevent ReDoS: limit whitespace repetition
       normalized = normalized.replace(
-        /(?:add|ajouter|adicionar|hinzufügen|aggiungere)[\s\u00A0\u202F]+(\d+(?:[ \u00A0\u202F]*[.,][ \u00A0\u202F]*\d+)?)\s*%[\s\u00A0\u202F]+(?:to|à|a|zu)[\s\u00A0\u202F]+(\d+(?:[ \u00A0\u202F]*[.,][ \u00A0\u202F]*\d+)?)/gi,
+        /(?:add|ajouter|adicionar|hinzufügen|aggiungere)[\s\u00A0\u202F]{1,20}(\d+(?:[ \u00A0\u202F]{0,10}[.,][ \u00A0\u202F]{0,10}\d+)?)\s*%[\s\u00A0\u202F]{1,20}(?:to|à|a|zu)[\s\u00A0\u202F]{1,20}(\d+(?:[ \u00A0\u202F]{0,10}[.,][ \u00A0\u202F]{0,10}\d+)?)/gi,
         (_m, p1, p2) =>
           `(${String(p2)
             .replace(/[ \u00A0\u202F]/g, '')
@@ -699,7 +685,7 @@ const MainScreen: React.FC = () => {
             .replace(',', '.')} / 100))`
       );
       normalized = normalized.replace(
-        /(\d+(?:[ \u00A0\u202F]*[.,][ \u00A0\u202F]*\d+)?)\s*\+\s*(\d+(?:[ \u00A0\u202F]*[.,][ \u00A0\u202F]*\d+)?)\s*%/gi,
+        /(\d+(?:[ \u00A0\u202F]{0,10}[.,][ \u00A0\u202F]{0,10}\d+)?)\s*\+\s*(\d+(?:[ \u00A0\u202F]{0,10}[.,][ \u00A0\u202F]{0,10}\d+)?)\s*%/gi,
         (_m, base, pct) =>
           `(${String(base)
             .replace(/[ \u00A0\u202F]/g, '')
@@ -708,10 +694,15 @@ const MainScreen: React.FC = () => {
             .replace(',', '.')} / 100))`
       );
 
-      // Pattern: "subtract 15% from 10" or "10 - 15%" → "10 - (10 * 0.15)" = "10 * 0.85"
-      // Optimized to prevent ReDoS: limit whitespace repetition
+      const numberPattern = '\\d+(?:[ \\u00A0\\u202F]{0,10}[.,][ \\u00A0\\u202F]{0,10}\\d+)?';
+      const subtractWords = '(?:subtract|soustraire|subtrair|subtrahieren|sottrarre)';
+      const fromWords = '(?:from|de|von|da)';
+      const wsPattern = '[\\s\\u00A0\\u202F]{1,20}';
       normalized = normalized.replace(
-        /(?:subtract|soustraire|subtrair|subtrahieren|sottrarre)[\s\u00A0\u202F]+(\d+(?:[ \u00A0\u202F]*[.,][ \u00A0\u202F]*\d+)?)\s*%[\s\u00A0\u202F]+(?:from|de|von|da)[\s\u00A0\u202F]+(\d+(?:[ \u00A0\u202F]*[.,][ \u00A0\u202F]*\d+)?)/gi,
+        new RegExp(
+          `${subtractWords}${wsPattern}(${numberPattern})\\s*%${wsPattern}${fromWords}${wsPattern}(${numberPattern})`,
+          'gi'
+        ),
         (_m, p1, p2) =>
           `(${String(p2)
             .replace(/[ \u00A0\u202F]/g, '')
@@ -720,7 +711,7 @@ const MainScreen: React.FC = () => {
             .replace(',', '.')} / 100))`
       );
       normalized = normalized.replace(
-        /(\d+(?:[ \u00A0\u202F]*[.,][ \u00A0\u202F]*\d+)?)\s*-\s*(\d+(?:[ \u00A0\u202F]*[.,][ \u00A0\u202F]*\d+)?)\s*%/gi,
+        new RegExp(`(${numberPattern})\\s*-\\s*(${numberPattern})\\s*%`, 'gi'),
         (_m, base, pct) =>
           `(${String(base)
             .replace(/[ \u00A0\u202F]/g, '')
@@ -835,8 +826,7 @@ const MainScreen: React.FC = () => {
       // Allow trailing % interpreted as /100
       expression = expression.replace(/%/g, '/100');
 
-      // Sanitize for security: Allow only expected characters
-      const allowedChars = /^[\d+\-*/.()^\s/e\s q r t]+$/; // Added space, e, q, r, t for sqrt
+      const allowedChars = /^[\d+\-*/.()^\s/eqrt]+$/;
       if (!allowedChars.test(expression)) {
         // console.error('Invalid characters detected in expression:', expression);
         // Optionally show an error message to the user
@@ -1429,7 +1419,6 @@ const MainScreen: React.FC = () => {
     (transcript: string, source: 'web' | 'native') => {
       if (!transcript.trim()) return;
 
-      // Prevent duplicate processing in continuous mode
       if (source === 'web' && speechRecognition.lastProcessedTranscriptRef.current === transcript) {
         return;
       }
@@ -1442,8 +1431,6 @@ const MainScreen: React.FC = () => {
         processedEquation = processedEquation.trim();
         processedEquation = processedEquation.replace(/[+\-*/%=.,\s]+$/g, '').trim();
 
-        // Natural language: "what's X% of that" or "X percent of that" applies to last result
-        // Optimized to prevent ReDoS: limit optional groups and whitespace
         const percentOfThatPattern = PERCENT_OF_THAT_PATTERN;
         const percentMatch = transcript.match(percentOfThatPattern);
         if (percentMatch && lastResultRef.current !== null) {

@@ -47,7 +47,7 @@ export default function AuthCallbackScreen() {
           await AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(verifiedUser));
 
           if (Platform.OS === 'web') {
-            window.location.href = '/';
+            globalThis.window.location.href = '/';
           } else {
             router.replace('/');
           }
