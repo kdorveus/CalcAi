@@ -5,7 +5,7 @@
  */
 
 import type React from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
 import { GOOGLE_CLIENT_ID } from '../constants/Config';
 import { useAuth } from '../contexts/AuthContext';
@@ -13,7 +13,6 @@ import { useGoogleOneTap } from '../hooks/useGoogleOneTap';
 
 export const GoogleOneTapProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, signInWithGoogleOneTap } = useAuth();
-  const [hasPrompted, setHasPrompted] = useState(false);
   const hasPromptedRef = useRef(false);
 
   const { isInitialized, prompt } = useGoogleOneTap({
@@ -54,7 +53,6 @@ export const GoogleOneTapProvider: React.FC<{ children: React.ReactNode }> = ({ 
       // Prompt immediately - the hook already handles async loading
       prompt();
       hasPromptedRef.current = true;
-      setHasPrompted(true);
     }
   }, [isInitialized, user, prompt]);
 
