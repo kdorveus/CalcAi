@@ -174,27 +174,31 @@ const MainScreen: React.FC = () => {
   }, []);
 
   // Function to stop all speech and update mute state
-  const toggleSpeechMute = useCallback(() => {
-    const newMuteState = !speechMutedRef.current;
-    speechMutedRef.current = newMuteState;
-    setIsSpeechMuted(newMuteState); // Update state for UI
+  const toggleSpeechMute = useCallback(
+    (newMuteState?: boolean) => {
+      // If newMuteState is provided, use it; otherwise toggle
+      const finalMuteState = newMuteState ?? !speechMutedRef.current;
+      speechMutedRef.current = finalMuteState;
+      setIsSpeechMuted(finalMuteState); // Update state for UI
 
-    if (Platform.OS === 'android') {
-      ToastAndroid.show(
-        newMuteState ? t('mainApp.voiceMuted') : t('mainApp.voiceUnmuted'),
-        ToastAndroid.SHORT
-      );
-    }
-
-    // Stop any ongoing speech when muted
-    if (newMuteState) {
-      if (Platform.OS === 'web') {
-        globalThis.window?.speechSynthesis?.cancel();
-      } else {
-        Speech.stop();
+      if (Platform.OS === 'android') {
+        ToastAndroid.show(
+          finalMuteState ? t('mainApp.voiceMuted') : t('mainApp.voiceUnmuted'),
+          ToastAndroid.SHORT
+        );
       }
-    }
-  }, [t]);
+
+      // Stop any ongoing speech when muted
+      if (finalMuteState) {
+        if (Platform.OS === 'web') {
+          globalThis.window?.speechSynthesis?.cancel();
+        } else {
+          Speech.stop();
+        }
+      }
+    },
+    [t]
+  );
 
   // --- Settings State ---
   const [enterKeyNewLine, setEnterKeyNewLine] = useState<boolean>(false);
