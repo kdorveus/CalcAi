@@ -209,7 +209,7 @@ const MainScreen: React.FC = () => {
       !webhookManager.streamResults &&
       webhookManager.bulkData.length > 0
     ) {
-      setIsUnsentDataModalVisible(true);
+      // Unsent data detected - user can see it in settings
     }
   }, [
     webhookManager.webhookSettingsLoaded,
@@ -243,77 +243,6 @@ const MainScreen: React.FC = () => {
     // Start initialization immediately after component mounts
     speechRecognition.initializeSpeech();
   }, [speechRecognition]);
-
-  const INACTIVITY_TIMEOUT_MS = 5000;
-
-  // Refs for inactivity detection
-  const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const hasShownBubbleThisVisit = useRef(false);
-  const isAppLoadedRef = useRef(false);
-
-  const clearInactivityTimer = useCallback(() => {
-    if (inactivityTimerRef.current) {
-      clearTimeout(inactivityTimerRef.current);
-      inactivityTimerRef.current = null;
-    }
-  }, []);
-
-  // Mark app as loaded after component mounts (no delay, just after mount)
-  useEffect(() => {
-    isAppLoadedRef.current = true;
-  }, []);
-
-  // Consolidated inactivity detection: auto-show premium modal after 5 seconds of inactivity
-  useEffect(() => {
-    // Only show once per visit (page load)
-    if (hasShownBubbleThisVisit.current) {
-      clearInactivityTimer();
-      return;
-    }
-
-    // Don't show if modal is already visible or app not loaded yet
-    if (showPremiumModal || !isAppLoadedRef.current) {
-      clearInactivityTimer();
-      return;
-    }
-
-    // Clear any existing timer before setting up new one
-    clearInactivityTimer();
-
-    // Check if user is active (recording, typing, or listening)
-    const isActive = isRecording || keypadInput.length > 0 || interimTranscript.length > 0;
-
-    if (isActive) {
-      // User is active, don't start timer
-      return;
-    }
-
-    // User is inactive and app is loaded, start timer immediately
-    inactivityTimerRef.current = setTimeout(() => {
-      // Final check before showing modal
-      const finalCheck =
-        isAppLoadedRef.current &&
-        !hasShownBubbleThisVisit.current &&
-        !showPremiumModal &&
-        !isRecording &&
-        keypadInput.length === 0 &&
-        interimTranscript.length === 0;
-
-      if (finalCheck) {
-        hasShownBubbleThisVisit.current = true;
-        setShowPremiumModal(true);
-      }
-      inactivityTimerRef.current = null;
-    }, INACTIVITY_TIMEOUT_MS);
-
-    return clearInactivityTimer;
-  }, [
-    isRecording,
-    keypadInput.length,
-    interimTranscript.length,
-    showPremiumModal,
-    clearInactivityTimer,
-  ]);
 
   // Initialize and cache the Google female voice on component mount (Web only)
   useEffect(() => {
@@ -1001,7 +930,7 @@ const MainScreen: React.FC = () => {
     scrollTimerRef.current = setTimeout(() => {
       flatListRef.current?.scrollToEnd({ animated: true });
       scrollTimerRef.current = null;
-    }, delay);
+    }, delay) as unknown as NodeJS.Timeout;
   }, []);
 
   // Cleanup scroll timer on unmount
@@ -1576,9 +1505,6 @@ const MainScreen: React.FC = () => {
   // --- Component Lifecycle & Effects ---
 
   // --- Webhook Logic Handlers ---
-  const handleAddWebhook = webhookManager.handleAddWebhook;
-  const handleDeleteWebhook = webhookManager.handleDeleteWebhook;
-  const handleToggleWebhook = webhookManager.handleToggleWebhook;
   const handleSendBulkData = webhookManager.handleSendBulkData;
 
   // Show header controls unless keypad is shown
@@ -1712,13 +1638,6 @@ const MainScreen: React.FC = () => {
             visible={isSettingsModalVisible}
             onClose={() => setIsSettingsModalVisible(false)}
             webhookUrls={webhookManager.webhookUrls}
-            newWebhookUrl={webhookManager.newWebhookUrl}
-            setNewWebhookUrl={webhookManager.setNewWebhookUrl}
-            newWebhookTitle={webhookManager.newWebhookTitle}
-            setNewWebhookTitle={webhookManager.setNewWebhookTitle}
-            handleAddWebhook={handleAddWebhook}
-            handleDeleteWebhook={handleDeleteWebhook}
-            handleToggleWebhook={handleToggleWebhook}
             sendEquation={webhookManager.sendEquation}
             setSendEquation={webhookManager.setSendEquation}
             streamResults={webhookManager.streamResults}
@@ -1739,8 +1658,6 @@ const MainScreen: React.FC = () => {
             setVibrationEnabled={setVibrationEnabled}
             openInCalcMode={openInCalcMode}
             setOpenInCalcMode={setOpenInCalcMode}
-            historyEnabled={historyEnabled}
-            setHistoryEnabled={setHistoryEnabled}
             continuousMode={continuousMode}
             setContinuousMode={setContinuousMode}
           />
