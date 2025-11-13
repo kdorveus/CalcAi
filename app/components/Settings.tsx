@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
-import { router } from 'expo-router'; // Keep commented if not needed for direct nav
+import { router } from 'expo-router';
 import type React from 'react';
 import { useEffect, useState } from 'react';
 import {
@@ -323,15 +323,12 @@ const usePremiumGate = (checkPremiumStatus: () => Promise<boolean>) => {
   const [lastAttemptedAction, setLastAttemptedAction] = useState<(() => void) | null>(null);
 
   const requirePremium = async (action: () => void) => {
-    // Check if user has premium
     const hasPremium = await checkPremiumStatus();
     if (!hasPremium) {
       setLastAttemptedAction(() => action);
       setShowPremiumModal(true);
       return;
     }
-
-    // User has premium, execute the action
     action();
   };
 
@@ -377,7 +374,6 @@ const useAuthHandlers = (
   };
 };
 
-// Extracted sub-components
 const GeneralSettings: React.FC<{
   t: (key: string) => string;
   requirePremium: (action: () => void) => Promise<void>;
@@ -421,15 +417,16 @@ const GeneralSettings: React.FC<{
     </Text>
     <TouchableOpacity
       style={styles.settingRowCompact}
-      onPress={() => toggleSpeechMute?.()}
+      onPress={() => requirePremium(() => toggleSpeechMute?.())}
       activeOpacity={0.7}
     >
       <Text style={styles.settingLabel}>{t('settings.general.muteVoiceOutput')}</Text>
       <Switch
         value={isSpeechMuted}
-        onValueChange={() => toggleSpeechMute?.()}
+        onValueChange={() => requirePremium(() => toggleSpeechMute?.())}
         trackColor={{ false: '#333', true: '#0066cc' }}
         thumbColor={isSpeechMuted ? '#0066cc' : '#f4f3f4'}
+        disabled={loading}
       />
     </TouchableOpacity>
     <TouchableOpacity
@@ -449,44 +446,47 @@ const GeneralSettings: React.FC<{
     </TouchableOpacity>
     <TouchableOpacity
       style={styles.settingRowCompact}
-      onPress={() => setEnterKeyNewLine?.(!enterKeyNewLine)}
+      onPress={() => requirePremium(() => setEnterKeyNewLine?.(!enterKeyNewLine))}
       activeOpacity={0.7}
     >
       <Text style={styles.settingLabel}>{t('settings.general.newLineOnSend')}</Text>
       <Switch
         value={enterKeyNewLine}
-        onValueChange={(v) => setEnterKeyNewLine?.(v)}
+        onValueChange={(v) => requirePremium(() => setEnterKeyNewLine?.(v))}
         trackColor={{ false: '#333', true: '#0066cc' }}
         thumbColor={enterKeyNewLine ? '#0066cc' : '#f4f3f4'}
+        disabled={loading}
       />
     </TouchableOpacity>
     {Platform.OS !== 'web' && (
       <TouchableOpacity
         style={styles.settingRowCompact}
-        onPress={() => setVibrationEnabled?.(!vibrationEnabled)}
+        onPress={() => requirePremium(() => setVibrationEnabled?.(!vibrationEnabled))}
         activeOpacity={0.7}
       >
         <Text style={styles.settingLabel}>{t('settings.general.enableVibration')}</Text>
         <Switch
           value={vibrationEnabled}
-          onValueChange={(v) => setVibrationEnabled?.(v)}
+          onValueChange={(v) => requirePremium(() => setVibrationEnabled?.(v))}
           trackColor={{ false: '#333', true: '#0066cc' }}
           thumbColor={vibrationEnabled ? '#0066cc' : '#f4f3f4'}
+          disabled={loading}
         />
       </TouchableOpacity>
     )}
     {Platform.OS !== 'web' && (
       <TouchableOpacity
         style={styles.settingRowCompact}
-        onPress={() => setOpenInCalcMode?.(!openInCalcMode)}
+        onPress={() => requirePremium(() => setOpenInCalcMode?.(!openInCalcMode))}
         activeOpacity={0.7}
       >
         <Text style={styles.settingLabel}>{t('settings.general.openInCalcMode')}</Text>
         <Switch
           value={openInCalcMode}
-          onValueChange={(v) => setOpenInCalcMode?.(v)}
+          onValueChange={(v) => requirePremium(() => setOpenInCalcMode?.(v))}
           trackColor={{ false: '#333', true: '#0066cc' }}
           thumbColor={openInCalcMode ? '#0066cc' : '#f4f3f4'}
+          disabled={loading}
         />
       </TouchableOpacity>
     )}
@@ -504,7 +504,7 @@ const GeneralSettings: React.FC<{
     </View>
     <TouchableOpacity
       style={styles.settingRowCompact}
-      onPress={() => requirePremium(() => {})}
+      onPress={() => requirePremium(() => setSendEquation(!sendEquation))}
       activeOpacity={0.7}
     >
       <Text style={styles.settingLabel}>{t('settings.general.sendAnswerWithoutEquation')}</Text>
@@ -513,11 +513,12 @@ const GeneralSettings: React.FC<{
         onValueChange={(v) => requirePremium(() => setSendEquation(!v))}
         trackColor={{ false: '#333', true: '#0066cc' }}
         thumbColor={!sendEquation ? '#0066cc' : '#f4f3f4'}
+        disabled={loading}
       />
     </TouchableOpacity>
     <TouchableOpacity
       style={styles.settingRowCompact}
-      onPress={() => requirePremium(() => {})}
+      onPress={() => requirePremium(() => setStreamResults(!streamResults))}
       activeOpacity={0.7}
     >
       <Text style={styles.settingLabel}>{t('settings.general.queueResultsForManualSending')}</Text>
@@ -526,6 +527,7 @@ const GeneralSettings: React.FC<{
         onValueChange={(v) => requirePremium(() => setStreamResults(!v))}
         trackColor={{ false: '#333', true: '#0066cc' }}
         thumbColor={!streamResults ? '#0066cc' : '#f4f3f4'}
+        disabled={loading}
       />
     </TouchableOpacity>
   </View>
@@ -634,7 +636,7 @@ const WebhookSettings: React.FC<{
         {!isPremium ? (
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <AppIcon name="crown" size={16} color="#fff" style={{ marginRight: 6 }} />
-            <Text style={styles.addButtonText}>{t('common.pro')}</Text>
+            <Text style={styles.addButtonText}>PREMIUM</Text>
           </View>
         ) : (
           <Text style={styles.addButtonText}>{t('settings.webhooks.add')}</Text>
@@ -951,7 +953,6 @@ export const WebhookSettingsComponentV2: React.FC<WebhookSettingsProps> = ({
           setWebhookUrls(updatedWebhooks);
         }
 
-        // Save to AsyncStorage (no console logs)
         AsyncStorage.setItem('webhookUrls', JSON.stringify(updatedWebhooks)).catch(() => {});
 
         // Clear input fields
@@ -978,22 +979,28 @@ export const WebhookSettingsComponentV2: React.FC<WebhookSettingsProps> = ({
             style={{
               flexDirection: 'row',
               alignItems: 'center',
+              justifyContent: 'space-between',
               paddingVertical: 8,
               paddingHorizontal: 4,
             }}
             onPress={() => handleToggleSection('general')}
             activeOpacity={1}
           >
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <AppIcon name="cog" size={20} color="#888" style={{ marginRight: 8 }} />
-              <Text style={styles.subHeader}>{t('settings.general.title')}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <AppIcon name="cog" size={20} color="#888" />
+              <Text
+                style={[
+                  styles.subHeader,
+                  { marginLeft: 0, marginBottom: 0, lineHeight: 20, fontWeight: '400' },
+                ]}
+              >
+                {t('settings.general.title')}
+              </Text>
             </View>
-            <View style={{ flex: 1 }} />
             <AppIcon
               name={openSection === 'general' ? 'chevron-up' : 'chevron-down'}
               size={24}
               color="#fff"
-              style={{ marginLeft: 8 }}
             />
           </TouchableOpacity>
           {openSection === 'general' && (
@@ -1031,22 +1038,28 @@ export const WebhookSettingsComponentV2: React.FC<WebhookSettingsProps> = ({
             style={{
               flexDirection: 'row',
               alignItems: 'center',
+              justifyContent: 'space-between',
               paddingVertical: 8,
               paddingHorizontal: 4,
             }}
             onPress={() => handleToggleSection('language')}
             activeOpacity={1}
           >
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <AppIcon name="language" size={20} color="#888" style={{ marginRight: 8 }} />
-              <Text style={styles.subHeader}>{t('settings.language.title')}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <AppIcon name="language" size={20} color="#888" />
+              <Text
+                style={[
+                  styles.subHeader,
+                  { marginLeft: 0, marginBottom: 0, lineHeight: 20, fontWeight: '400' },
+                ]}
+              >
+                {t('settings.language.title')}
+              </Text>
             </View>
-            <View style={{ flex: 1 }} />
             <AppIcon
               name={openSection === 'language' ? 'chevron-up' : 'chevron-down'}
               size={24}
               color="#fff"
-              style={{ marginLeft: 8 }}
             />
           </TouchableOpacity>
           {openSection === 'language' && (
@@ -1066,22 +1079,28 @@ export const WebhookSettingsComponentV2: React.FC<WebhookSettingsProps> = ({
             style={{
               flexDirection: 'row',
               alignItems: 'center',
+              justifyContent: 'space-between',
               paddingVertical: 8,
               paddingHorizontal: 4,
             }}
             onPress={() => handleToggleSection('webhooks')}
             activeOpacity={1}
           >
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <AppIcon name="webhook" size={20} color="#888" style={{ marginRight: 8 }} />
-              <Text style={styles.subHeader}>{t('settings.webhooks.title')}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <AppIcon name="webhook" size={20} color="#888" />
+              <Text
+                style={[
+                  styles.subHeader,
+                  { marginLeft: 0, marginBottom: 0, lineHeight: 20, fontWeight: '400' },
+                ]}
+              >
+                {t('settings.webhooks.title')}
+              </Text>
             </View>
-            <View style={{ flex: 1 }} />
             <AppIcon
               name={openSection === 'webhooks' ? 'chevron-up' : 'chevron-down'}
               size={24}
               color="#fff"
-              style={{ marginLeft: 8 }}
             />
           </TouchableOpacity>
 
@@ -1336,7 +1355,7 @@ export const WebhookSettingsComponentV2: React.FC<WebhookSettingsProps> = ({
               >
                 <AppIcon name="crown-outline" size={22} color="#ff9500" />
                 <Text style={{ color: '#ff9500', fontWeight: 'bold', fontSize: 14, marginLeft: 4 }}>
-                  {t('common.pro')}
+                  PREMIUM
                 </Text>
               </TouchableOpacity>
             ) : (
@@ -1350,6 +1369,7 @@ export const WebhookSettingsComponentV2: React.FC<WebhookSettingsProps> = ({
       <PremiumPaymentModal
         visible={premiumGate.showPremiumModal}
         onClose={() => premiumGate.setShowPremiumModal(false)}
+        forceFullModal={true}
         onSuccess={() => {
           premiumGate.setShowPremiumModal(false);
           if (premiumGate.lastAttemptedAction) {
@@ -1427,8 +1447,6 @@ const styles = StyleSheet.create({
   header: {
     paddingVertical: 16,
     paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#333',
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -1456,7 +1474,7 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 22,
-    fontWeight: 'bold',
+    fontWeight: '400',
     color: '#fff',
     textAlign: 'center',
     fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'sans-serif',
@@ -1985,8 +2003,6 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     paddingHorizontal: 16,
     paddingVertical: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#333',
     backgroundColor: '#121212',
   },
   legalLinkText: {
@@ -2052,6 +2068,7 @@ const styles = StyleSheet.create({
   languageName: {
     fontSize: 16,
     color: '#fff',
+    fontWeight: '400',
     fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'sans-serif',
   },
   languageEnglishName: {

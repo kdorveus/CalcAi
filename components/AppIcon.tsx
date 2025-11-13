@@ -13,7 +13,6 @@ import CogIcon from '../assets/icons/cog.svg';
 // Crown icon is now defined inline for better performance
 import DeleteIcon from '../assets/icons/delete.svg';
 import HistoryIcon from '../assets/icons/history.svg';
-import LanguageIcon from '../assets/icons/language.svg';
 import LogoutIcon from '../assets/icons/logout.svg';
 // Import all SVG icons
 import MicrophoneIcon from '../assets/icons/microphone.svg';
@@ -84,6 +83,54 @@ const RefreshCcwIcon = (props: SvgProps) => (
   </Svg>
 );
 
+const AudioLinesIcon = (props: SvgProps) => {
+  const { width = 24, height = 24, color = 'currentColor', ...rest } = props;
+  return (
+    <Svg
+      viewBox="0 0 24 24"
+      width={width}
+      height={height}
+      fill="none"
+      stroke={color}
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      {...rest}
+    >
+      <Path d="M2 10v3" />
+      <Path d="M6 6v11" />
+      <Path d="M10 3v18" />
+      <Path d="M14 8v7" />
+      <Path d="M18 5v13" />
+      <Path d="M22 10v3" />
+    </Svg>
+  );
+};
+
+const LanguagesIcon = (props: SvgProps) => {
+  const { width = 24, height = 24, fill = 'currentColor', ...rest } = props;
+  return (
+    <Svg
+      viewBox="0 0 24 24"
+      width={width}
+      height={height}
+      fill="none"
+      stroke={fill}
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      {...rest}
+    >
+      <Path d="m5 8 6 6" />
+      <Path d="m4 14 6-6 2-3" />
+      <Path d="M2 5h12" />
+      <Path d="M7 2h1" />
+      <Path d="m22 22-5-10-5 10" />
+      <Path d="M14 18h6" />
+    </Svg>
+  );
+};
+
 // Map icon names to their components
 const iconMap: Record<string, React.FC<SvgProps>> = {
   webhook: WebhookIcon,
@@ -111,7 +158,8 @@ const iconMap: Record<string, React.FC<SvgProps>> = {
   backspace: BackspaceIcon,
   refresh: RefreshIcon,
   'refresh-ccw': RefreshCcwIcon,
-  language: LanguageIcon,
+  language: LanguagesIcon,
+  'audio-lines': AudioLinesIcon,
 };
 
 // Define props for our AppIcon component

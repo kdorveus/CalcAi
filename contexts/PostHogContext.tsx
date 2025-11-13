@@ -97,9 +97,9 @@ export const PostHogProvider: React.FC<{ children: React.ReactNode }> = ({ child
       window.addEventListener('load', initPostHog, { once: true });
       return () => window.removeEventListener('load', initPostHog);
     } else {
-      // Mobile: defer by 1 second
-      const timer = setTimeout(initPostHog, 1000);
-      return () => clearTimeout(timer);
+      // Mobile: initialize immediately after mount (no delay)
+      initPostHog();
+      return () => {};
     }
   }, [processQueue]);
 

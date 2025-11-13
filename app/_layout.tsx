@@ -128,17 +128,8 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
       }
     `;
 
-    // Insert critical CSS after Material Icons
-    if (document.getElementById('critical-material-icons')) {
-      const materialIconsElement = document.getElementById('critical-material-icons');
-      if (materialIconsElement) {
-        materialIconsElement.after(criticalCss);
-      } else {
-        document.head.appendChild(criticalCss);
-      }
-    } else {
-      document.head.appendChild(criticalCss);
-    }
+    // Insert critical CSS into document head
+    document.head.appendChild(criticalCss);
 
     // Pre-render the bottom bar structure for immediate display
     const preBottomBar = document.createElement('div');

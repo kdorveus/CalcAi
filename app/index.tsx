@@ -36,12 +36,17 @@ import { useCalculationHistory } from '../contexts/CalculationHistoryContext';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useTranslation } from '../hooks/useTranslation';
 import { useWebhookManager } from '../hooks/useWebhookManager';
-const PERCENT_OF_THAT_PATTERN = /(?:what'?s|whats|calculate|find|get)?\s{0,3}(\d+(?:\.\d+)?)\s{0,3}(?:percent|%|percentage)\s{0,3}(?:of)?\s{0,3}(?:that|it|the last|previous|result)/i;
+
+const PERCENT_OF_THAT_PATTERN =
+  /(?:what'?s|whats|calculate|find|get)?\s{0,3}(\d+(?:\.\d+)?)\s{0,3}(?:percent|%|percentage)\s{0,3}(?:of)?\s{0,3}(?:that|it|the last|previous|result)/i;
 
 // Lazy load non-critical modals to reduce initial bundle size
 const Settings = lazy(() => import(/* webpackChunkName: "settings" */ './components/Settings'));
 const HistoryModal = lazy(
   () => import(/* webpackChunkName: "history-modal" */ '../components/HistoryModal')
+);
+const PremiumPaymentModal = lazy(
+  () => import(/* webpackChunkName: "premium-modal" */ '../components/PremiumPaymentModal')
 );
 
 // (Removed unused asset preload hook to avoid dead code)
@@ -166,6 +171,7 @@ const MainScreen: React.FC = () => {
   const [openInCalcMode, setOpenInCalcMode] = useState(false); // State for calculator mode
   const [showHistoryModal, setShowHistoryModal] = useState(false); // State for history modal
   const [historyEnabled, setHistoryEnabled] = useState(true); // State for history toggle
+  const [showPremiumModal, setShowPremiumModal] = useState(false); // State for premium modal
 
   // Keypad buttons
   const [vibrationEnabled, setVibrationEnabled] = useState(true); // Add vibration state
@@ -249,6 +255,80 @@ const MainScreen: React.FC = () => {
     // Start initialization immediately after component mounts
     speechRecognition.initializeSpeech();
   }, [speechRecognition]);
+
+  // Inactivity detection constants
+  const INACTIVITY_TIMEOUT_MS = 5000;
+
+  // Refs for inactivity detection
+  const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const hasShownBubbleThisVisit = useRef(false);
+  const isAppLoadedRef = useRef(false);
+
+  // Helper function to clear inactivity timer
+  const clearInactivityTimer = useCallback(() => {
+    if (inactivityTimerRef.current) {
+      clearTimeout(inactivityTimerRef.current);
+      inactivityTimerRef.current = null;
+    }
+  }, []);
+
+  // Mark app as loaded after component mounts (no delay, just after mount)
+  useEffect(() => {
+    isAppLoadedRef.current = true;
+  }, []);
+
+  // Consolidated inactivity detection: auto-show premium modal after 5 seconds of inactivity
+  useEffect(() => {
+    // Only show once per visit (page load)
+    if (hasShownBubbleThisVisit.current) {
+      clearInactivityTimer();
+      return;
+    }
+
+    // Don't show if modal is already visible or app not loaded yet
+    if (showPremiumModal || !isAppLoadedRef.current) {
+      clearInactivityTimer();
+      return;
+    }
+
+    // Clear any existing timer before setting up new one
+    clearInactivityTimer();
+
+    // Check if user is active (recording, typing, or listening)
+    const isActive = isRecording || keypadInput.length > 0 || interimTranscript.length > 0;
+
+    if (isActive) {
+      // User is active, don't start timer
+      return;
+    }
+
+    // User is inactive and app is loaded, start timer immediately
+    inactivityTimerRef.current = setTimeout(() => {
+      // Final check before showing modal
+      const finalCheck =
+        isAppLoadedRef.current &&
+        !hasShownBubbleThisVisit.current &&
+        !showPremiumModal &&
+        !isRecording &&
+        keypadInput.length === 0 &&
+        interimTranscript.length === 0;
+
+      if (finalCheck) {
+        hasShownBubbleThisVisit.current = true;
+        setShowPremiumModal(true);
+      }
+      inactivityTimerRef.current = null;
+    }, INACTIVITY_TIMEOUT_MS);
+
+    // Cleanup function
+    return clearInactivityTimer;
+  }, [
+    isRecording,
+    keypadInput.length,
+    interimTranscript.length,
+    showPremiumModal,
+    clearInactivityTimer,
+  ]);
 
   // Initialize and cache the Google female voice on component mount (Web only)
   useEffect(() => {
@@ -459,7 +539,9 @@ const MainScreen: React.FC = () => {
       // IMPORTANT: Handle specific phrases BEFORE general replacements
       // First, remove spaces and commas from numbers (speech recognition adds these)
       // "1 000" → "1000", "10,000" → "10000"
-      normalized = normalized.replace(/\b(\d{1,3})(?:[ \u00A0\u202F]\d{3})+\b/g, (m) => m.replace(/[ \u00A0\u202F]/g, ''));
+      normalized = normalized.replace(/\b(\d{1,3})(?:[ \u00A0\u202F]\d{3})+\b/g, (m) =>
+        m.replace(/[ \u00A0\u202F]/g, '')
+      );
 
       // BULLETPROOF fraction logic - works for ANY fraction
       // "1/200 of 2562" → "(1/200) * 2562" = 12.81
@@ -596,30 +678,55 @@ const MainScreen: React.FC = () => {
       // Pattern: "give me 15% of 10" or "what's 15% of 10" → "10 * 0.15"
       // Optimized to prevent ReDoS: limit whitespace repetition
       normalized = normalized.replace(
-        /(\d+(?:[ \u00A0\u202F]*[\.,][ \u00A0\u202F]*\d+)?)\s*%[\s\u00A0\u202F]+(?:of|de|di|von)[\s\u00A0\u202F]+(\d+(?:[ \u00A0\u202F]*[\.,][ \u00A0\u202F]*\d+)?)(?:[\s\u00A0\u202F]*%)?/gi,
-        (_m, p1, p2) => `(${String(p2).replace(/[ \u00A0\u202F]/g, '').replace(',', '.')} * ${String(p1).replace(/[ \u00A0\u202F]/g, '').replace(',', '.')} / 100)`
+        /(\d+(?:[ \u00A0\u202F]*[.,][ \u00A0\u202F]*\d+)?)\s*%[\s\u00A0\u202F]+(?:of|de|di|von)[\s\u00A0\u202F]+(\d+(?:[ \u00A0\u202F]*[.,][ \u00A0\u202F]*\d+)?)(?:[\s\u00A0\u202F]*%)?/gi,
+        (_m, p1, p2) =>
+          `(${String(p2)
+            .replace(/[ \u00A0\u202F]/g, '')
+            .replace(',', '.')} * ${String(p1)
+            .replace(/[ \u00A0\u202F]/g, '')
+            .replace(',', '.')} / 100)`
       );
 
       // Pattern: "add 15% to 10" or "10 + 15%" → "10 + (10 * 0.15)" = "10 * 1.15"
       // Optimized to prevent ReDoS: limit whitespace repetition
       normalized = normalized.replace(
-        /(?:add|ajouter|adicionar|hinzufügen|aggiungere)[\s\u00A0\u202F]+(\d+(?:[ \u00A0\u202F]*[\.,][ \u00A0\u202F]*\d+)?)\s*%[\s\u00A0\u202F]+(?:to|à|a|zu)[\s\u00A0\u202F]+(\d+(?:[ \u00A0\u202F]*[\.,][ \u00A0\u202F]*\d+)?)/gi,
-        (_m, p1, p2) => `(${String(p2).replace(/[ \u00A0\u202F]/g, '').replace(',', '.')} * (1 + ${String(p1).replace(/[ \u00A0\u202F]/g, '').replace(',', '.')} / 100))`
+        /(?:add|ajouter|adicionar|hinzufügen|aggiungere)[\s\u00A0\u202F]+(\d+(?:[ \u00A0\u202F]*[.,][ \u00A0\u202F]*\d+)?)\s*%[\s\u00A0\u202F]+(?:to|à|a|zu)[\s\u00A0\u202F]+(\d+(?:[ \u00A0\u202F]*[.,][ \u00A0\u202F]*\d+)?)/gi,
+        (_m, p1, p2) =>
+          `(${String(p2)
+            .replace(/[ \u00A0\u202F]/g, '')
+            .replace(',', '.')} * (1 + ${String(p1)
+            .replace(/[ \u00A0\u202F]/g, '')
+            .replace(',', '.')} / 100))`
       );
       normalized = normalized.replace(
-        /(\d+(?:[ \u00A0\u202F]*[\.,][ \u00A0\u202F]*\d+)?)\s*\+\s*(\d+(?:[ \u00A0\u202F]*[\.,][ \u00A0\u202F]*\d+)?)\s*%/gi,
-        (_m, base, pct) => `(${String(base).replace(/[ \u00A0\u202F]/g, '').replace(',', '.')} * (1 + ${String(pct).replace(/[ \u00A0\u202F]/g, '').replace(',', '.')} / 100))`
+        /(\d+(?:[ \u00A0\u202F]*[.,][ \u00A0\u202F]*\d+)?)\s*\+\s*(\d+(?:[ \u00A0\u202F]*[.,][ \u00A0\u202F]*\d+)?)\s*%/gi,
+        (_m, base, pct) =>
+          `(${String(base)
+            .replace(/[ \u00A0\u202F]/g, '')
+            .replace(',', '.')} * (1 + ${String(pct)
+            .replace(/[ \u00A0\u202F]/g, '')
+            .replace(',', '.')} / 100))`
       );
 
       // Pattern: "subtract 15% from 10" or "10 - 15%" → "10 - (10 * 0.15)" = "10 * 0.85"
       // Optimized to prevent ReDoS: limit whitespace repetition
       normalized = normalized.replace(
-        /(?:subtract|soustraire|subtrair|subtrahieren|sottrarre)[\s\u00A0\u202F]+(\d+(?:[ \u00A0\u202F]*[\.,][ \u00A0\u202F]*\d+)?)\s*%[\s\u00A0\u202F]+(?:from|de|von|da)[\s\u00A0\u202F]+(\d+(?:[ \u00A0\u202F]*[\.,][ \u00A0\u202F]*\d+)?)/gi,
-        (_m, p1, p2) => `(${String(p2).replace(/[ \u00A0\u202F]/g, '').replace(',', '.')} * (1 - ${String(p1).replace(/[ \u00A0\u202F]/g, '').replace(',', '.')} / 100))`
+        /(?:subtract|soustraire|subtrair|subtrahieren|sottrarre)[\s\u00A0\u202F]+(\d+(?:[ \u00A0\u202F]*[.,][ \u00A0\u202F]*\d+)?)\s*%[\s\u00A0\u202F]+(?:from|de|von|da)[\s\u00A0\u202F]+(\d+(?:[ \u00A0\u202F]*[.,][ \u00A0\u202F]*\d+)?)/gi,
+        (_m, p1, p2) =>
+          `(${String(p2)
+            .replace(/[ \u00A0\u202F]/g, '')
+            .replace(',', '.')} * (1 - ${String(p1)
+            .replace(/[ \u00A0\u202F]/g, '')
+            .replace(',', '.')} / 100))`
       );
       normalized = normalized.replace(
-        /(\d+(?:[ \u00A0\u202F]*[\.,][ \u00A0\u202F]*\d+)?)\s*-\s*(\d+(?:[ \u00A0\u202F]*[\.,][ \u00A0\u202F]*\d+)?)\s*%/gi,
-        (_m, base, pct) => `(${String(base).replace(/[ \u00A0\u202F]/g, '').replace(',', '.')} * (1 - ${String(pct).replace(/[ \u00A0\u202F]/g, '').replace(',', '.')} / 100))`
+        /(\d+(?:[ \u00A0\u202F]*[.,][ \u00A0\u202F]*\d+)?)\s*-\s*(\d+(?:[ \u00A0\u202F]*[.,][ \u00A0\u202F]*\d+)?)\s*%/gi,
+        (_m, base, pct) =>
+          `(${String(base)
+            .replace(/[ \u00A0\u202F]/g, '')
+            .replace(',', '.')} * (1 - ${String(pct)
+            .replace(/[ \u00A0\u202F]/g, '')
+            .replace(',', '.')} / 100))`
       );
 
       // Handle language-specific phrase patterns
@@ -664,8 +771,6 @@ const MainScreen: React.FC = () => {
 
       // Close parentheses
       if (compiled.closeParen) normalized = normalized.replace(compiled.closeParen, ' ) ');
-
-      
 
       // Final cleanup:
       // 1) Preserve 'sqrt' tokens
@@ -915,8 +1020,26 @@ const MainScreen: React.FC = () => {
   );
 
   // Extract scroll helper
+  const scrollTimerRef = useRef<NodeJS.Timeout | null>(null);
   const scrollToBottom = useCallback((delay = 50) => {
-    setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), delay);
+    // Clear any existing scroll timer
+    if (scrollTimerRef.current) {
+      clearTimeout(scrollTimerRef.current);
+    }
+    scrollTimerRef.current = setTimeout(() => {
+      flatListRef.current?.scrollToEnd({ animated: true });
+      scrollTimerRef.current = null;
+    }, delay);
+  }, []);
+
+  // Cleanup scroll timer on unmount
+  useEffect(() => {
+    return () => {
+      if (scrollTimerRef.current) {
+        clearTimeout(scrollTimerRef.current);
+        scrollTimerRef.current = null;
+      }
+    };
   }, []);
 
   // Extracted key handler functions
@@ -1317,7 +1440,7 @@ const MainScreen: React.FC = () => {
       const doHeavyProcessing = () => {
         let processedEquation = normalizeSpokenMath(transcript);
         processedEquation = processedEquation.trim();
-        processedEquation = processedEquation.replace(/[+\-*/%=\.,\s]+$/g, '').trim();
+        processedEquation = processedEquation.replace(/[+\-*/%=.,\s]+$/g, '').trim();
 
         // Natural language: "what's X% of that" or "X percent of that" applies to last result
         // Optimized to prevent ReDoS: limit optional groups and whitespace
@@ -1367,7 +1490,8 @@ const MainScreen: React.FC = () => {
       };
 
       if (Platform.OS === 'web' && !continuousMode && source === 'web') {
-        const raf = (typeof globalThis !== 'undefined' && (globalThis as any).requestAnimationFrame) as
+        const raf = (typeof globalThis !== 'undefined' &&
+          (globalThis as any).requestAnimationFrame) as
           | ((cb: FrameRequestCallback) => number)
           | undefined;
         if (raf) {
@@ -1686,6 +1810,16 @@ const MainScreen: React.FC = () => {
               }
             }}
             isLoading={loading}
+          />
+        </Suspense>
+      )}
+
+      {/* Premium Payment Modal - Lazy loaded, auto-shown for first-time users */}
+      {showPremiumModal && (
+        <Suspense fallback={null}>
+          <PremiumPaymentModal
+            visible={showPremiumModal}
+            onClose={() => setShowPremiumModal(false)}
           />
         </Suspense>
       )}

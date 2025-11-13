@@ -16,8 +16,6 @@ export default function Root({ children }: { children: ReactNode }) {
           content="width=device-width, initial-scale=1, shrink-to-fit=no, user-scalable=no, viewport-fit=cover"
         />
 
-        
-
         {/* 
           Disable body scrolling on web. This makes ScrollView components work closer to how they do on native. 
           However, body scrolling is often nice to have for mobile web. If you want to enable it, remove this line.
@@ -38,7 +36,7 @@ export default function Root({ children }: { children: ReactNode }) {
 // Critical CSS to be inlined in the head of the document
 // This prevents a flash of unstyled content (FOUC)
 const criticalStyles = `
-  /* Material Icons class styles - font loaded via Google Fonts link */
+  /* Material Icons class styles - font loaded locally via expo-font */
   .material-icons {
     font-family: 'Material Icons';
     font-weight: normal;

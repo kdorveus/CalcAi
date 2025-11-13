@@ -1,6 +1,9 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
+  Dimensions,
+  Image,
   Modal,
   Platform,
   ScrollView,
@@ -9,6 +12,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { Path, Svg } from 'react-native-svg';
 import GoogleLogo from '../app/components/GoogleLogo';
 import { useAuth } from '../contexts/AuthContext';
 import { usePostHog } from '../contexts/PostHogContext';
@@ -17,15 +21,37 @@ import { useTranslation } from '../hooks/useTranslation';
 // Using our bundled AppIcon component instead of MaterialCommunityIcons
 import AppIcon from './AppIcon';
 
+// Shield icon for ad-free experience (represents protection from ads)
+const AdFreeIcon = ({ size = 16, color = '#fff' }: { size?: number; color?: string }) => (
+  <Svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke={color}
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <Path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+    <Path d="M9 12l2 2 4-4" />
+  </Svg>
+);
+
 interface PremiumPaymentModalProps {
   visible: boolean;
   onClose: () => void;
   onSuccess?: () => void;
+  forceFullModal?: boolean; // Force full modal even on web
 }
 
 type PlanType = 'yearly' | 'lifetime';
 
-const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({ visible, onClose }) => {
+const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
+  visible,
+  onClose,
+  forceFullModal = false,
+}) => {
   const { showPremiumPayment, premiumLoading } = usePremium();
   const { user, signInWithGoogle } = useAuth();
   const { t } = useTranslation();
@@ -33,6 +59,51 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({ visible, onCl
   const [isLoading, setIsLoading] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<PlanType>('lifetime');
+  const [showFullModal, setShowFullModal] = useState(false);
+
+  // Animation constants
+  const ANIMATION_DURATION = 400;
+  const SPRING_TENSION = 50;
+  const SPRING_FRICTION = 7;
+  const INITIAL_TRANSLATE_Y = -20;
+  const INITIAL_SCALE = 0.9;
+
+  // Animation values for bubble entrance
+  const bubbleOpacity = useRef(new Animated.Value(0)).current;
+  const bubbleTranslateY = useRef(new Animated.Value(INITIAL_TRANSLATE_Y)).current;
+  const bubbleScale = useRef(new Animated.Value(INITIAL_SCALE)).current;
+  const [animatedTransform, setAnimatedTransform] = useState(
+    `translateX(-50%) translateY(${INITIAL_TRANSLATE_Y}px) scale(${INITIAL_SCALE})`
+  );
+
+  // Track animation values safely without private API
+  const translateYValueRef = useRef(INITIAL_TRANSLATE_Y);
+  const scaleValueRef = useRef(INITIAL_SCALE);
+
+  // Helper to build transform string
+  const buildTransformString = useCallback((translateY: number, scale: number) => {
+    return `translateX(-50%) translateY(${translateY}px) scale(${scale})`;
+  }, []);
+
+  // Responsive check for mobile
+  const [isMobile, setIsMobile] = useState(() => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      return Dimensions.get('window').width <= 580;
+    }
+    return Platform.OS !== 'web';
+  });
+
+  const isWeb = Platform.OS === 'web';
+
+  React.useEffect(() => {
+    if (Platform.OS === 'web') {
+      const updateLayout = () => {
+        setIsMobile(Dimensions.get('window').width <= 580);
+      };
+      const subscription = Dimensions.addEventListener('change', updateLayout);
+      return () => subscription.remove();
+    }
+  }, []);
 
   // Track when the modal becomes visible
   React.useEffect(() => {
@@ -40,6 +111,94 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({ visible, onCl
       captureEvent('premium_modal_viewed');
     }
   }, [visible, captureEvent]);
+
+  // Animate bubble entrance
+  useEffect(() => {
+    let translateYListenerId: string | null = null;
+    let scaleListenerId: string | null = null;
+    let isMounted = true;
+
+    if (visible && isWeb && !showFullModal && !forceFullModal) {
+      // Reset animation values
+      bubbleOpacity.setValue(0);
+      bubbleTranslateY.setValue(INITIAL_TRANSLATE_Y);
+      bubbleScale.setValue(INITIAL_SCALE);
+      translateYValueRef.current = INITIAL_TRANSLATE_Y;
+      scaleValueRef.current = INITIAL_SCALE;
+      setAnimatedTransform(buildTransformString(INITIAL_TRANSLATE_Y, INITIAL_SCALE));
+
+      // Animate entrance with spring-like easing
+      const translateYListener = bubbleTranslateY.addListener(({ value }) => {
+        if (!isMounted) return;
+        translateYValueRef.current = value;
+        setAnimatedTransform(buildTransformString(value, scaleValueRef.current));
+      });
+
+      const scaleListener = bubbleScale.addListener(({ value }) => {
+        if (!isMounted) return;
+        scaleValueRef.current = value;
+        setAnimatedTransform(buildTransformString(translateYValueRef.current, value));
+      });
+
+      translateYListenerId = translateYListener;
+      scaleListenerId = scaleListener;
+
+      Animated.parallel([
+        Animated.timing(bubbleOpacity, {
+          toValue: 1,
+          duration: ANIMATION_DURATION,
+          useNativeDriver: false,
+        }),
+        Animated.spring(bubbleTranslateY, {
+          toValue: 0,
+          tension: SPRING_TENSION,
+          friction: SPRING_FRICTION,
+          useNativeDriver: false,
+        }),
+        Animated.spring(bubbleScale, {
+          toValue: 1,
+          tension: SPRING_TENSION,
+          friction: SPRING_FRICTION,
+          useNativeDriver: false,
+        }),
+      ]).start(() => {
+        if (translateYListenerId) {
+          bubbleTranslateY.removeListener(translateYListenerId);
+        }
+        if (scaleListenerId) {
+          bubbleScale.removeListener(scaleListenerId);
+        }
+      });
+    } else {
+      // Reset when hiding
+      bubbleOpacity.setValue(0);
+      bubbleTranslateY.setValue(INITIAL_TRANSLATE_Y);
+      bubbleScale.setValue(INITIAL_SCALE);
+      translateYValueRef.current = INITIAL_TRANSLATE_Y;
+      scaleValueRef.current = INITIAL_SCALE;
+      setAnimatedTransform(buildTransformString(INITIAL_TRANSLATE_Y, INITIAL_SCALE));
+    }
+
+    // Cleanup function - ensure listeners are removed
+    return () => {
+      isMounted = false;
+      if (translateYListenerId) {
+        bubbleTranslateY.removeListener(translateYListenerId);
+      }
+      if (scaleListenerId) {
+        bubbleScale.removeListener(scaleListenerId);
+      }
+    };
+  }, [
+    visible,
+    isWeb,
+    showFullModal,
+    forceFullModal,
+    bubbleOpacity,
+    bubbleTranslateY,
+    bubbleScale,
+    buildTransformString,
+  ]);
 
   const handlePayment = async () => {
     // If not logged in, trigger login first
@@ -85,6 +244,7 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({ visible, onCl
 
   const handleClose = () => {
     if (!isLoading && !isRestoring) {
+      setShowFullModal(false);
       onClose();
     }
   };
@@ -108,187 +268,256 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({ visible, onCl
     }
   };
 
-  return (
-    <Modal visible={visible} transparent={true} animationType="fade" onRequestClose={handleClose}>
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContainer}>
-          <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
-            <AppIcon name="close" size={24} color="#fff" />
-          </TouchableOpacity>
-
-          <ScrollView contentContainerStyle={styles.scrollContent}>
-            {/* Single Price Display with Header */}
-            <View style={styles.priceDisplayContainer}>
-              <View style={styles.priceBox}>
-                {/* Header with Crown */}
-                <View style={styles.headerContainer}>
-                  <View style={styles.titleWithIcon}>
-                    <AppIcon name="crown" size={24} color="#ff9500" />
-                    <Text style={styles.mainTitle}>{t('premium.modal.unlockCalcAIPremium')}</Text>
-                  </View>
-                </View>
-
-                {/* Price Display */}
-                <View style={styles.priceSection}>
-                  <View style={styles.priceRow}>
-                    <Text style={styles.oldPrice}>
-                      {selectedPlan === 'yearly' ? '$69' : '$129'}
-                    </Text>
-                    <Text style={styles.planPrice}>
-                      {selectedPlan === 'yearly' ? '$49' : '$89'}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Plan Selection Buttons */}
-                <View style={styles.planSelectionContainer}>
-                  {/* Yearly Option */}
-                  <TouchableOpacity
-                    style={[
-                      styles.planOption,
-                      selectedPlan === 'yearly' && styles.planOptionSelected,
-                    ]}
-                    onPress={() => handlePlanSelection('yearly')}
-                    activeOpacity={0.7}
-                  >
-                    <View
-                      style={[
-                        styles.radioButton,
-                        selectedPlan === 'yearly' && styles.radioButtonSelected,
-                      ]}
-                    >
-                      {selectedPlan === 'yearly' && <View style={styles.radioButtonInner} />}
-                    </View>
-                    <Text
-                      style={[
-                        styles.planOptionText,
-                        selectedPlan === 'yearly' && styles.planOptionTextSelected,
-                      ]}
-                    >
-                      {t('premium.modal.yearly')}
-                    </Text>
-                  </TouchableOpacity>
-
-                  {/* Lifetime Option */}
-                  <TouchableOpacity
-                    style={[
-                      styles.planOption,
-                      selectedPlan === 'lifetime' && styles.planOptionSelected,
-                    ]}
-                    onPress={() => handlePlanSelection('lifetime')}
-                    activeOpacity={0.7}
-                  >
-                    <View
-                      style={[
-                        styles.radioButton,
-                        selectedPlan === 'lifetime' && styles.radioButtonSelected,
-                      ]}
-                    >
-                      {selectedPlan === 'lifetime' && <View style={styles.radioButtonInner} />}
-                    </View>
-                    <Text
-                      style={[
-                        styles.planOptionText,
-                        selectedPlan === 'lifetime' && styles.planOptionTextSelected,
-                      ]}
-                    >
-                      {t('premium.modal.lifetime')}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-
-                {/* Payment Frequency Text */}
-                <Text style={styles.paymentFrequency}>
-                  {selectedPlan === 'yearly'
-                    ? t('premium.modal.onceAYear')
-                    : t('premium.modal.oneTimePayment')}
-                </Text>
-              </View>
+  // Web: Show non-intrusive bubble, Mobile: Show full modal
+  // If user clicks bubble, showFullModal becomes true and full modal appears
+  // If forceFullModal is true (e.g., from PRO button), skip bubble and show full modal
+  if (isWeb && visible && !showFullModal && !forceFullModal) {
+    return (
+      <View style={styles.webBubbleContainer}>
+        <Animated.View
+          style={{
+            opacity: bubbleOpacity,
+            ...Platform.select({
+              web: {
+                transform: animatedTransform as any,
+              },
+              default: {
+                transform: [{ translateY: bubbleTranslateY }, { scale: bubbleScale }],
+              },
+            }),
+          }}
+        >
+          <TouchableOpacity
+            style={styles.webBubble}
+            onPress={() => {
+              setShowFullModal(true);
+              captureEvent('premium_bubble_clicked');
+            }}
+            activeOpacity={0.8}
+          >
+            <View style={styles.webBubbleContent}>
+              <AppIcon name="crown" size={20} color="#ff9500" />
+              <Text style={styles.webBubbleText}>Unlock Premium Features?</Text>
             </View>
-
-            {/* Benefits Section */}
-            <View style={styles.benefitsSection}>
-              <View style={styles.benefitsList}>
-                <View style={styles.benefitItem}>
-                  <AppIcon name="check" size={20} color="#ff9500" />
-                  <Text style={styles.benefitText}>
-                    {t('premium.modal.benefits.unlimitedVoice')}
-                  </Text>
-                </View>
-                <View style={styles.benefitItem}>
-                  <AppIcon name="check" size={20} color="#ff9500" />
-                  <Text style={styles.benefitText}>
-                    {t('premium.modal.benefits.webhookIntegrations')}
-                  </Text>
-                </View>
-                <View style={styles.benefitItem}>
-                  <AppIcon name="check" size={20} color="#ff9500" />
-                  <Text style={styles.benefitText}>{t('premium.modal.benefits.earlyAccess')}</Text>
-                </View>
-                <View style={styles.benefitItem}>
-                  <AppIcon name="check" size={20} color="#ff9500" />
-                  <Text style={styles.benefitText}>{t('premium.modal.benefits.adFree')}</Text>
-                </View>
-                <View style={styles.benefitItem}>
-                  <AppIcon name="check" size={20} color="#ff9500" />
-                  <Text style={styles.benefitText}>
-                    {t('premium.modal.benefits.exportHistory')}
-                  </Text>
-                </View>
-                <View style={styles.benefitItem}>
-                  <AppIcon name="check" size={20} color="#ff9500" />
-                  <Text style={styles.benefitText}>
-                    {t('premium.modal.benefits.advancedVoice')}
-                  </Text>
-                </View>
-                <View style={styles.benefitItem}>
-                  <AppIcon name="check" size={20} color="#ff9500" />
-                  <Text style={styles.benefitText}>
-                    {t('premium.modal.benefits.prioritySupport')}
-                  </Text>
-                </View>
-              </View>
-            </View>
-
             <TouchableOpacity
-              style={!user ? styles.googleButton : styles.paymentButton}
-              onPress={handlePayment}
-              disabled={isLoading || premiumLoading}
+              style={styles.webBubbleClose}
+              onPress={(e) => {
+                e.stopPropagation();
+                handleClose();
+                captureEvent('premium_bubble_dismissed');
+              }}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              {isLoading || premiumLoading ? (
-                <ActivityIndicator color={!user ? '#4285F4' : '#000'} />
-              ) : (
-                <View style={styles.buttonContentWrapper}>
-                  {!user && (
-                    <View style={styles.googleIconWrapper}>
-                      <GoogleLogo size={20} />
+              <AppIcon name="close" size={16} color="#999" />
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </Animated.View>
+      </View>
+    );
+  }
+
+  return (
+    <Modal
+      visible={visible}
+      transparent={true}
+      animationType="fade"
+      onRequestClose={() => {
+        setShowFullModal(false);
+        handleClose();
+      }}
+    >
+      <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={handleClose}>
+        <TouchableOpacity
+          style={[styles.modalWrapper, isMobile && styles.modalWrapperMobile]}
+          activeOpacity={1}
+          onPress={(e) => e.stopPropagation()}
+        >
+          <View style={[styles.modalContainer, isMobile && styles.modalContainerMobile]}>
+            {/* Image Container */}
+            <View style={[styles.imageContainer, isMobile && styles.imageContainerMobile]}>
+              <Image
+                source={require('../assets/images/popup.webp')}
+                style={styles.image}
+                resizeMode="cover"
+              />
+              <View style={styles.logoOverlay}>
+                <Image
+                  source={require('../assets/images/icon.png')}
+                  style={styles.logo}
+                  resizeMode="contain"
+                />
+              </View>
+            </View>
+
+            {/* Text Container with Glass Morphism */}
+            <View style={[styles.textContainer, isMobile && styles.textContainerMobile]}>
+              <ScrollView
+                contentContainerStyle={styles.scrollContent}
+                showsVerticalScrollIndicator={false}
+              >
+                <View style={styles.content}>
+                  {/* Title */}
+                  <View style={styles.titleContainer}>
+                    <Text style={styles.title} numberOfLines={1}>
+                      UNLOCK PREMIUM FEATURES
+                    </Text>
+                  </View>
+
+                  {/* Plan Selection */}
+                  <View style={styles.planSelectionContainer}>
+                    <TouchableOpacity
+                      style={[
+                        styles.planOption,
+                        selectedPlan === 'yearly' && styles.planOptionSelected,
+                      ]}
+                      onPress={() => handlePlanSelection('yearly')}
+                      activeOpacity={0.8}
+                    >
+                      <Text
+                        style={[
+                          styles.planOptionText,
+                          selectedPlan === 'yearly' && styles.planOptionTextSelected,
+                        ]}
+                      >
+                        {t('premium.modal.yearly')}
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[
+                        styles.planOption,
+                        selectedPlan === 'lifetime' && styles.planOptionSelected,
+                      ]}
+                      onPress={() => handlePlanSelection('lifetime')}
+                      activeOpacity={0.8}
+                    >
+                      <Text
+                        style={[
+                          styles.planOptionText,
+                          selectedPlan === 'lifetime' && styles.planOptionTextSelected,
+                        ]}
+                      >
+                        {t('premium.modal.lifetime')}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Price Display - Only show when user is logged in */}
+                  {user && (
+                    <View style={styles.priceRow}>
+                      <Text style={styles.oldPrice}>
+                        {selectedPlan === 'yearly' ? '$69' : '$129'}
+                      </Text>
+                      <Text style={styles.planPrice}>
+                        {selectedPlan === 'yearly' ? '$49' : '$89'}
+                      </Text>
+                      <Text style={styles.paymentFrequency}>
+                        {selectedPlan === 'yearly'
+                          ? t('premium.modal.onceAYear')
+                          : t('premium.modal.oneTimePayment')}
+                      </Text>
                     </View>
                   )}
-                  <Text style={!user ? styles.googleButtonText : styles.paymentButtonText}>
-                    {getPlanButtonText()}
-                  </Text>
-                </View>
-              )}
-            </TouchableOpacity>
 
-            {/* Restore Purchase Button */}
-            <TouchableOpacity
-              style={styles.restoreButton}
-              onPress={handleRestorePurchase}
-              disabled={isRestoring}
-            >
-              {isRestoring ? (
-                <ActivityIndicator color="#fff" size="small" />
-              ) : (
-                <>
-                  <AppIcon name="refresh" size={16} color="#999" />
-                  <Text style={styles.restoreButtonText}>{t('premium.modal.restorePurchase')}</Text>
-                </>
-              )}
-            </TouchableOpacity>
-          </ScrollView>
-        </View>
-      </View>
+                  {/* Features List */}
+                  <View style={styles.featuresList}>
+                    <View style={styles.featureItem}>
+                      <AppIcon name="microphone" size={16} color="#fff" />
+                      <Text style={styles.featureText}>
+                        <Text style={styles.featureTextNormal}>Unlimited </Text>
+                        <Text style={styles.featureTextBold}>voice requests</Text>
+                      </Text>
+                    </View>
+                    <View style={styles.featureItem}>
+                      <AppIcon name="webhook" size={16} color="#fff" />
+                      <Text style={styles.featureText}>
+                        <Text style={styles.featureTextNormal}>Webhook </Text>
+                        <Text style={styles.featureTextBold}>integrations</Text>
+                      </Text>
+                    </View>
+                    <View style={styles.featureItem}>
+                      <AppIcon name="check-decagram" size={16} color="#fff" />
+                      <Text style={styles.featureText}>
+                        <Text style={styles.featureTextNormal}>Early access to </Text>
+                        <Text style={styles.featureTextBold}>new features</Text>
+                      </Text>
+                    </View>
+                    <View style={styles.featureItem}>
+                      <AdFreeIcon size={16} color="#fff" />
+                      <Text style={styles.featureText}>
+                        <Text style={styles.featureTextBold}>Ad-free</Text>
+                        <Text style={styles.featureTextNormal}> experience</Text>
+                      </Text>
+                    </View>
+                    <View style={styles.featureItem}>
+                      <AppIcon name="history" size={16} color="#fff" />
+                      <Text style={styles.featureText}>
+                        <Text style={styles.featureTextNormal}>Export </Text>
+                        <Text style={styles.featureTextBold}>history</Text>
+                        <Text style={styles.featureTextNormal}> data</Text>
+                      </Text>
+                    </View>
+                    <View style={styles.featureItem}>
+                      <AppIcon name="audio-lines" size={16} color="#fff" />
+                      <Text style={styles.featureText}>
+                        <Text style={styles.featureTextBold}>Continuous </Text>
+                        <Text style={styles.featureTextNormal}>listening mode</Text>
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Payment Button */}
+                  <TouchableOpacity
+                    style={[
+                      styles.paymentButton,
+                      !user && styles.googleButton,
+                      (isLoading || premiumLoading) && styles.buttonDisabled,
+                    ]}
+                    onPress={handlePayment}
+                    disabled={isLoading || premiumLoading}
+                    activeOpacity={0.8}
+                  >
+                    {isLoading || premiumLoading ? (
+                      <ActivityIndicator color={!user ? '#4285F4' : '#fff'} />
+                    ) : (
+                      <View style={styles.buttonContentWrapper}>
+                        {!user && (
+                          <View style={styles.googleIconWrapper}>
+                            <GoogleLogo size={20} />
+                          </View>
+                        )}
+                        <Text style={!user ? styles.googleButtonText : styles.paymentButtonText}>
+                          {getPlanButtonText()}
+                        </Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+
+                  {/* Restore Purchase Button - Only show when user is logged in */}
+                  {user && (
+                    <TouchableOpacity
+                      style={styles.restoreButton}
+                      onPress={handleRestorePurchase}
+                      disabled={isRestoring}
+                    >
+                      {isRestoring ? (
+                        <ActivityIndicator color="#999" size="small" />
+                      ) : (
+                        <>
+                          <AppIcon name="refresh" size={16} color="#999" />
+                          <Text style={styles.restoreButtonText}>
+                            {t('premium.modal.restorePurchase')}
+                          </Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </ScrollView>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </TouchableOpacity>
     </Modal>
   );
 };
@@ -296,206 +525,322 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({ visible, onCl
 const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    backgroundColor: 'rgba(0, 0, 0, 0.95)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  modalContainer: {
-    width: '95%',
-    maxWidth: Platform.OS === 'web' ? 650 : '95%',
-    maxHeight: '90%',
-    backgroundColor: '#1C1C1E',
-    borderRadius: 20,
-    overflow: 'hidden',
-    borderWidth: 2,
-    borderColor: '#ff9500',
-  },
-  scrollContent: {
-    padding: Platform.OS === 'web' ? 24 : 16,
-    paddingTop: 16,
-  },
-  closeButton: {
-    position: 'absolute',
-    top: 6,
-    right: 16,
-    zIndex: 10,
-    padding: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 20,
-  },
-  headerContainer: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  titleWithIcon: {
+  modalWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 4,
+    maxWidth: '95%',
+    width: Platform.OS === 'web' ? undefined : 550,
+    alignSelf: 'center',
+    ...Platform.select({
+      web: {
+        position: 'fixed' as any,
+        top: '50%' as any,
+        left: '50%' as any,
+        transform: 'translate(-50%, -50%)' as any,
+        zIndex: 2000,
+        width: 'fit-content' as any,
+      },
+    }),
   },
-  mainTitle: {
-    fontSize: Platform.OS === 'web' ? 28 : 24,
-    fontWeight: 'bold',
-    color: '#ff9500',
+  modalWrapperMobile: {
+    flexDirection: 'column',
+    maxWidth: '95%',
+    minWidth: 320,
+    width: '95%',
+    alignSelf: 'center',
+    ...Platform.select({
+      web: {
+        position: 'fixed' as any,
+        top: '50%' as any,
+        left: '50%' as any,
+        transform: 'translate(-50%, -50%)' as any,
+        zIndex: 2000,
+        width: 'fit-content' as any,
+        maxWidth: 'min(95vw, 400px)' as any,
+      },
+    }),
+  },
+  modalContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  modalContainerMobile: {
+    flexDirection: 'column',
+    gap: 4,
+    alignItems: 'center',
+    width: '100%',
+  },
+  imageContainer: {
+    width: 250,
+    height: 360,
+    overflow: 'hidden',
+    backgroundColor: '#141414',
+    borderRadius: 20,
+    flexShrink: 0,
+  },
+  imageContainerMobile: {
+    width: '100%',
+    maxWidth: 320,
+    aspectRatio: 16 / 9,
+  },
+  image: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 20,
+  },
+  logoOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    width: 60,
+    height: 60,
+    borderRadius: 0,
+    borderBottomLeftRadius: 20,
+    padding: 8,
+  },
+  logo: {
+    width: '100%',
+    height: '100%',
+  },
+  textContainer: {
+    width: 300,
+    backgroundColor: 'rgba(20, 20, 20, 0.98)',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    padding: 16,
+    minHeight: 400,
+    position: 'relative',
+    ...Platform.select({
+      web: {
+        backdropFilter: 'blur(10px)' as any,
+        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)' as any,
+      },
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.3,
+        shadowRadius: 16,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
+  },
+  textContainerMobile: {
+    width: '100%',
+    maxWidth: 320,
+    padding: 16,
+  },
+  scrollContent: {
+    flexGrow: 1,
+  },
+  content: {
+    flexDirection: 'column',
+    width: '100%',
+  },
+  titleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 16,
+    marginBottom: 16,
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#ffffff',
+    lineHeight: 28,
+    textAlign: 'left',
+    flexShrink: 1,
+  },
+  titleLogo: {
+    height: 32,
+    width: 400,
+    flexShrink: 1,
   },
   planSelectionContainer: {
     flexDirection: 'row',
-    gap: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 12,
+    padding: 4,
     marginBottom: 12,
+    ...Platform.select({
+      web: {
+        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.2)',
+      },
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.2,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
   planOption: {
     flex: 1,
-    flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'transparent',
-    borderWidth: 2,
-    borderColor: '#3C3C3E',
-    borderRadius: 12,
-    paddingVertical: 12,
+    justifyContent: 'center',
+    paddingVertical: 10,
     paddingHorizontal: 16,
-    gap: 10,
+    borderRadius: 8,
   },
   planOptionSelected: {
-    borderColor: '#ff9500',
-    backgroundColor: 'transparent',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    ...Platform.select({
+      web: {
+        boxShadow: '0 2px 4px rgba(0, 0, 0, 0.15)',
+      },
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.15,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
   },
   planOptionText: {
-    fontSize: Platform.OS === 'web' ? 16 : 14,
-    color: '#999',
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.6)',
     fontWeight: '500',
   },
   planOptionTextSelected: {
-    color: '#ff9500',
-    fontWeight: 'bold',
-  },
-  radioButton: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: '#3C3C3E',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  radioButtonSelected: {
-    borderColor: '#ff9500',
-  },
-  radioButtonInner: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#ff9500',
-  },
-  priceDisplayContainer: {
-    marginBottom: 32,
-  },
-  priceBox: {
-    backgroundColor: '#2C2C2E',
-    borderRadius: 20,
-    padding: Platform.OS === 'web' ? 32 : 24,
-    paddingTop: Platform.OS === 'web' ? 24 : 20,
-    alignItems: 'center',
-  },
-  priceSection: {
-    alignItems: 'center',
-    marginBottom: 24,
+    color: '#ffffff',
+    fontWeight: '600',
   },
   priceRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     marginBottom: 8,
+    flexWrap: 'wrap',
   },
   oldPrice: {
-    fontSize: Platform.OS === 'web' ? 24 : 20,
+    fontSize: 38,
     fontWeight: '500',
     color: '#999',
     textDecorationLine: 'line-through',
   },
   planPrice: {
-    fontSize: Platform.OS === 'web' ? 48 : 40,
-    fontWeight: 'bold',
+    fontSize: 36,
+    fontWeight: '500',
     color: '#fff',
   },
   paymentFrequency: {
-    fontSize: Platform.OS === 'web' ? 14 : 12,
+    fontSize: 12,
     color: '#666',
-    textAlign: 'center',
   },
-  discountText: {
-    color: '#000',
-    fontSize: Platform.OS === 'web' ? 14 : 12,
-    fontWeight: 'bold',
+  featuresList: {
+    marginTop: 12,
+    marginBottom: 0,
   },
-  benefitsSection: {
-    marginBottom: 24,
-  },
-  benefitsList: {
-    gap: Platform.OS === 'web' ? 14 : 12,
-  },
-  benefitItem: {
+  featureItem: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: Platform.OS === 'web' ? 12 : 10,
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 4,
+    marginBottom: 6,
   },
-  benefitText: {
-    fontSize: Platform.OS === 'web' ? 15 : 14,
-    color: '#fff',
+  featureText: {
     flex: 1,
-    lineHeight: Platform.OS === 'web' ? 22 : 20,
+    fontSize: 15,
+    lineHeight: 21,
+    color: '#b0b0b0',
   },
-  googleButton: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#747775',
-    borderRadius: 20,
-    height: 40,
-    paddingHorizontal: 12,
-    marginTop: 8,
+  featureTextNormal: {
+    color: '#b0b0b0',
   },
-  buttonContentWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: '100%',
-  },
-  googleIconWrapper: {
-    height: 20,
-    width: 20,
-    marginRight: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  googleButtonText: {
-    fontWeight: '500',
-    fontSize: 14,
-    color: '#1f1f1f',
-    letterSpacing: 0.25,
+  featureTextBold: {
+    color: '#ffffff',
+    fontWeight: '700',
   },
   paymentButton: {
-    backgroundColor: '#ff9500',
-    borderRadius: 30,
+    width: '100%',
     paddingVertical: 16,
-    paddingHorizontal: 32,
-    marginTop: 8,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    marginTop: 16,
+    marginBottom: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    display: 'flex',
+    backgroundColor: '#0084ff',
     ...Platform.select({
+      web: {
+        backgroundImage: 'linear-gradient(135deg, #0084ff 0%, #00d4ff 100%)' as any,
+        boxShadow: '0 4px 20px rgba(0, 132, 255, 0.3)' as any,
+      },
       ios: {
-        shadowColor: '#ff9500',
+        shadowColor: '#0084ff',
         shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.4,
+        shadowOpacity: 0.3,
         shadowRadius: 8,
       },
       android: {
         elevation: 8,
       },
+    }),
+  },
+  googleButton: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#747775',
+    ...Platform.select({
       web: {
-        boxShadow: '0 4px 8px rgba(255, 149, 0, 0.4)',
+        backgroundImage: 'none' as any,
+        boxShadow: 'none' as any,
+      },
+      ios: {
+        shadowColor: 'transparent',
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0,
+        shadowRadius: 0,
+      },
+      android: {
+        elevation: 0,
       },
     }),
   },
-  paymentButtonText: {
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+  buttonContentWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  googleIconWrapper: {
+    height: 20,
+    width: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  googleButtonText: {
     color: '#000',
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  paymentButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+    lineHeight: 20,
   },
   restoreButton: {
     flexDirection: 'row',
@@ -504,6 +849,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 24,
     marginTop: 16,
+    marginBottom: 16,
     gap: 8,
   },
   restoreButtonText: {
@@ -511,6 +857,66 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: 'normal',
     letterSpacing: 0.5,
+  },
+  // Web bubble styles (non-intrusive)
+  webBubbleContainer: {
+    position: 'fixed' as any,
+    top: 60,
+    left: '50%' as any,
+    zIndex: 9999,
+    ...Platform.select({
+      web: {
+        pointerEvents: 'auto' as any,
+      },
+    }),
+  },
+  webBubble: {
+    backgroundColor: 'rgba(20, 20, 20, 0.95)',
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 149, 0, 0.4)',
+    minWidth: 240,
+    maxWidth: 320,
+    ...Platform.select({
+      web: {
+        boxShadow:
+          '0 0 20px rgba(255, 149, 0, 0.4), 0 0 40px rgba(255, 149, 0, 0.2), 0 8px 32px rgba(0, 0, 0, 0.4)' as any,
+        backdropFilter: 'blur(10px)' as any,
+        cursor: 'pointer' as any,
+        transition: 'transform 0.2s ease, box-shadow 0.2s ease' as any,
+        willChange: 'transform, opacity' as any,
+      },
+      ios: {
+        shadowColor: '#ff9500',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.5,
+        shadowRadius: 20,
+      },
+      android: {
+        elevation: 12,
+      },
+    }),
+  },
+  webBubbleContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  webBubbleText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '500',
+    flex: 1,
+  },
+  webBubbleClose: {
+    padding: 4,
+    borderRadius: 4,
   },
 });
 
