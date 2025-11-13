@@ -26,7 +26,6 @@ interface HistoryModalProps {
   history: CalculationHistoryItem[];
   onDelete: (created_at: string) => Promise<void>;
   onClearAll: () => Promise<void>;
-  onSelect: (item: CalculationHistoryItem) => void;
   isLoading: boolean;
   onSendToWebhook?: (expression: string, result: string) => void;
 }
@@ -118,10 +117,10 @@ const HistoryModal: React.FC<HistoryModalProps> = ({
       const minutes = String(date.getMinutes()).padStart(2, '0');
       const ampm = hours >= 12 ? 'PM' : 'AM';
       hours = hours % 12;
-      hours = hours ? hours : 12; // the hour '0' should be '12'
+      hours = hours || 12; // the hour '0' should be '12'
 
       return `${monthName} ${day} at ${hours}:${minutes} ${ampm}`;
-    } catch (_error) {
+    } catch {
       return t('history.unknownDate');
     }
   };

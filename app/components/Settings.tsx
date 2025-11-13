@@ -101,7 +101,7 @@ const validateWebhookUrl = (url: string): string | null => {
     if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') return null;
 
     return trimmedUrl;
-  } catch (_e) {
+  } catch {
     // If URL parsing fails, return null
     return null;
   }
@@ -193,7 +193,7 @@ const useWebhookManagement = (
       setEditingWebhookTitle('');
 
       Alert.alert('Success', 'Webhook updated successfully');
-    } catch (_e) {
+    } catch {
       Alert.alert('Error', 'Could not save webhook');
     }
   };
@@ -236,7 +236,7 @@ const useWebhookManagement = (
         failureText = ` Failed to send to ${failures} ${endpointText}.`;
       }
       Alert.alert('Send Complete', `${successText}${failureText}`);
-    } catch (_error: unknown) {
+    } catch {
       Alert.alert('Error', 'Error sending data');
     } finally {
       setSendingItemId(null);
@@ -353,11 +353,10 @@ const useAuthHandlers = (
     setIsLoading(true);
     const { error } = await signInWithGoogle();
     setIsLoading(false);
-    if (!error) {
-      // Success handled by context
-    } else {
+    if (error) {
       Alert.alert('Error', error.message);
     }
+    // Success handled by context
   };
 
   return {
@@ -527,7 +526,6 @@ const GeneralSettings: React.FC<{
 );
 
 const LanguageSettings: React.FC<{
-  t: (key: string) => string;
   language: string;
   setLanguage: (lang: string) => void;
 }> = ({ language, setLanguage }) => (
@@ -630,13 +628,13 @@ const WebhookSettings: React.FC<{
           }
         }}
       >
-        {!isPremium ? (
+        {isPremium ? (
+          <Text style={styles.addButtonText}>{t('settings.webhooks.add')}</Text>
+        ) : (
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <AppIcon name="crown" size={16} color="#fff" style={{ marginRight: 6 }} />
             <Text style={styles.addButtonText}>PREMIUM</Text>
           </View>
-        ) : (
-          <Text style={styles.addButtonText}>{t('settings.webhooks.add')}</Text>
         )}
       </TouchableOpacity>
     </View>
@@ -701,13 +699,14 @@ const WebhookSettings: React.FC<{
                   <Switch
                     value={item.active}
                     onValueChange={(value) => {
-                      requirePremium(() => {
+                      const handleToggle = () => {
                         handleToggleWebhook(item.url, value);
                         const updated = localWebhookUrls.map((webhook) =>
                           webhook.url === item.url ? { ...webhook, active: value } : webhook
                         );
                         setLocalWebhookUrls(updated);
-                      });
+                      };
+                      requirePremium(handleToggle);
                     }}
                     trackColor={{ false: '#333', true: '#0066cc' }}
                     thumbColor={item.active ? '#0066cc' : '#f4f3f4'}
@@ -1057,7 +1056,7 @@ export const WebhookSettingsComponentV2: React.FC<WebhookSettingsProps> = ({
             />
           </TouchableOpacity>
           {openSection === 'language' && (
-            <LanguageSettings t={t} language={language} setLanguage={handleLanguageSelect} />
+            <LanguageSettings language={language} setLanguage={handleLanguageSelect} />
           )}
         </View>
 
@@ -1206,9 +1205,9 @@ export const WebhookSettingsComponentV2: React.FC<WebhookSettingsProps> = ({
                                 name="send"
                                 size={18}
                                 color={
-                                  webhookManagement.localWebhookUrls.filter(
+                                  webhookManagement.localWebhookUrls.some(
                                     (webhook) => webhook.active
-                                  ).length > 0
+                                  )
                                     ? '#0066cc'
                                     : '#666'
                                 }
@@ -1253,9 +1252,9 @@ export const WebhookSettingsComponentV2: React.FC<WebhookSettingsProps> = ({
                   ? t('settings.bulkData.sending')
                   : (() => {
                       const itemText =
-                        bulkData.length !== 1
-                          ? t('settings.bulkData.items')
-                          : t('settings.bulkData.item');
+                        bulkData.length === 1
+                          ? t('settings.bulkData.item')
+                          : t('settings.bulkData.items');
                       return `${t('settings.bulkData.send')} ${bulkData.length} ${itemText}`;
                     })()}
               </Text>

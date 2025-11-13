@@ -1756,15 +1756,6 @@ const MainScreen: React.FC = () => {
             history={history}
             onDelete={deleteCalculation}
             onClearAll={clearAllCalculations}
-            onSelect={(item) => {
-              if (item.result) {
-                setKeypadInput(item.result);
-                setShowHistoryModal(false);
-                if (Platform.OS === 'android') {
-                  ToastAndroid.show(`Selected: ${item.result}`, ToastAndroid.SHORT);
-                }
-              }
-            }}
             isLoading={loading}
           />
         </Suspense>

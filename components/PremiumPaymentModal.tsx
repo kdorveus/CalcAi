@@ -42,11 +42,76 @@ const AdFreeIcon = ({ size = 16, color = '#fff' }: { size?: number; color?: stri
 interface PremiumPaymentModalProps {
   visible: boolean;
   onClose: () => void;
-  onSuccess?: () => void;
   forceFullModal?: boolean; // Force full modal even on web
 }
 
 type PlanType = 'yearly' | 'lifetime';
+
+// Extract web bubble component to reduce complexity
+const WebBubble: React.FC<{
+  visible: boolean;
+  bubbleOpacity: Animated.Value;
+  bubbleTranslateY: Animated.Value;
+  bubbleScale: Animated.Value;
+  animatedTransform: string;
+  onPress: () => void;
+  onClose: () => void;
+  captureEvent: (event: string) => void;
+}> = ({
+  visible,
+  bubbleOpacity,
+  bubbleTranslateY,
+  bubbleScale,
+  animatedTransform,
+  onPress,
+  onClose,
+  captureEvent,
+}) => {
+  if (!visible) return null;
+
+  return (
+    <View style={styles.webBubbleContainer}>
+      <Animated.View
+        style={{
+          opacity: bubbleOpacity,
+          ...Platform.select({
+            web: {
+              transform: animatedTransform as any,
+            },
+            default: {
+              transform: [{ translateY: bubbleTranslateY }, { scale: bubbleScale }],
+            },
+          }),
+        }}
+      >
+        <TouchableOpacity
+          style={styles.webBubble}
+          onPress={() => {
+            onPress();
+            captureEvent('premium_bubble_clicked');
+          }}
+          activeOpacity={0.8}
+        >
+          <View style={styles.webBubbleContent}>
+            <AppIcon name="crown" size={20} color="#ff9500" />
+            <Text style={styles.webBubbleText}>Unlock Premium Features?</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.webBubbleClose}
+            onPress={(e) => {
+              e.stopPropagation();
+              onClose();
+              captureEvent('premium_bubble_dismissed');
+            }}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <AppIcon name="close" size={16} color="#999" />
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Animated.View>
+    </View>
+  );
+};
 
 const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
   visible,
@@ -88,7 +153,7 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
 
   // Responsive check for mobile
   const [isMobile, setIsMobile] = useState(() => {
-    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    if (Platform.OS === 'web' && globalThis.window !== undefined) {
       return Dimensions.get('window').width <= 580;
     }
     return Platform.OS !== 'web';
@@ -289,46 +354,16 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
   // If forceFullModal is true (e.g., from PRO button), skip bubble and show full modal
   if (isWeb && visible && !showFullModal && !forceFullModal) {
     return (
-      <View style={styles.webBubbleContainer}>
-        <Animated.View
-          style={{
-            opacity: bubbleOpacity,
-            ...Platform.select({
-              web: {
-                transform: animatedTransform as any,
-              },
-              default: {
-                transform: [{ translateY: bubbleTranslateY }, { scale: bubbleScale }],
-              },
-            }),
-          }}
-        >
-          <TouchableOpacity
-            style={styles.webBubble}
-            onPress={() => {
-              setShowFullModal(true);
-              captureEvent('premium_bubble_clicked');
-            }}
-            activeOpacity={0.8}
-          >
-            <View style={styles.webBubbleContent}>
-              <AppIcon name="crown" size={20} color="#ff9500" />
-              <Text style={styles.webBubbleText}>Unlock Premium Features?</Text>
-            </View>
-            <TouchableOpacity
-              style={styles.webBubbleClose}
-              onPress={(e) => {
-                e.stopPropagation();
-                handleClose();
-                captureEvent('premium_bubble_dismissed');
-              }}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <AppIcon name="close" size={16} color="#999" />
-            </TouchableOpacity>
-          </TouchableOpacity>
-        </Animated.View>
-      </View>
+      <WebBubble
+        visible={visible}
+        bubbleOpacity={bubbleOpacity}
+        bubbleTranslateY={bubbleTranslateY}
+        bubbleScale={bubbleScale}
+        animatedTransform={animatedTransform}
+        onPress={() => setShowFullModal(true)}
+        onClose={handleClose}
+        captureEvent={captureEvent}
+      />
     );
   }
 
@@ -494,15 +529,15 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
                     activeOpacity={0.8}
                   >
                     {isLoading || premiumLoading ? (
-                      <ActivityIndicator color={!user ? '#4285F4' : '#fff'} />
+                      <ActivityIndicator color={user ? '#fff' : '#4285F4'} />
                     ) : (
                       <View style={styles.buttonContentWrapper}>
-                        {!user && (
+                        {user ? null : (
                           <View style={styles.googleIconWrapper}>
                             <GoogleLogo size={20} />
                           </View>
                         )}
-                        <Text style={!user ? styles.googleButtonText : styles.paymentButtonText}>
+                        <Text style={user ? styles.paymentButtonText : styles.googleButtonText}>
                           {getPlanButtonText()}
                         </Text>
                       </View>

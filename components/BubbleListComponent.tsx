@@ -118,7 +118,7 @@ const UserBubble: React.FC<{
       <View style={styles.currentUserBubbleContainer}>
         <View style={styles.userBubble}>
           <Text style={[styles.userText, interimTranscript ? { color: '#999' } : null]}>
-            {interimTranscript ? interimTranscript : item.content || ' '}
+            {interimTranscript || item.content || ' '}
           </Text>
         </View>
       </View>
@@ -255,7 +255,11 @@ const BubbleListComponentV2 = React.forwardRef<FlatList, BubbleListComponentProp
         renderItem={renderBubble}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.chatArea}
-        onContentSizeChange={() => (ref as any)?.current?.scrollToEnd({ animated: true })}
+        onContentSizeChange={() => {
+          if (ref && 'current' in ref && ref.current) {
+            ref.current.scrollToEnd({ animated: true });
+          }
+        }}
         ListEmptyComponent={emptyComponent}
         getItemLayout={(_data, index) => ({
           length: 60,
