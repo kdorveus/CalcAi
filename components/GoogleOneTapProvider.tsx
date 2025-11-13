@@ -5,7 +5,7 @@
  */
 
 import type React from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 import { GOOGLE_CLIENT_ID } from '../constants/Config';
 import { useAuth } from '../contexts/AuthContext';
@@ -14,6 +14,7 @@ import { useGoogleOneTap } from '../hooks/useGoogleOneTap';
 export const GoogleOneTapProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, signInWithGoogleOneTap } = useAuth();
   const [hasPrompted, setHasPrompted] = useState(false);
+  const hasPromptedRef = useRef(false);
 
   const { isInitialized, prompt } = useGoogleOneTap({
     clientId: GOOGLE_CLIENT_ID,
@@ -49,12 +50,13 @@ export const GoogleOneTapProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
 
     // Only prompt once per session and only if user is not logged in and we have clientId
-    if (isInitialized && !user && !hasPrompted && GOOGLE_CLIENT_ID) {
+    if (isInitialized && !user && !hasPromptedRef.current && GOOGLE_CLIENT_ID) {
       // Prompt immediately - the hook already handles async loading
       prompt();
+      hasPromptedRef.current = true;
       setHasPrompted(true);
     }
-  }, [isInitialized, user, hasPrompted, prompt]);
+  }, [isInitialized, user, prompt]);
 
   return <>{children}</>;
 };

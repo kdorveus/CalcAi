@@ -57,6 +57,7 @@ const WebBubble: React.FC<{
   onPress: () => void;
   onClose: () => void;
   captureEvent: (event: string) => void;
+  isMobile: boolean;
 }> = ({
   visible,
   bubbleOpacity,
@@ -66,11 +67,12 @@ const WebBubble: React.FC<{
   onPress,
   onClose,
   captureEvent,
+  isMobile,
 }) => {
   if (!visible) return null;
 
   return (
-    <View style={styles.webBubbleContainer}>
+    <View style={[styles.webBubbleContainer, isMobile && styles.webBubbleContainerMobile]}>
       <Animated.View
         style={{
           opacity: bubbleOpacity,
@@ -85,19 +87,28 @@ const WebBubble: React.FC<{
         }}
       >
         <TouchableOpacity
-          style={styles.webBubble}
+          style={[styles.webBubble, isMobile && styles.webBubbleMobile]}
           onPress={() => {
             onPress();
             captureEvent('premium_bubble_clicked');
           }}
           activeOpacity={0.8}
         >
-          <View style={styles.webBubbleContent}>
-            <AppIcon name="crown" size={20} color="#ff9500" />
-            <Text style={styles.webBubbleText}>Unlock Premium Features?</Text>
+          <View style={[styles.webBubbleContent, isMobile && styles.webBubbleContentMobile]}>
+            <View
+              style={[styles.webBubbleIconWrapper, isMobile && styles.webBubbleIconWrapperMobile]}
+            >
+              <AppIcon name="crown" size={isMobile ? 18 : 20} color="#ff9500" />
+            </View>
+            <Text
+              style={[styles.webBubbleText, isMobile && styles.webBubbleTextMobile]}
+              numberOfLines={1}
+            >
+              Unlock Premium Features?
+            </Text>
           </View>
           <TouchableOpacity
-            style={styles.webBubbleClose}
+            style={[styles.webBubbleClose, isMobile && styles.webBubbleCloseMobile]}
             onPress={(e) => {
               e.stopPropagation();
               onClose();
@@ -105,7 +116,14 @@ const WebBubble: React.FC<{
             }}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <AppIcon name="close" size={16} color="#999" />
+            <View
+              style={[
+                styles.webBubbleCloseIconWrapper,
+                isMobile && styles.webBubbleCloseIconWrapperMobile,
+              ]}
+            >
+              <AppIcon name="close" size={isMobile ? 14 : 16} color="#999" />
+            </View>
           </TouchableOpacity>
         </TouchableOpacity>
       </Animated.View>
@@ -363,6 +381,7 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
         onPress={() => setShowFullModal(true)}
         onClose={handleClose}
         captureEvent={captureEvent}
+        isMobile={isMobile}
       />
     );
   }
@@ -921,6 +940,16 @@ const styles = StyleSheet.create({
       },
     }),
   },
+  webBubbleContainerMobile: {
+    top: 20,
+    left: '50%' as any,
+    ...Platform.select({
+      web: {
+        width: 'auto' as any,
+        maxWidth: 'calc(100vw - 32px)' as any,
+      },
+    }),
+  },
   webBubble: {
     backgroundColor: 'rgba(20, 20, 20, 0.95)',
     borderRadius: 16,
@@ -953,21 +982,79 @@ const styles = StyleSheet.create({
       },
     }),
   },
+  webBubbleMobile: {
+    width: 'auto' as any,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    gap: 8,
+    flexDirection: 'row' as any,
+    alignItems: 'center' as any,
+    alignSelf: 'center' as any,
+    ...Platform.select({
+      web: {
+        boxShadow:
+          '0 0 15px rgba(255, 149, 0, 0.3), 0 0 30px rgba(255, 149, 0, 0.15), 0 6px 24px rgba(0, 0, 0, 0.3)' as any,
+        maxWidth: 'calc(100vw - 32px)' as any,
+      },
+    }),
+  },
   webBubbleContent: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     flex: 1,
   },
+  webBubbleContentMobile: {
+    flexDirection: 'row' as any,
+    alignItems: 'center',
+    gap: 6,
+    flexShrink: 0,
+  },
   webBubbleText: {
     color: '#ffffff',
     fontSize: 14,
     fontWeight: '500',
     flex: 1,
+    textAlign: 'left' as any,
+  },
+  webBubbleTextMobile: {
+    fontSize: 13,
+    textAlign: 'left' as any,
+    flexShrink: 0,
+  },
+  webBubbleIconWrapper: {
+    flexShrink: 0,
+    width: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  webBubbleIconWrapperMobile: {
+    width: 18,
+    height: 18,
   },
   webBubbleClose: {
     padding: 4,
     borderRadius: 4,
+    flexShrink: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  webBubbleCloseMobile: {
+    padding: 4,
+    minWidth: 22,
+    minHeight: 22,
+  },
+  webBubbleCloseIconWrapper: {
+    width: 16,
+    height: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  webBubbleCloseIconWrapperMobile: {
+    width: 14,
+    height: 14,
   },
 });
 
