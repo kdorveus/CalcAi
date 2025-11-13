@@ -31,10 +31,10 @@ export const GoogleOneTapProvider: React.FC<{ children: React.ReactNode }> = ({ 
     };
 
     // Use requestIdleCallback to fetch client ID without blocking main thread
-    if ('requestIdleCallback' in window) {
-      const idleCallbackId = (window as any).requestIdleCallback(fetchClientId);
+    if ('requestIdleCallback' in globalThis) {
+      const idleCallbackId = (globalThis as any).requestIdleCallback(fetchClientId);
       return () => {
-        (window as any).cancelIdleCallback(idleCallbackId);
+        (globalThis as any).cancelIdleCallback(idleCallbackId);
       };
     } else {
       // Fallback: fetch asynchronously but immediately
@@ -55,8 +55,8 @@ export const GoogleOneTapProvider: React.FC<{ children: React.ReactNode }> = ({ 
       };
 
       // Use requestIdleCallback to process auth without blocking UI
-      if ('requestIdleCallback' in window) {
-        (window as any).requestIdleCallback(processAuth);
+      if ('requestIdleCallback' in globalThis) {
+        (globalThis as any).requestIdleCallback(processAuth);
       } else {
         // Fallback: process immediately but asynchronously
         processAuth();

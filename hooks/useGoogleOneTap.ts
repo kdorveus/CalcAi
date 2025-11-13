@@ -108,10 +108,10 @@ export function useGoogleOneTap(config: GoogleOneTapConfig) {
       });
     };
 
-    if ('requestIdleCallback' in window) {
-      const idleCallbackId = (window as any).requestIdleCallback(scheduleLoad);
+    if ('requestIdleCallback' in globalThis) {
+      const idleCallbackId = (globalThis as any).requestIdleCallback(scheduleLoad);
       return () => {
-        (window as any).cancelIdleCallback(idleCallbackId);
+        (globalThis as any).cancelIdleCallback(idleCallbackId);
       };
     } else {
       // Fallback: load immediately but asynchronously

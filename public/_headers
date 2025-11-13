@@ -17,7 +17,7 @@
   Cross-Origin-Opener-Policy: same-origin-allow-popups
   
   # Content Security Policy
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://us.i.posthog.com https://us-assets.i.posthog.com https://static.cloudflareinsights.com https://challenges.cloudflare.com https://accounts.google.com/gsi/client; style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style; font-src 'self' data:; img-src 'self' data: https:; connect-src 'self' https://us.i.posthog.com https://us-assets.i.posthog.com https://calcai.liljcool45.workers.dev https://accounts.google.com/gsi/ https://accounts.google.com/o/oauth2/; frame-src 'self' https://challenges.cloudflare.com https://accounts.google.com/gsi/; media-src 'self'; worker-src 'self' blob:;
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://us.i.posthog.com https://us-assets.i.posthog.com https://static.cloudflareinsights.com https://challenges.cloudflare.com https://accounts.google.com/gsi/client; style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style; font-src 'self' data:; img-src 'self' data: https:; connect-src 'self' https://us.i.posthog.com https://us-assets.i.posthog.com https://calcai.liljcool45.workers.dev https://accounts.google.com https://accounts.google.com/gsi/ https://accounts.google.com/o/oauth2/; frame-src 'self' https://challenges.cloudflare.com https://accounts.google.com https://accounts.google.com/gsi/; media-src 'self'; worker-src 'self' blob:;
 
 # Static assets - Long cache (1 year)
 /assets/*
