@@ -24,7 +24,7 @@ const ERROR_MESSAGES = {
 };
 
 // Helper to create a JSON response
-const jsonResponse = (data, options = {}, corsHeaders) => {
+const jsonResponse = (data, corsHeaders, options = {}) => {
   return new Response(JSON.stringify(data), {
     ...options,
     headers: {
@@ -74,7 +74,7 @@ export default {
         '/contact/send': { POST: handleContactForm },
         '/auth/google-client-id': { GET: handleGetGoogleClientId },
         '/health': {
-          GET: () => jsonResponse({ status: 'ok' }, {}, corsHeaders),
+          GET: () => jsonResponse({ status: 'ok' }, corsHeaders),
         },
       };
 
@@ -84,14 +84,12 @@ export default {
         if (handler) {
           return await handler(request, env, corsHeaders, ctx);
         }
-        return jsonResponse(
-          { error: ERROR_MESSAGES.METHOD_NOT_ALLOWED },
-          { status: 405 },
-          corsHeaders
-        );
+        return jsonResponse({ error: ERROR_MESSAGES.METHOD_NOT_ALLOWED }, corsHeaders, {
+          status: 405,
+        });
       }
 
-      return jsonResponse({ error: 'Not Found' }, { status: 404 }, corsHeaders);
+      return jsonResponse({ error: 'Not Found' }, corsHeaders, { status: 404 });
     } catch (error) {
       console.error('Worker error:', error);
       return new Response(
@@ -136,14 +134,14 @@ async function handleGoogleAuth(request, env, corsHeaders, _ctx) {
   authUrl.searchParams.set('access_type', 'offline');
   authUrl.searchParams.set('prompt', 'select_account'); // Only show account picker, not permissions every time
 
-  return jsonResponse({ authUrl: authUrl.toString(), state }, {}, corsHeaders);
+  return jsonResponse({ authUrl: authUrl.toString(), state }, corsHeaders);
 }
 
 /**
  * Returns Google Client ID for One Tap initialization
  */
 async function handleGetGoogleClientId(_request, env, corsHeaders) {
-  return jsonResponse({ clientId: env.GOOGLE_CLIENT_ID }, {}, corsHeaders);
+  return jsonResponse({ clientId: env.GOOGLE_CLIENT_ID }, corsHeaders);
 }
 
 /**
@@ -155,12 +153,12 @@ async function handleGoogleOneTap(request, env, corsHeaders, _ctx) {
   try {
     body = await request.json();
   } catch (_error) {
-    return jsonResponse({ error: ERROR_MESSAGES.INVALID_JSON }, { status: 400 }, corsHeaders);
+    return jsonResponse({ error: ERROR_MESSAGES.INVALID_JSON }, corsHeaders, { status: 400 });
   }
 
   const { credential } = body;
   if (!credential) {
-    return jsonResponse({ error: ERROR_MESSAGES.MISSING_CREDENTIAL }, { status: 400 }, corsHeaders);
+    return jsonResponse({ error: ERROR_MESSAGES.MISSING_CREDENTIAL }, corsHeaders, { status: 400 });
   }
 
   // Verify the JWT token with Google
@@ -178,8 +176,8 @@ async function handleGoogleOneTap(request, env, corsHeaders, _ctx) {
         error: 'Invalid credential',
         details: errorDetails.error_description || 'Verification failed',
       },
-      { status: 401 },
-      corsHeaders
+      corsHeaders,
+      { status: 401 }
     );
   }
 
@@ -187,7 +185,7 @@ async function handleGoogleOneTap(request, env, corsHeaders, _ctx) {
 
   // Verify the token is for our app
   if (tokenInfo.aud !== env.GOOGLE_CLIENT_ID) {
-    return jsonResponse({ error: ERROR_MESSAGES.INVALID_AUDIENCE }, { status: 401 }, corsHeaders);
+    return jsonResponse({ error: ERROR_MESSAGES.INVALID_AUDIENCE }, corsHeaders, { status: 401 });
   }
 
   // Extract user info from verified token
@@ -228,7 +226,6 @@ async function handleGoogleOneTap(request, env, corsHeaders, _ctx) {
       },
       expiresIn: 604800,
     },
-    {},
     corsHeaders
   );
 }
@@ -244,21 +241,19 @@ async function handleGoogleCallback(request, env, corsHeaders, _ctx) {
   const error = url.searchParams.get('error');
 
   if (error) {
-    return jsonResponse({ error: 'OAuth error', details: error }, { status: 400 }, corsHeaders);
+    return jsonResponse({ error: 'OAuth error', details: error }, corsHeaders, { status: 400 });
   }
 
   if (!code || !state) {
-    return jsonResponse({ error: 'Missing code or state parameter' }, { status: 400 }, corsHeaders);
+    return jsonResponse({ error: 'Missing code or state parameter' }, corsHeaders, { status: 400 });
   }
 
   // Verify state parameter
   const stateData = await env.AUTH_STATE.get(state);
   if (!stateData) {
-    return jsonResponse(
-      { error: 'Invalid or expired state parameter' },
-      { status: 400 },
-      corsHeaders
-    );
+    return jsonResponse({ error: 'Invalid or expired state parameter' }, corsHeaders, {
+      status: 400,
+    });
   }
 
   const { platform } = JSON.parse(stateData);
@@ -282,11 +277,9 @@ async function handleGoogleCallback(request, env, corsHeaders, _ctx) {
 
   if (!tokenResponse.ok) {
     const errorData = await tokenResponse.text();
-    return jsonResponse(
-      { error: 'Token exchange failed', details: errorData },
-      { status: 400 },
-      corsHeaders
-    );
+    return jsonResponse({ error: 'Token exchange failed', details: errorData }, corsHeaders, {
+      status: 400,
+    });
   }
 
   const tokens = await tokenResponse.json();
@@ -296,7 +289,7 @@ async function handleGoogleCallback(request, env, corsHeaders, _ctx) {
     headers: { Authorization: `Bearer ${tokens.access_token}` },
   });
   if (!userInfoResponse.ok) {
-    return jsonResponse({ error: 'Failed to fetch user info' }, { status: 400 }, corsHeaders);
+    return jsonResponse({ error: 'Failed to fetch user info' }, corsHeaders, { status: 400 });
   }
 
   const userInfo = await userInfoResponse.json();
@@ -348,7 +341,7 @@ async function handleVerifyToken(request, env, corsHeaders, _ctx) {
     .first();
 
   if (!user) {
-    return jsonResponse({ error: ERROR_MESSAGES.USER_NOT_FOUND }, { status: 404 }, corsHeaders);
+    return jsonResponse({ error: ERROR_MESSAGES.USER_NOT_FOUND }, corsHeaders, { status: 404 });
   }
 
   return jsonResponse(
@@ -361,7 +354,6 @@ async function handleVerifyToken(request, env, corsHeaders, _ctx) {
         picture: user.picture,
       },
     },
-    {},
     corsHeaders
   );
 }
@@ -393,7 +385,7 @@ async function handleRefreshToken(request, env, corsHeaders, _ctx) {
   // Delete old session
   await env.SESSIONS.delete(oldToken);
 
-  return jsonResponse({ sessionToken: newToken, expiresIn: 604800 }, {}, corsHeaders);
+  return jsonResponse({ sessionToken: newToken, expiresIn: 604800 }, corsHeaders);
 }
 
 /**
@@ -407,7 +399,7 @@ async function handleLogout(request, env, corsHeaders, ctx) {
   const { token } = authResult;
   ctx.waitUntil(env.SESSIONS.delete(token));
 
-  return jsonResponse({ success: true }, {}, corsHeaders);
+  return jsonResponse({ success: true }, corsHeaders);
 }
 
 /**
@@ -460,18 +452,16 @@ async function generateSessionToken(userId) {
 async function verifyAuth(request, env, corsHeaders) {
   const authHeader = request.headers.get('Authorization');
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return jsonResponse(
-      { error: ERROR_MESSAGES.MISSING_AUTH_HEADER },
-      { status: 401 },
-      corsHeaders
-    );
+    return jsonResponse({ error: ERROR_MESSAGES.MISSING_AUTH_HEADER }, corsHeaders, {
+      status: 401,
+    });
   }
 
   const token = authHeader.substring(7);
   const sessionData = await env.SESSIONS.get(token);
 
   if (!sessionData) {
-    return jsonResponse({ error: ERROR_MESSAGES.INVALID_SESSION }, { status: 401 }, corsHeaders);
+    return jsonResponse({ error: ERROR_MESSAGES.INVALID_SESSION }, corsHeaders, { status: 401 });
   }
 
   try {
@@ -479,11 +469,9 @@ async function verifyAuth(request, env, corsHeaders) {
     return { session, token };
   } catch (error) {
     console.error('Failed to parse session data:', error);
-    return jsonResponse(
-      { error: ERROR_MESSAGES.INVALID_SESSION_FORMAT },
-      { status: 500 },
-      corsHeaders
-    );
+    return jsonResponse({ error: ERROR_MESSAGES.INVALID_SESSION_FORMAT }, corsHeaders, {
+      status: 500,
+    });
   }
 }
 
@@ -501,7 +489,7 @@ async function handlePremiumCheck(request, env, corsHeaders, _ctx) {
     .bind(session.userId)
     .first();
 
-  return jsonResponse({ isPremium: Boolean(user?.is_premium) }, {}, corsHeaders);
+  return jsonResponse({ isPremium: Boolean(user?.is_premium) }, corsHeaders);
 }
 
 /**
@@ -520,7 +508,7 @@ async function handleCreateCheckout(request, env, corsHeaders, _ctx) {
     .first();
 
   if (!user) {
-    return jsonResponse({ error: ERROR_MESSAGES.USER_NOT_FOUND }, { status: 404 }, corsHeaders);
+    return jsonResponse({ error: ERROR_MESSAGES.USER_NOT_FOUND }, corsHeaders, { status: 404 });
   }
 
   // Parse request body
@@ -529,13 +517,13 @@ async function handleCreateCheckout(request, env, corsHeaders, _ctx) {
     body = await request.json();
   } catch (error) {
     console.error('Invalid JSON in checkout request:', error);
-    return jsonResponse({ error: ERROR_MESSAGES.INVALID_JSON }, { status: 400 }, corsHeaders);
+    return jsonResponse({ error: ERROR_MESSAGES.INVALID_JSON }, corsHeaders, { status: 400 });
   }
 
   const { priceId } = body;
 
   if (!priceId) {
-    return jsonResponse({ error: ERROR_MESSAGES.MISSING_PRICE_ID }, { status: 400 }, corsHeaders);
+    return jsonResponse({ error: ERROR_MESSAGES.MISSING_PRICE_ID }, corsHeaders, { status: 400 });
   }
 
   // Create or retrieve Stripe customer
@@ -595,14 +583,14 @@ async function handleCreateCheckout(request, env, corsHeaders, _ctx) {
     const errorData = await checkoutResponse.text();
     return jsonResponse(
       { error: 'Failed to create checkout session', details: errorData },
-      { status: 500 },
-      corsHeaders
+      corsHeaders,
+      { status: 500 }
     );
   }
 
   const checkout = await checkoutResponse.json();
 
-  return jsonResponse({ sessionId: checkout.id, url: checkout.url }, {}, corsHeaders);
+  return jsonResponse({ sessionId: checkout.id, url: checkout.url }, corsHeaders);
 }
 
 /**
@@ -611,7 +599,7 @@ async function handleCreateCheckout(request, env, corsHeaders, _ctx) {
 async function handleStripeWebhook(request, env, corsHeaders) {
   const signature = request.headers.get('stripe-signature');
   if (!signature) {
-    return jsonResponse({ error: 'Missing stripe-signature header' }, { status: 400 }, corsHeaders);
+    return jsonResponse({ error: 'Missing stripe-signature header' }, corsHeaders, { status: 400 });
   }
   let event;
   try {
@@ -621,11 +609,9 @@ async function handleStripeWebhook(request, env, corsHeaders) {
     event = await verifyStripeWebhook(body, signature, env.STRIPE_WEBHOOK_SECRET);
   } catch (err) {
     console.error('Webhook signature verification failed:', err.message);
-    return jsonResponse(
-      { error: 'Webhook signature verification failed' },
-      { status: 400 },
-      corsHeaders
-    );
+    return jsonResponse({ error: 'Webhook signature verification failed' }, corsHeaders, {
+      status: 400,
+    });
   }
 
   // Handle the event
@@ -647,10 +633,10 @@ async function handleStripeWebhook(request, env, corsHeaders) {
         break;
     }
 
-    return jsonResponse({ received: true }, {}, corsHeaders);
+    return jsonResponse({ received: true }, corsHeaders);
   } catch (error) {
     console.error('Error handling webhook:', error);
-    return jsonResponse({ error: 'Webhook handler failed' }, { status: 500 }, corsHeaders);
+    return jsonResponse({ error: 'Webhook handler failed' }, corsHeaders, { status: 500 });
   }
 }
 
@@ -683,7 +669,7 @@ async function verifyStripeWebhook(payload, signature, secret) {
 
   const signedPayload = `${timestamp}.${payload}`;
 
-  const sigBuffer = new Uint8Array(sigHex.match(/../g).map((h) => parseInt(h, 16)));
+  const sigBuffer = new Uint8Array(sigHex.match(/../g).map((h) => Number.parseInt(h, 16)));
 
   const verified = await crypto.subtle.verify(
     'HMAC',
@@ -790,7 +776,7 @@ async function handleWebhookProxy(request, env, corsHeaders, _ctx) {
     .first();
 
   if (!user || !user.is_premium) {
-    return jsonResponse({ error: ERROR_MESSAGES.PREMIUM_REQUIRED }, { status: 403 }, corsHeaders);
+    return jsonResponse({ error: ERROR_MESSAGES.PREMIUM_REQUIRED }, corsHeaders, { status: 403 });
   }
 
   // Parse request body
@@ -799,17 +785,15 @@ async function handleWebhookProxy(request, env, corsHeaders, _ctx) {
     body = await request.json();
   } catch (error) {
     console.error('Invalid JSON in webhook proxy request:', error);
-    return jsonResponse({ error: ERROR_MESSAGES.INVALID_JSON }, { status: 400 }, corsHeaders);
+    return jsonResponse({ error: ERROR_MESSAGES.INVALID_JSON }, corsHeaders, { status: 400 });
   }
 
   const { webhookUrl, data } = body;
 
   if (!webhookUrl || !data) {
-    return jsonResponse(
-      { error: ERROR_MESSAGES.MISSING_WEBHOOK_DATA },
-      { status: 400 },
-      corsHeaders
-    );
+    return jsonResponse({ error: ERROR_MESSAGES.MISSING_WEBHOOK_DATA }, corsHeaders, {
+      status: 400,
+    });
   }
 
   // Validate webhook URL
@@ -817,11 +801,9 @@ async function handleWebhookProxy(request, env, corsHeaders, _ctx) {
     new URL(webhookUrl);
   } catch (error) {
     console.error('Invalid webhook URL format:', error);
-    return jsonResponse(
-      { error: ERROR_MESSAGES.INVALID_WEBHOOK_URL },
-      { status: 400 },
-      corsHeaders
-    );
+    return jsonResponse({ error: ERROR_MESSAGES.INVALID_WEBHOOK_URL }, corsHeaders, {
+      status: 400,
+    });
   }
 
   // Send webhook with timeout
@@ -843,7 +825,6 @@ async function handleWebhookProxy(request, env, corsHeaders, _ctx) {
         success: true,
         status: webhookResponse.status,
       },
-      {},
       corsHeaders
     );
   } catch (error) {
@@ -852,8 +833,8 @@ async function handleWebhookProxy(request, env, corsHeaders, _ctx) {
         success: false,
         error: error.name === 'AbortError' ? 'Webhook timeout' : 'Webhook failed',
       },
-      { status: 500 },
-      corsHeaders
+      corsHeaders,
+      { status: 500 }
     );
   }
 }
@@ -874,7 +855,7 @@ async function handleContactForm(request, env, corsHeaders, ctx) {
     .first();
 
   if (!user) {
-    return jsonResponse({ error: ERROR_MESSAGES.USER_NOT_FOUND }, { status: 404 }, corsHeaders);
+    return jsonResponse({ error: ERROR_MESSAGES.USER_NOT_FOUND }, corsHeaders, { status: 404 });
   }
 
   // Parse request body
@@ -883,18 +864,18 @@ async function handleContactForm(request, env, corsHeaders, ctx) {
     body = await request.json();
   } catch (error) {
     console.error('Invalid JSON in contact form request:', error);
-    return jsonResponse({ error: ERROR_MESSAGES.INVALID_JSON }, { status: 400 }, corsHeaders);
+    return jsonResponse({ error: ERROR_MESSAGES.INVALID_JSON }, corsHeaders, { status: 400 });
   }
 
   const { message } = body;
 
   if (!message || typeof message !== 'string' || !message.trim()) {
-    return jsonResponse({ error: ERROR_MESSAGES.MISSING_MESSAGE }, { status: 400 }, corsHeaders);
+    return jsonResponse({ error: ERROR_MESSAGES.MISSING_MESSAGE }, corsHeaders, { status: 400 });
   }
 
   // Validate message length
   if (message.length > 1000) {
-    return jsonResponse({ error: ERROR_MESSAGES.MESSAGE_TOO_LONG }, { status: 400 }, corsHeaders);
+    return jsonResponse({ error: ERROR_MESSAGES.MESSAGE_TOO_LONG }, corsHeaders, { status: 400 });
   }
 
   // Prepare webhook payload
@@ -946,7 +927,6 @@ async function handleContactForm(request, env, corsHeaders, ctx) {
       success: true,
       message: 'Message is being sent.',
     },
-    {},
     corsHeaders
   );
 }

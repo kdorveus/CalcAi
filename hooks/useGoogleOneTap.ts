@@ -120,6 +120,7 @@ export function useGoogleOneTap(config: GoogleOneTapConfig) {
         moment_notification: (notification: MomentNotification) => {
           // Handle skipped moment (user closed the prompt without action)
           if (notification.isSkippedMoment()) {
+            return;
           }
           // Handle dismissed moment (user actively dismissed the prompt)
           if (notification.isDismissedMoment()) {
@@ -130,7 +131,6 @@ export function useGoogleOneTap(config: GoogleOneTapConfig) {
 
       setIsInitialized(true);
     } catch (error) {
-      console.error('Google One Tap initialization error:', error);
       config.onError?.(error as Error);
       initAttemptedRef.current = false;
     }

@@ -34,8 +34,6 @@ export const SPEECH_RECOGNITION_LANG_MAP: { [key: string]: string } = {
   it: 'it-IT',
 };
 
-export type TranslationKey = string;
-
 export interface Translations {
   [key: string]: string | string[] | Translations;
 }

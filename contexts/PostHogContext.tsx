@@ -12,14 +12,13 @@ import { Platform } from 'react-native';
 import { POSTHOG_CONFIG } from '../constants/Config';
 
 // Platform-specific PostHog types
-type PostHogClient = any;
 type QueuedEvent =
   | ['capture', string, Record<string, any> | undefined]
   | ['identify', string, Record<string, any> | undefined]
   | ['reset'];
 
 interface PostHogContextType {
-  posthog: PostHogClient | null;
+  posthog: any | null;
   isInitialized: boolean;
   captureEvent: (eventName: string, properties?: Record<string, any>) => void;
   identifyUser: (userId: string, properties?: Record<string, any>) => void;
@@ -40,10 +39,10 @@ export const usePostHog = () => useContext(PostHogContext);
 
 export const PostHogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isInitialized, setIsInitialized] = useState(false);
-  const posthogClientRef = useRef<PostHogClient | null>(null);
+  const posthogClientRef = useRef<any | null>(null);
   const eventQueueRef = useRef<QueuedEvent[]>([]);
 
-  const processQueue = useCallback((client: PostHogClient) => {
+  const processQueue = useCallback((client: any) => {
     if (!client) return;
     while (eventQueueRef.current.length > 0) {
       const event = eventQueueRef.current.shift();

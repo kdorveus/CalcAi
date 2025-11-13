@@ -51,8 +51,9 @@ export default function AuthCallbackScreen() {
           } else {
             router.replace('/');
           }
-        } catch (_error) {
-          Alert.alert(t('auth.authError'), 'Failed to save session');
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Failed to save session';
+          Alert.alert(t('auth.authError'), errorMessage);
           router.replace('/auth/login');
         }
       }

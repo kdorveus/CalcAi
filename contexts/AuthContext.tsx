@@ -1,4 +1,3 @@
-import { useRouter, useSegments } from 'expo-router';
 import type React from 'react';
 import {
   createContext,
@@ -250,23 +249,5 @@ export const useAuth = () => useContext(AuthContext);
 
 // Custom hook for route protection (can be used in root layout)
 export function useProtectedRoute() {
-  const segments = useSegments();
-  const _router = useRouter();
-  const { loading } = useAuth();
-
-  useEffect(() => {
-    const navigate = () => {
-      const _inAuthGroup = segments[0] === 'auth';
-      const _isWebhookPath = segments.includes('webhook');
-
-      // TODO: Re-enable route protection once Cloudflare auth is integrated
-      // For now, allow all routes without authentication
-    };
-
-    // Only navigate when loading is complete to prevent race conditions
-    if (!loading) {
-      // Use requestAnimationFrame to ensure navigation happens after current render
-      requestAnimationFrame(navigate);
-    }
-  }, [loading, segments]);
+  useEffect(() => {}, []);
 }

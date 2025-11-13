@@ -22,7 +22,9 @@ let Purchases: typeof PurchasesModule | null = null;
 if (Platform.OS === 'android' || Platform.OS === 'ios') {
   try {
     Purchases = PurchasesModule;
-  } catch (_e) {}
+  } catch {
+    Purchases = null;
+  }
 }
 
 // Product ID for Google Play
@@ -97,9 +99,7 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
         await SecureStore.setItemAsync(PREMIUM_STATUS_KEY, status.toString());
         await SecureStore.setItemAsync(PREMIUM_TIMESTAMP_KEY, timestamp.toString());
       }
-    } catch (error) {
-      console.error('Error saving premium status:', error);
-    }
+    } catch {}
   }, []);
 
   // Check premium status from Cloudflare Worker
@@ -121,8 +121,7 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
       setIsPremiumCached(true);
       await savePremiumStatus(premium, Date.now());
       return premium;
-    } catch (error) {
-      console.error('Failed to check premium status:', error);
+    } catch {
       setIsPremium(false);
       return false;
     }
@@ -184,7 +183,7 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
                   });
                 }
               }
-            } catch (_error) {}
+            } catch {}
 
             // Set up purchase listener
             if (Purchases) {
@@ -200,9 +199,7 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
             }
           }
         }
-      } catch (error) {
-        console.error('Error initializing premium features:', error);
-      }
+      } catch {}
     };
 
     initialize();
@@ -246,24 +243,19 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
               await Purchases.purchaseProduct(GOOGLE_PLAY_PRODUCT_ID);
             } catch (error: any) {
               if (error.userCancelled) {
-              } else {
-                console.error('Error making purchase:', error);
-                Alert.alert(
-                  'Purchase Error',
-                  'There was an error processing your purchase. Please try again.'
-                );
+                return;
               }
+              Alert.alert(
+                'Purchase Error',
+                'There was an error processing your purchase. Please try again.'
+              );
             }
           } else {
-            console.warn('Purchases module not available');
             Alert.alert('Purchase Error', 'In-app purchases are not available on this device.');
           }
 
           setPremiumLoading(false);
-        }
-        // For iOS, will need Apple IAP implementation here
-        else if (Platform.OS === 'ios') {
-          // TODO: Implement iOS IAP when needed
+        } else if (Platform.OS === 'ios') {
           Alert.alert('Coming Soon', 'iOS in-app purchases are coming soon!');
         }
         // For web and other platforms, use Stripe Checkout
@@ -319,8 +311,7 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
             setPremiumLoading(false);
           }
         }
-      } catch (error) {
-        console.error('Error showing premium payment:', error);
+      } catch {
         Alert.alert('Error', 'Could not open payment page. Please try again.');
         setPremiumLoading(false);
       }

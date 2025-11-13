@@ -187,9 +187,7 @@ const MainScreen: React.FC = () => {
     // Stop any ongoing speech when muted
     if (newMuteState) {
       if (Platform.OS === 'web') {
-        if (typeof globalThis.window !== 'undefined' && globalThis.window.speechSynthesis) {
-          globalThis.window.speechSynthesis.cancel();
-        }
+        globalThis.window?.speechSynthesis?.cancel();
       } else {
         Speech.stop();
       }
@@ -317,11 +315,7 @@ const MainScreen: React.FC = () => {
 
   // Initialize and cache the Google female voice on component mount (Web only)
   useEffect(() => {
-    if (
-      Platform.OS === 'web' &&
-      typeof globalThis.window !== 'undefined' &&
-      globalThis.window.speechSynthesis
-    ) {
+    if (Platform.OS === 'web' && globalThis.window?.speechSynthesis) {
       const selectBestVoice = () => {
         const voices = globalThis.window.speechSynthesis.getVoices();
         if (voices.length === 0) return; // Voices not loaded yet
@@ -646,7 +640,7 @@ const MainScreen: React.FC = () => {
       normalized = normalized.replace(/[\u00A0\u202F\u2007]/g, ' ');
       if (compiled.decimal) normalized = normalized.replace(compiled.decimal, '.');
       normalized = normalized.replace(/(\d)\s*\.\s*(\d)/g, '$1.$2');
-      normalized = normalized.replace(/\b(\d{1,3})(?:,\d{3})+\b/g, (m) => m.replace(/,/g, ''));
+      normalized = normalized.replace(/\b(\d{1,3})(?:,\d{3})+\b/g, (m) => m.replaceAll(',', ''));
       normalized = normalized.replace(/\b(\d+),(\d+)\b/g, '$1.$2');
 
       normalized = normalized.replace(
@@ -690,18 +684,18 @@ const MainScreen: React.FC = () => {
         (_m, p1, p2) =>
           `(${String(p2)
             .replace(/[ \u00A0\u202F]/g, '')
-            .replace(',', '.')} * (1 - ${String(p1)
+            .replaceAll(',', '.')} * (1 - ${String(p1)
             .replace(/[ \u00A0\u202F]/g, '')
-            .replace(',', '.')} / 100))`
+            .replaceAll(',', '.')} / 100))`
       );
       normalized = normalized.replace(
         new RegExp(`(${numberPattern})\\s*-\\s*(${numberPattern})\\s*%`, 'gi'),
         (_m, base, pct) =>
           `(${String(base)
             .replace(/[ \u00A0\u202F]/g, '')
-            .replace(',', '.')} * (1 - ${String(pct)
+            .replaceAll(',', '.')} * (1 - ${String(pct)
             .replace(/[ \u00A0\u202F]/g, '')
-            .replace(',', '.')} / 100))`
+            .replaceAll(',', '.')} / 100))`
       );
 
       // Handle language-specific phrase patterns
@@ -755,7 +749,7 @@ const MainScreen: React.FC = () => {
       // 3) Remove ALL remaining letters (including accented characters like à, é, ñ, etc.)
       normalized = normalized.replace(/[a-zA-ZÀ-ÿ]+/g, ' ');
       // 4) Restore 'sqrt'
-      normalized = normalized.replace(/__SQRT__/g, ' sqrt ');
+      normalized = normalized.replaceAll('__SQRT__', ' sqrt ');
       // 5) Collapse duplicate plus operators that can arise from phrase joins (e.g., "+ +")
       normalized = normalized.replace(/\+\s*\+/g, '+');
 
@@ -775,11 +769,11 @@ const MainScreen: React.FC = () => {
       let expression = val;
       if (type === 'speech') {
         expression = normalizeSpokenMath(val);
-        expression = expression.replace(/,/g, '.');
+        expression = expression.replaceAll(',', '.');
       }
 
       // Replace visual operators with standard ones for mathjs
-      expression = expression.replace(/×/g, '*').replace(/÷/g, '/');
+      expression = expression.replaceAll('×', '*').replaceAll('÷', '/');
 
       // Trim the expression
       expression = expression.trim();
@@ -808,7 +802,7 @@ const MainScreen: React.FC = () => {
       // Handle percentage correctly - needs number before it
       expression = expression.replace(/(\d+)%/g, '($1 / 100)');
       // Allow trailing % interpreted as /100
-      expression = expression.replace(/%/g, '/100');
+      expression = expression.replaceAll('%', '/100');
 
       const allowedChars = /^[\d+\-*/.()^\seqrt]+$/;
       if (!allowedChars.test(expression)) {
@@ -838,9 +832,7 @@ const MainScreen: React.FC = () => {
     (text: string) => {
       if (isTTSSpeaking.current) {
         if (Platform.OS === 'web') {
-          if (typeof globalThis.window !== 'undefined' && globalThis.window.speechSynthesis) {
-            globalThis.window.speechSynthesis.cancel();
-          }
+          globalThis.window?.speechSynthesis?.cancel();
         } else {
           Speech.stop();
         }
@@ -850,7 +842,7 @@ const MainScreen: React.FC = () => {
 
       if (Platform.OS === 'web') {
         // Use Web Speech API for browser
-        if (typeof globalThis.window !== 'undefined' && globalThis.window.speechSynthesis) {
+        if (globalThis.window?.speechSynthesis) {
           // Always cancel any queued speech for zero-queue guarantee
           globalThis.window.speechSynthesis.cancel();
 
@@ -1358,9 +1350,9 @@ const MainScreen: React.FC = () => {
     }
     const timeout = setTimeout(() => {
       try {
-        let expression = input.replace(/×/g, '*').replace(/÷/g, '/');
+        let expression = input.replaceAll('×', '*').replaceAll('÷', '/');
         expression = expression.replace(/(\d+)%/g, '($1 / 100)');
-        expression = expression.replace(/%/g, '/100'); // Trailing %
+        expression = expression.replaceAll('%', '/100'); // Trailing %
 
         const lastChar = expression.trim().slice(-1);
         if (['+', '-', '*', '/', '^', '('].includes(lastChar)) {

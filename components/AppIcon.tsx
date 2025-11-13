@@ -55,15 +55,8 @@ const KeyboardSpaceIcon = (props: SvgProps) => {
   );
 };
 
-// Crown icon defined inline for better performance
-const CrownIcon = (props: SvgProps) => {
-  const { width = 24, height = 24, color = 'currentColor', ...rest } = props;
-  return (
-    <Svg viewBox="0 0 24 24" width={width} height={height} fill={color} {...rest}>
-      <Path d="M5 20v-2h14v2H5Zm0-3.5-1.275-8.025q-.05 0-.112.013t-.113.012q-.625 0-1.062-.438Q2 7.625 2 7q0-.625.438-1.062Q2.875 5.5 3.5 5.5q.625 0 1.062.438Q5 6.375 5 7q0 .175-.037.325t-.088.275l3.125 1.4 3.125-4.275q-.275-.2-.45-.525T10.5 3.5q0-.625.438-1.062Q11.375 2 12 2q.625 0 1.062.438Q13.5 2.875 13.5 3.5q0 .375-.175.7t-.45.525l3.125 4.275 3.125-1.4q-.05-.125-.088-.275T19 7q0-.625.438-1.062Q19.875 5.5 20.5 5.5q.625 0 1.062.438Q22 6.375 22 7q0 .625-.438 1.062-.437.438-1.062.438-.063 0-.125-.012t-.125-.013L19 16.5H5Zm1.7-2h10.6l.65-4.175-2.625 1.15-3.325-4.575-3.325 4.575-2.625-1.15.65 4.175Zm5.3 0Z" />
-    </Svg>
-  );
-};
+// Crown icon defined inline for better performance - reuse CrownOutlineIcon
+const CrownIcon = CrownOutlineIcon;
 
 const BackspaceIcon = (props: SvgProps) => (
   <Svg viewBox="0 0 24 24" {...props}>

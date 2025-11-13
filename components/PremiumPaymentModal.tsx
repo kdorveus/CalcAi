@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   Dimensions,
   Image,
@@ -235,11 +236,26 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
 
   const handleRestorePurchase = async () => {
     setIsRestoring(true);
-    // TODO: Implement restore purchase logic
-    // This would typically call a restore function from PremiumContext
-    setTimeout(() => {
+    try {
+      if (Platform.OS === 'android' || Platform.OS === 'ios') {
+        const PurchasesModule = require('react-native-purchases').default;
+        if (PurchasesModule) {
+          const customerInfo = await PurchasesModule.restorePurchases();
+          if (customerInfo.entitlements.active.premium) {
+            Alert.alert('Success', 'Your purchases have been restored.');
+            onClose();
+          } else {
+            Alert.alert('No Purchases', 'No previous purchases found to restore.');
+          }
+        }
+      } else {
+        Alert.alert('Not Available', 'Restore purchase is only available on mobile devices.');
+      }
+    } catch {
+      Alert.alert('Error', 'Failed to restore purchases. Please try again.');
+    } finally {
       setIsRestoring(false);
-    }, 1000);
+    }
   };
 
   const handleClose = () => {

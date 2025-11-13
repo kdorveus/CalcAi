@@ -71,13 +71,17 @@ const KeypadButton: React.FC<{
     activeOpacity={0.7}
     delayPressIn={0}
   >
-    {keyValue === '↺' ? (
-      <AppIcon name="refresh" size={28} color="#eee" style={{ transform: [{ scaleX: -1 }] }} />
-    ) : keyValue === 'CHECK_ICON' ? (
-      <AppIcon name="send" size={24} color="#eee" />
-    ) : (
-      <Text style={styles.keypadKeyText}>{keyValue}</Text>
-    )}
+    {(() => {
+      if (keyValue === '↺') {
+        return (
+          <AppIcon name="refresh" size={28} color="#eee" style={{ transform: [{ scaleX: -1 }] }} />
+        );
+      }
+      if (keyValue === 'CHECK_ICON') {
+        return <AppIcon name="send" size={24} color="#eee" />;
+      }
+      return <Text style={styles.keypadKeyText}>{keyValue}</Text>;
+    })()}
   </TouchableOpacity>
 );
 

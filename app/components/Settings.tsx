@@ -75,11 +75,11 @@ const sanitizeInput = (input: string): string => {
 
   // Encode special characters
   sanitized = sanitized
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
 
   // Limit the length to prevent DoS
   return sanitized.substring(0, 500);
@@ -229,10 +229,10 @@ const useWebhookManagement = (
       const failures = results.filter((result) => result.status === 'rejected').length;
 
       // Show result to user
-      Alert.alert(
-        'Send Complete',
-        `Successfully sent to ${successes} endpoint${successes !== 1 ? 's' : ''}.${failures > 0 ? ` Failed to send to ${failures} endpoint${failures !== 1 ? 's' : ''}.` : ''}`
-      );
+      const successText = `Successfully sent to ${successes} endpoint${successes !== 1 ? 's' : ''}.`;
+      const failureText =
+        failures > 0 ? ` Failed to send to ${failures} endpoint${failures !== 1 ? 's' : ''}.` : '';
+      Alert.alert('Send Complete', `${successText}${failureText}`);
     } catch (_error: unknown) {
       Alert.alert('Error', 'Error sending data');
     } finally {
@@ -759,16 +759,16 @@ const AuthSection: React.FC<{
   <View style={[styles.sectionCard, styles.authSection]}>
     <View style={{ alignItems: 'center', paddingVertical: 16, paddingHorizontal: 4 }}>
       {/* Avatar */}
-      {user ? (
-        user.picture ? (
+      {user &&
+        (user.picture ? (
           <Image
             source={{ uri: user.picture }}
             style={{ width: 72, height: 72, borderRadius: 36, marginBottom: 12 }}
           />
         ) : (
           <AppIcon name="account-circle" size={72} color="#888" style={{ marginBottom: 12 }} />
-        )
-      ) : (
+        ))}
+      {!user && (
         <Image
           source={require('../../assets/images/cat.webp')}
           style={{ width: 72, height: 72, borderRadius: 36, marginBottom: 12 }}
@@ -1248,7 +1248,13 @@ export const WebhookSettingsComponentV2: React.FC<WebhookSettingsProps> = ({
               <Text style={styles.bulkSendText}>
                 {isSendingBulk
                   ? t('settings.bulkData.sending')
-                  : `${t('settings.bulkData.send')} ${bulkData.length} ${bulkData.length !== 1 ? t('settings.bulkData.items') : t('settings.bulkData.item')}`}
+                  : (() => {
+                      const itemText =
+                        bulkData.length !== 1
+                          ? t('settings.bulkData.items')
+                          : t('settings.bulkData.item');
+                      return `${t('settings.bulkData.send')} ${bulkData.length} ${itemText}`;
+                    })()}
               </Text>
               {isSendingBulk && (
                 <ActivityIndicator size="small" color="#fff" style={{ marginLeft: 10 }} />

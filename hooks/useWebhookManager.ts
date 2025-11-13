@@ -79,8 +79,7 @@ export const useWebhookManager = (
         }
 
         setWebhookSettingsLoaded(true);
-      } catch (error) {
-        console.error('Failed to load webhook settings:', error);
+      } catch {
         setWebhookSettingsLoaded(true);
       }
     };
@@ -95,11 +94,11 @@ export const useWebhookManager = (
     let sanitized = input.replace(/<[^>]*>/g, '');
 
     sanitized = sanitized
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#039;');
 
     return sanitized.substring(0, 1000);
   }, []);
@@ -115,8 +114,7 @@ export const useWebhookManager = (
       if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') return null;
 
       return url;
-    } catch (error) {
-      console.debug('Invalid webhook URL:', error);
+    } catch {
       return null;
     }
   }, []);
@@ -156,7 +154,6 @@ export const useWebhookManager = (
             .map((webhook) => {
               const validatedUrl = validateWebhookUrl(webhook.url);
               if (!validatedUrl) {
-                console.warn('Invalid webhook URL detected:', webhook.url);
                 return Promise.resolve();
               }
 
@@ -171,8 +168,7 @@ export const useWebhookManager = (
             .filter(Boolean);
 
           await Promise.allSettled(promises);
-        } catch (error) {
-          console.error('Failed to send webhook data:', error);
+        } catch {
           if (Platform.OS === 'android') {
             ToastAndroid.show(t('mainApp.couldNotSendData'), ToastAndroid.SHORT);
           }
@@ -290,15 +286,11 @@ export const useWebhookManager = (
 
       const allItemsResults = await Promise.allSettled(bulkSendPromises);
 
-      for (let i = 0; i < allItemsResults.length; i++) {
-        const itemOutcome = allItemsResults[i];
-
+      for (const itemOutcome of allItemsResults) {
         if (itemOutcome.status === 'fulfilled') {
           const urlResults = itemOutcome.value;
 
-          for (let j = 0; j < urlResults.length; j++) {
-            const urlOutcome = urlResults[j];
-
+          for (const urlOutcome of urlResults) {
             if (urlOutcome.status === 'fulfilled') {
               successCount++;
             } else {
@@ -316,8 +308,7 @@ export const useWebhookManager = (
         t('mainApp.bulkSendComplete'),
         `Successfully sent data to ${successCount} endpoints.\nFailed to send data to ${failureCount} endpoints.`
       );
-    } catch (error) {
-      console.error('Bulk send error:', error);
+    } catch {
       Alert.alert(t('mainApp.bulkSendError'), t('mainApp.bulkSendErrorMessage'));
     } finally {
       setIsSendingBulk(false);
@@ -332,8 +323,7 @@ export const useWebhookManager = (
         AsyncStorage.setItem('sendEquation', JSON.stringify(sendEquation)),
         AsyncStorage.setItem('streamResults', JSON.stringify(streamResults)),
       ]);
-    } catch (error) {
-      console.error('Failed to save webhook settings:', error);
+    } catch {
       if (Platform.OS === 'android') {
         ToastAndroid.show(t('mainApp.couldNotSaveSettings'), ToastAndroid.SHORT);
       }

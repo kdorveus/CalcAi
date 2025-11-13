@@ -140,11 +140,9 @@ export const useSpeechRecognition = ({
                     setInterimTranscript(text);
                   }
                 });
-              } else {
-                if (interimText !== lastInterimSentRef.current) {
-                  lastInterimSentRef.current = interimText;
-                  setInterimTranscript(interimText);
-                }
+              } else if (interimText !== lastInterimSentRef.current) {
+                lastInterimSentRef.current = interimText;
+                setInterimTranscript(interimText);
               }
             }
           } else {
