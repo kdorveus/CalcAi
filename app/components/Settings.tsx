@@ -769,17 +769,13 @@ const AuthSection: React.FC<{
       >
         {user ? user.name || 'User' : t('auth.anonymousCat')}
       </Text>
-      <Text style={[styles.userSubtitle, { fontSize: 14, color: '#888', textAlign: 'center' }]}
-      >
+      <Text style={[styles.userSubtitle, { fontSize: 14, color: '#888', textAlign: 'center' }]}>
         {user ? user.email : t('auth.guestUser')}
       </Text>
 
       {/* Button */}
       {user ? (
-        <TouchableOpacity
-          style={[styles.signOutButton, { marginTop: 4 }]}
-          onPress={handleSignOut}
-        >
+        <TouchableOpacity style={[styles.signOutButton, { marginTop: 4 }]} onPress={handleSignOut}>
           <AppIcon name="logout" size={18} color="#888" style={{ marginRight: 8 }} />
           <Text style={styles.signOutButtonText}>{t('auth.signOut')}</Text>
         </TouchableOpacity>
