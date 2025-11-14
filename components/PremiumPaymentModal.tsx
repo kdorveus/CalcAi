@@ -329,29 +329,51 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
     await processPayment();
   };
 
-  const handleRestorePurchase = async () => {
+  // Helper: Check if platform supports restore purchase
+  const isMobilePlatform = useCallback(() => {
+    return Platform.OS === 'android' || Platform.OS === 'ios';
+  }, []);
+
+  // Helper: Restore purchases on mobile platform
+  const restoreMobilePurchases = useCallback(async () => {
+    const PurchasesModule = require('react-native-purchases').default;
+    if (!PurchasesModule) {
+      return false;
+    }
+
+    const customerInfo = await PurchasesModule.restorePurchases();
+    return customerInfo.entitlements.active.premium;
+  }, []);
+
+  // Helper: Handle restore purchase result
+  const handleRestoreResult = useCallback(
+    (hasPremium: boolean) => {
+      if (hasPremium) {
+        Alert.alert('Success', 'Your purchases have been restored.');
+        onClose();
+      } else {
+        Alert.alert('No Purchases', 'No previous purchases found to restore.');
+      }
+    },
+    [onClose]
+  );
+
+  const handleRestorePurchase = useCallback(async () => {
     setIsRestoring(true);
     try {
-      if (Platform.OS === 'android' || Platform.OS === 'ios') {
-        const PurchasesModule = require('react-native-purchases').default;
-        if (PurchasesModule) {
-          const customerInfo = await PurchasesModule.restorePurchases();
-          if (customerInfo.entitlements.active.premium) {
-            Alert.alert('Success', 'Your purchases have been restored.');
-            onClose();
-          } else {
-            Alert.alert('No Purchases', 'No previous purchases found to restore.');
-          }
-        }
-      } else {
+      if (!isMobilePlatform()) {
         Alert.alert('Not Available', 'Restore purchase is only available on mobile devices.');
+        return;
       }
+
+      const hasPremium = await restoreMobilePurchases();
+      handleRestoreResult(hasPremium);
     } catch {
       Alert.alert('Error', 'Failed to restore purchases. Please try again.');
     } finally {
       setIsRestoring(false);
     }
-  };
+  }, [isMobilePlatform, restoreMobilePurchases, handleRestoreResult]);
 
   const handleClose = () => {
     if (!isLoading && !isRestoring) {

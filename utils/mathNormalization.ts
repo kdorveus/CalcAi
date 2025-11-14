@@ -266,7 +266,7 @@ export function normalizeSpokenMath(text: string, compiled: CompiledLanguageRege
 
   // Final cleanup
   normalized = normalized.replace(/\bsqrt\b/g, '__SQRT__');
-  normalized = normalized.replace(/[''"`]+/g, ' ');
+  normalized = normalized.replace(/['"`]+/g, ' ');
   normalized = normalized.replace(/[a-zA-ZÀ-ÿ]+/g, ' ');
   normalized = normalized.replaceAll('__SQRT__', ' sqrt ');
   normalized = normalized.replace(/\+\s*\+/g, '+');

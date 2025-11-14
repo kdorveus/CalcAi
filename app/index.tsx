@@ -370,7 +370,7 @@ const MainScreen: React.FC = () => {
   useKeyboardHandlers({
     isRecording,
     setIsRecording,
-    startRecording: speechRecognition.startRecording,
+    startRecording,
     onKeypadPress,
     toggleSpeechMute,
     setBubbles,
@@ -439,11 +439,10 @@ const MainScreen: React.FC = () => {
   // Background initialization for speech recognition - runs immediately after app loads
   useEffect(() => {
     // Start initialization immediately after component mounts
-    speechRecognition.initializeSpeech();
+    speechRecognition.initializeSpeech().catch((error) => {
+      console.error('Failed to initialize speech recognition:', error);
+    });
   }, [speechRecognition]);
-
-  const startRecording = speechRecognition.startRecording;
-  const stopRecording = speechRecognition.stopRecording;
 
   // Save webhook settings when they change
   useEffect(() => {
@@ -460,7 +459,8 @@ const MainScreen: React.FC = () => {
       stopRecording();
     }
     prevContinuousModeRef.current = continuousMode;
-  }, [continuousMode, isRecording, stopRecording]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [continuousMode, isRecording]); // stopRecording is stable (useCallback), no need to include
 
   // --- Webhook Logic Handlers ---
   const handleSendBulkData = webhookManager.handleSendBulkData;
