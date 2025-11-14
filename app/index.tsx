@@ -32,13 +32,13 @@ import { useWebhookManager } from '../hooks/useWebhookManager';
 import type { ChatBubble } from '../types';
 import { calculateExpression } from '../utils/calculationUtils';
 import { selectBestVoice, speakSingleResult } from '../utils/speechUtils';
-import { BottomBar } from './components/BottomBar';
-import { MobileEmptyState, WebEmptyState } from './components/EmptyState';
-import { HeaderControls } from './components/HeaderControls';
-import { styles } from './styles/indexStyles';
+import { BottomBar } from './_components/BottomBar';
+import { MobileEmptyState, WebEmptyState } from './_components/EmptyState';
+import { HeaderControls } from './_components/HeaderControls';
+import { styles } from './_styles/indexStyles';
 
 // Lazy load non-critical modals to reduce initial bundle size
-const Settings = lazy(() => import(/* webpackChunkName: "settings" */ './components/Settings'));
+const Settings = lazy(() => import(/* webpackChunkName: "settings" */ './_components/Settings'));
 const HistoryModal = lazy(
   () => import(/* webpackChunkName: "history-modal" */ '../components/HistoryModal')
 );

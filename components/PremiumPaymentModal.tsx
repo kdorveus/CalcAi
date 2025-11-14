@@ -14,7 +14,7 @@ import {
   View,
 } from 'react-native';
 import { Path, Svg } from 'react-native-svg';
-import GoogleLogo from '../app/components/GoogleLogo';
+import GoogleLogo from '../app/_components/GoogleLogo';
 import { useAuth } from '../contexts/AuthContext';
 import { usePostHog } from '../contexts/PostHogContext';
 import { usePremium } from '../contexts/PremiumContext';
@@ -609,95 +609,126 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
     );
   };
 
-  // Helper: Render modal content
-  const renderModalContent = () => (
-    <View style={[styles.modalContainer, isMobile && styles.modalContainerMobile]}>
-      {/* Image Container */}
-      <View style={[styles.imageContainer, isMobile && styles.imageContainerMobile]}>
-        <Image
-          source={require('../assets/images/popup.webp')}
-          style={styles.image}
-          resizeMode="cover"
-        />
-        <View style={styles.logoOverlay}>
-          <Image
-            source={require('../assets/images/icon.png')}
-            style={styles.logo}
-            resizeMode="contain"
+  // Helper: Render text content (shared between mobile and desktop)
+  const renderTextContent = () => (
+    <View style={[styles.textContainer, isMobile && styles.textContainerMobile]}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        showsHorizontalScrollIndicator={false}
+      >
+        <View style={styles.content}>
+          {/* Title */}
+          <View style={styles.titleContainer}>
+            <Text style={styles.title} numberOfLines={1}>
+              {t('premium.unlockPremiumFeatures').toUpperCase()}
+            </Text>
+          </View>
+
+          {/* Plan Selection */}
+          <PlanSelection selectedPlan={selectedPlan} onPlanSelect={handlePlanSelection} t={t} />
+
+          {/* Price Display */}
+          <PriceDisplay user={user} selectedPlan={selectedPlan} t={t} />
+
+          {/* Features List */}
+          <View style={styles.featuresList}>
+            <View style={styles.featureItem}>
+              <AppIcon name="microphone" size={16} color="#fff" />
+              <FeatureText text={t('premium.modal.benefits.unlimitedVoice')} user={user} />
+            </View>
+            <View style={styles.featureItem}>
+              <AppIcon name="webhook" size={16} color="#fff" />
+              <FeatureText text={t('premium.modal.benefits.webhookIntegrations')} user={user} />
+            </View>
+            <View style={styles.featureItem}>
+              <AppIcon name="check-decagram" size={16} color="#fff" />
+              <FeatureText text={t('premium.modal.benefits.earlyAccess')} user={user} />
+            </View>
+            <View style={styles.featureItem}>
+              <AdFreeIcon size={16} color="#fff" />
+              <FeatureText text={t('premium.modal.benefits.adFree')} user={user} />
+            </View>
+            <View style={styles.featureItem}>
+              <AppIcon name="history" size={16} color="#fff" />
+              <FeatureText text={t('premium.modal.benefits.exportHistory')} user={user} />
+            </View>
+            <View style={styles.featureItem}>
+              <AppIcon name="audio-lines" size={16} color="#fff" />
+              <FeatureText text={t('premium.modal.benefits.advancedVoice')} user={user} />
+            </View>
+          </View>
+
+          {/* Payment Button */}
+          <PaymentButton
+            user={user}
+            isLoading={isLoading}
+            premiumLoading={premiumLoading}
+            onPress={handlePayment}
+            getPlanButtonText={getPlanButtonText}
+          />
+
+          {/* Restore Purchase Button */}
+          <RestorePurchaseButton
+            user={user}
+            isRestoring={isRestoring}
+            onPress={handleRestorePurchase}
+            t={t}
           />
         </View>
-      </View>
-
-      {/* Text Container with Glass Morphism */}
-      <View style={[styles.textContainer, isMobile && styles.textContainerMobile]}>
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          showsHorizontalScrollIndicator={false}
-        >
-          <View style={styles.content}>
-            {/* Title */}
-            <View style={styles.titleContainer}>
-              <Text style={styles.title} numberOfLines={1}>
-                {t('premium.unlockPremiumFeatures').toUpperCase()}
-              </Text>
-            </View>
-
-            {/* Plan Selection */}
-            <PlanSelection selectedPlan={selectedPlan} onPlanSelect={handlePlanSelection} t={t} />
-
-            {/* Price Display */}
-            <PriceDisplay user={user} selectedPlan={selectedPlan} t={t} />
-
-            {/* Features List */}
-            <View style={styles.featuresList}>
-              <View style={styles.featureItem}>
-                <AppIcon name="microphone" size={16} color="#fff" />
-                <FeatureText text={t('premium.modal.benefits.unlimitedVoice')} user={user} />
-              </View>
-              <View style={styles.featureItem}>
-                <AppIcon name="webhook" size={16} color="#fff" />
-                <FeatureText text={t('premium.modal.benefits.webhookIntegrations')} user={user} />
-              </View>
-              <View style={styles.featureItem}>
-                <AppIcon name="check-decagram" size={16} color="#fff" />
-                <FeatureText text={t('premium.modal.benefits.earlyAccess')} user={user} />
-              </View>
-              <View style={styles.featureItem}>
-                <AdFreeIcon size={16} color="#fff" />
-                <FeatureText text={t('premium.modal.benefits.adFree')} user={user} />
-              </View>
-              <View style={styles.featureItem}>
-                <AppIcon name="history" size={16} color="#fff" />
-                <FeatureText text={t('premium.modal.benefits.exportHistory')} user={user} />
-              </View>
-              <View style={styles.featureItem}>
-                <AppIcon name="audio-lines" size={16} color="#fff" />
-                <FeatureText text={t('premium.modal.benefits.advancedVoice')} user={user} />
-              </View>
-            </View>
-
-            {/* Payment Button */}
-            <PaymentButton
-              user={user}
-              isLoading={isLoading}
-              premiumLoading={premiumLoading}
-              onPress={handlePayment}
-              getPlanButtonText={getPlanButtonText}
-            />
-
-            {/* Restore Purchase Button */}
-            <RestorePurchaseButton
-              user={user}
-              isRestoring={isRestoring}
-              onPress={handleRestorePurchase}
-              t={t}
-            />
-          </View>
-        </ScrollView>
-      </View>
+      </ScrollView>
     </View>
   );
+
+  // Helper: Render modal content - completely separate mobile and desktop layouts
+  const renderModalContent = () => {
+    if (isMobile) {
+      // Mobile layout: Image on top, text container below (text gets flex priority)
+      return (
+        <View style={styles.modalContainerMobile}>
+          {/* Image Container - Top on mobile */}
+          <View style={styles.imageContainerMobile}>
+            <Image
+              source={require('../assets/images/popup.webp')}
+              style={styles.imageMobile}
+              resizeMode="cover"
+            />
+            <View style={styles.logoOverlayMobile}>
+              <Image
+                source={require('../assets/images/icon.png')}
+                style={styles.logo}
+                resizeMode="contain"
+              />
+            </View>
+          </View>
+
+          {/* Text Container - Below image, gets flex priority */}
+          {renderTextContent()}
+        </View>
+      );
+    }
+
+    // Desktop layout: Image left, text right (original layout)
+    return (
+      <View style={styles.modalContainer}>
+        <View style={styles.imageContainer}>
+          <Image
+            source={require('../assets/images/popup.webp')}
+            style={styles.image}
+            resizeMode="cover"
+          />
+          <View style={styles.logoOverlay}>
+            <Image
+              source={require('../assets/images/icon.png')}
+              style={styles.logo}
+              resizeMode="contain"
+            />
+          </View>
+        </View>
+        {renderTextContent()}
+      </View>
+    );
+  };
 
   // Web: Show non-intrusive bubble, Mobile: Show full modal
   // If user clicks bubble, showFullModal becomes true and full modal appears
@@ -759,13 +790,16 @@ const styles = StyleSheet.create({
     maxWidth: '95%',
     minWidth: 320,
     width: '95%',
+    maxHeight: '90%',
     alignSelf: 'center',
+    justifyContent: 'flex-end',
     ...Platform.select({
       web: {
         position: 'fixed' as any,
-        top: '50%' as any,
+        top: 'auto' as any,
+        bottom: '5%' as any,
         left: '50%' as any,
-        transform: 'translate(-50%, -50%)' as any,
+        transform: 'translateX(-50%)' as any,
         zIndex: 2000,
         width: 'fit-content' as any,
         maxWidth: 'min(95vw, 400px)' as any,
@@ -779,9 +813,11 @@ const styles = StyleSheet.create({
   },
   modalContainerMobile: {
     flexDirection: 'column',
-    gap: 4,
-    alignItems: 'center',
+    gap: 0,
+    alignItems: 'stretch',
     width: '100%',
+    maxHeight: '90%',
+    overflow: 'hidden',
   },
   imageContainer: {
     width: 250,
@@ -793,8 +829,16 @@ const styles = StyleSheet.create({
   },
   imageContainerMobile: {
     width: '100%',
-    maxWidth: 320,
-    aspectRatio: 16 / 9,
+    height: 180,
+    flexShrink: 0,
+    overflow: 'hidden',
+    backgroundColor: '#141414',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+  },
+  imageMobile: {
+    width: '100%',
+    height: '100%',
   },
   image: {
     width: '100%',
@@ -810,6 +854,17 @@ const styles = StyleSheet.create({
     borderRadius: 0,
     borderBottomLeftRadius: 20,
     padding: 8,
+  },
+  logoOverlayMobile: {
+    position: 'absolute',
+    top: 0,
+    left: '50%',
+    width: 60,
+    height: 60,
+    borderRadius: 0,
+    borderTopLeftRadius: 20,
+    padding: 8,
+    transform: [{ translateX: -30 }],
   },
   logo: {
     width: '100%',
@@ -842,11 +897,19 @@ const styles = StyleSheet.create({
   },
   textContainerMobile: {
     width: '100%',
-    maxWidth: 320,
-    padding: 16,
+    flex: 1,
+    flexShrink: 0,
+    paddingVertical: 20,
+    paddingHorizontal: 16,
+    maxHeight: '70%',
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
   },
   scrollContent: {
     flexGrow: 1,
+    paddingBottom: 8,
   },
   content: {
     flexDirection: 'column',

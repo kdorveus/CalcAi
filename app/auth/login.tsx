@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTranslation } from '../../hooks/useTranslation';
-import GoogleLogo from '../components/GoogleLogo';
+import GoogleLogo from '../_components/GoogleLogo';
 
 export default function Login() {
   const [googleLoading, setGoogleLoading] = useState(false);
