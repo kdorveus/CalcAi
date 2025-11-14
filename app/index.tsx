@@ -33,6 +33,7 @@ import {
 } from '../constants/Languages';
 import { useAuth } from '../contexts/AuthContext';
 import { useCalculationHistory } from '../contexts/CalculationHistoryContext';
+import { usePremium } from '../contexts/PremiumContext';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useTranslation } from '../hooks/useTranslation';
 import { useWebhookManager } from '../hooks/useWebhookManager';
@@ -106,6 +107,7 @@ const MainScreen: React.FC = () => {
   const { user: _user } = useAuth();
   const { history, addCalculation, deleteCalculation, clearAllCalculations, loading } =
     useCalculationHistory();
+  const { isPremium } = usePremium();
 
   const formatNumber = useCallback((num: number, _lang: string): string => {
     // Return raw number string to avoid locale-specific formatting issues
@@ -773,6 +775,21 @@ const MainScreen: React.FC = () => {
   ); // Dependencies: normalizeSpokenMath (stable), formatNumber, language
 
   const sendWebhookData = webhookManager.sendWebhookData;
+
+  // Auto-show premium bubble on web after a short delay for non-premium users
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+
+    const timer = setTimeout(() => {
+      if (!isPremium) {
+        setShowPremiumModal(true);
+      }
+    }, 5000);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [isPremium]);
 
   const speakSingleResult = useCallback(
     (text: string) => {
@@ -1506,6 +1523,14 @@ const MainScreen: React.FC = () => {
     saveSettings();
   }, [openInCalcMode, isSpeechMuted, historyEnabled, continuousMode]);
 
+  // Stop recording when continuous mode is turned off
+  useEffect(() => {
+    // If continuous mode is disabled and we're currently recording, stop the recording
+    if (!continuousMode && isRecording) {
+      stopRecording();
+    }
+  }, [continuousMode, isRecording, stopRecording]);
+
   // --- Component Lifecycle & Effects ---
 
   // --- Webhook Logic Handlers ---
@@ -1937,6 +1962,13 @@ const styles = StyleSheet.create<ComponentStyles>({
     height: 100,
     justifyContent: 'center',
     alignItems: 'center',
+    ...(Platform.OS === 'web'
+      ? ({
+          outlineStyle: 'none',
+          outlineWidth: 0,
+          outlineColor: 'transparent',
+        } as any)
+      : {}),
   },
   calculatorArea: {
     width: '100%',
