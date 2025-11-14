@@ -210,20 +210,8 @@ export function applyPercentageOperations(text: string): string {
   return result;
 }
 
-// Normalize spoken math expressions
-export function normalizeSpokenMath(text: string, compiled: CompiledLanguageRegex): string {
-  if (text.length > 1000) {
-    return text.substring(0, 1000).toLowerCase();
-  }
-  let normalized = text.toLowerCase();
-
-  normalized = normalized.replace(
-    /([a-zàáâãäåèéêëìíîïòóôõöùúûüýÿ])-([a-zàáâãäåèéêëìíîïòóôõöùúûüýÿ])/gi,
-    '$1$2'
-  );
-
-  normalized = applyNumberConversions(normalized, compiled);
-
+// Helper: Handle numeric and word fractions
+function handleFractions(normalized: string): string {
   // Handle numeric fractions: "1/200 of 2562" → "(1/200) * 2562"
   normalized = normalized.replace(
     /(\d+)\s?\/\s?(\d+)\s+(?:of|de|di|von)\s+(\d+(?:\.\d+)?)/gi,
@@ -240,18 +228,22 @@ export function normalizeSpokenMath(text: string, compiled: CompiledLanguageRege
     }
   );
 
-  normalized = normalizeDecimalsAndSpaces(normalized, compiled);
-  normalized = applyPercentageOperations(normalized);
+  return normalized;
+}
 
-  // Handle language-specific phrase patterns
+// Helper: Apply language-specific phrase patterns
+function applyPhrasePatterns(normalized: string, compiled: CompiledLanguageRegex): string {
   if (compiled.phraseAddTo) normalized = normalized.replace(compiled.phraseAddTo, '$1 + $2');
   if (compiled.phraseSubtractFrom)
     normalized = normalized.replace(compiled.phraseSubtractFrom, '$2 - $1');
   if (compiled.phraseMultiplyBy)
     normalized = normalized.replace(compiled.phraseMultiplyBy, '$2 * $3');
   if (compiled.phraseDivideBy) normalized = normalized.replace(compiled.phraseDivideBy, '$2 / $3');
+  return normalized;
+}
 
-  // Common operator words to symbols
+// Helper: Apply operator word replacements
+function applyOperatorReplacements(normalized: string, compiled: CompiledLanguageRegex): string {
   if (compiled.addition) normalized = normalized.replace(compiled.addition, ' + ');
   if (compiled.subtraction) normalized = normalized.replace(compiled.subtraction, ' - ');
   if (compiled.multiplication) normalized = normalized.replace(compiled.multiplication, ' * ');
@@ -263,14 +255,39 @@ export function normalizeSpokenMath(text: string, compiled: CompiledLanguageRege
   if (compiled.sqrt) normalized = normalized.replace(compiled.sqrt, ' sqrt ');
   if (compiled.openParen) normalized = normalized.replace(compiled.openParen, ' ( ');
   if (compiled.closeParen) normalized = normalized.replace(compiled.closeParen, ' ) ');
+  return normalized;
+}
 
-  // Final cleanup
+// Helper: Final cleanup operations
+function performFinalCleanup(normalized: string): string {
   normalized = normalized.replace(/\bsqrt\b/g, '__SQRT__');
   normalized = normalized.replace(/['"`]+/g, ' ');
   normalized = normalized.replace(/[a-zA-ZÀ-ÿ]+/g, ' ');
   normalized = normalized.replaceAll('__SQRT__', ' sqrt ');
   normalized = normalized.replace(/\+\s*\+/g, '+');
   normalized = normalized.replace(/\s+/g, ' ').trim();
+  return normalized;
+}
+
+// Normalize spoken math expressions
+export function normalizeSpokenMath(text: string, compiled: CompiledLanguageRegex): string {
+  if (text.length > 1000) {
+    return text.substring(0, 1000).toLowerCase();
+  }
+  let normalized = text.toLowerCase();
+
+  normalized = normalized.replace(
+    /([a-zàáâãäåèéêëìíîïòóôõöùúûüýÿ])-([a-zàáâãäåèéêëìíîïòóôõöùúûüýÿ])/gi,
+    '$1$2'
+  );
+
+  normalized = applyNumberConversions(normalized, compiled);
+  normalized = handleFractions(normalized);
+  normalized = normalizeDecimalsAndSpaces(normalized, compiled);
+  normalized = applyPercentageOperations(normalized);
+  normalized = applyPhrasePatterns(normalized, compiled);
+  normalized = applyOperatorReplacements(normalized, compiled);
+  normalized = performFinalCleanup(normalized);
 
   return normalized;
 }

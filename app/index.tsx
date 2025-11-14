@@ -366,6 +366,19 @@ const MainScreen: React.FC = () => {
     t,
   });
 
+  // Wrap startRecording and stopRecording to handle promises without returning them
+  const startRecording = useCallback(() => {
+    speechRecognition.startRecording().catch((error) => {
+      console.error('Failed to start recording:', error);
+    });
+  }, [speechRecognition]);
+
+  const stopRecording = useCallback(() => {
+    speechRecognition.stopRecording().catch((error) => {
+      console.error('Failed to stop recording:', error);
+    });
+  }, [speechRecognition]);
+
   // Use keyboard handlers hook
   useKeyboardHandlers({
     isRecording,

@@ -404,11 +404,14 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
     }
   };
 
-  // Web: Show non-intrusive bubble, Mobile: Show full modal
-  // If user clicks bubble, showFullModal becomes true and full modal appears
-  // If forceFullModal is true (e.g., from PRO button), skip bubble and show full modal
-  // Premium users never see the upgrade bubble.
-  if (isWeb && visible && !showFullModal && !forceFullModal && !isPremium) {
+  // Helper: Determine if web bubble should be shown
+  const shouldShowWebBubble = () => {
+    return isWeb && visible && !showFullModal && !forceFullModal && !isPremium;
+  };
+
+  // Helper: Render web bubble
+  const renderWebBubble = () => {
+    if (!shouldShowWebBubble()) return null;
     return (
       <WebBubble
         visible={visible}
@@ -423,7 +426,179 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
         t={t}
       />
     );
-  }
+  };
+
+  // Helper: Render modal content
+  const renderModalContent = () => (
+    <View style={[styles.modalContainer, isMobile && styles.modalContainerMobile]}>
+      {/* Image Container */}
+      <View style={[styles.imageContainer, isMobile && styles.imageContainerMobile]}>
+        <Image
+          source={require('../assets/images/popup.webp')}
+          style={styles.image}
+          resizeMode="cover"
+        />
+        <View style={styles.logoOverlay}>
+          <Image
+            source={require('../assets/images/icon.png')}
+            style={styles.logo}
+            resizeMode="contain"
+          />
+        </View>
+      </View>
+
+      {/* Text Container with Glass Morphism */}
+      <View style={[styles.textContainer, isMobile && styles.textContainerMobile]}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          showsHorizontalScrollIndicator={false}
+        >
+          <View style={styles.content}>
+            {/* Title */}
+            <View style={styles.titleContainer}>
+              <Text style={styles.title} numberOfLines={1}>
+                {t('premium.unlockPremiumFeatures').toUpperCase()}
+              </Text>
+            </View>
+
+            {/* Plan Selection */}
+            <View style={styles.planSelectionContainer}>
+              <TouchableOpacity
+                style={[styles.planOption, selectedPlan === 'yearly' && styles.planOptionSelected]}
+                onPress={() => handlePlanSelection('yearly')}
+                activeOpacity={0.8}
+              >
+                <Text
+                  style={[
+                    styles.planOptionText,
+                    selectedPlan === 'yearly' && styles.planOptionTextSelected,
+                  ]}
+                >
+                  {t('premium.modal.yearly')}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.planOption,
+                  selectedPlan === 'lifetime' && styles.planOptionSelected,
+                ]}
+                onPress={() => handlePlanSelection('lifetime')}
+                activeOpacity={0.8}
+              >
+                <Text
+                  style={[
+                    styles.planOptionText,
+                    selectedPlan === 'lifetime' && styles.planOptionTextSelected,
+                  ]}
+                >
+                  {t('premium.modal.lifetime')}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Price Display - Only show when user is logged in */}
+            {user && (
+              <View style={styles.priceRow}>
+                <Text style={styles.oldPrice}>{selectedPlan === 'yearly' ? '$69' : '$129'}</Text>
+                <Text style={styles.planPrice}>{selectedPlan === 'yearly' ? '$49' : '$89'}</Text>
+                <Text style={styles.paymentFrequency}>
+                  {selectedPlan === 'yearly'
+                    ? t('premium.modal.onceAYear')
+                    : t('premium.modal.oneTimePayment')}
+                </Text>
+              </View>
+            )}
+
+            {/* Features List */}
+            <View style={styles.featuresList}>
+              <View style={styles.featureItem}>
+                <AppIcon name="microphone" size={16} color="#fff" />
+                <Text style={styles.featureText}>{t('premium.modal.benefits.unlimitedVoice')}</Text>
+              </View>
+              <View style={styles.featureItem}>
+                <AppIcon name="webhook" size={16} color="#fff" />
+                <Text style={styles.featureText}>
+                  {t('premium.modal.benefits.webhookIntegrations')}
+                </Text>
+              </View>
+              <View style={styles.featureItem}>
+                <AppIcon name="check-decagram" size={16} color="#fff" />
+                <Text style={styles.featureText}>{t('premium.modal.benefits.earlyAccess')}</Text>
+              </View>
+              <View style={styles.featureItem}>
+                <AdFreeIcon size={16} color="#fff" />
+                <Text style={styles.featureText}>{t('premium.modal.benefits.adFree')}</Text>
+              </View>
+              <View style={styles.featureItem}>
+                <AppIcon name="history" size={16} color="#fff" />
+                <Text style={styles.featureText}>{t('premium.modal.benefits.exportHistory')}</Text>
+              </View>
+              <View style={styles.featureItem}>
+                <AppIcon name="audio-lines" size={16} color="#fff" />
+                <Text style={styles.featureText}>{t('premium.modal.benefits.advancedVoice')}</Text>
+              </View>
+            </View>
+
+            {/* Payment Button */}
+            <TouchableOpacity
+              style={[
+                styles.paymentButton,
+                !user && styles.googleButton,
+                (isLoading || premiumLoading) && styles.buttonDisabled,
+              ]}
+              onPress={handlePayment}
+              disabled={isLoading || premiumLoading}
+              activeOpacity={0.8}
+            >
+              {isLoading || premiumLoading ? (
+                <ActivityIndicator color={user ? '#fff' : '#4285F4'} />
+              ) : (
+                <View style={styles.buttonContentWrapper}>
+                  {user ? null : (
+                    <View style={styles.googleIconWrapper}>
+                      <GoogleLogo size={20} />
+                    </View>
+                  )}
+                  <Text style={user ? styles.paymentButtonText : styles.googleButtonText}>
+                    {getPlanButtonText()}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+
+            {/* Restore Purchase Button - Only show when user is logged in */}
+            {user && (
+              <TouchableOpacity
+                style={styles.restoreButton}
+                onPress={handleRestorePurchase}
+                disabled={isRestoring}
+              >
+                {isRestoring ? (
+                  <ActivityIndicator color="#999" size="small" />
+                ) : (
+                  <>
+                    <AppIcon name="refresh" size={16} color="#999" />
+                    <Text style={styles.restoreButtonText}>
+                      {t('premium.modal.restorePurchase')}
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
+          </View>
+        </ScrollView>
+      </View>
+    </View>
+  );
+
+  // Web: Show non-intrusive bubble, Mobile: Show full modal
+  // If user clicks bubble, showFullModal becomes true and full modal appears
+  // If forceFullModal is true (e.g., from PRO button), skip bubble and show full modal
+  // Premium users never see the upgrade bubble.
+  const webBubble = renderWebBubble();
+  if (webBubble) return webBubble;
 
   return (
     <Modal
@@ -441,182 +616,7 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
           activeOpacity={1}
           onPress={(e) => e.stopPropagation()}
         >
-          <View style={[styles.modalContainer, isMobile && styles.modalContainerMobile]}>
-            {/* Image Container */}
-            <View style={[styles.imageContainer, isMobile && styles.imageContainerMobile]}>
-              <Image
-                source={require('../assets/images/popup.webp')}
-                style={styles.image}
-                resizeMode="cover"
-              />
-              <View style={styles.logoOverlay}>
-                <Image
-                  source={require('../assets/images/icon.png')}
-                  style={styles.logo}
-                  resizeMode="contain"
-                />
-              </View>
-            </View>
-
-            {/* Text Container with Glass Morphism */}
-            <View style={[styles.textContainer, isMobile && styles.textContainerMobile]}>
-              <ScrollView
-                contentContainerStyle={styles.scrollContent}
-                showsVerticalScrollIndicator={false}
-                showsHorizontalScrollIndicator={false}
-              >
-                <View style={styles.content}>
-                  {/* Title */}
-                  <View style={styles.titleContainer}>
-                    <Text style={styles.title} numberOfLines={1}>
-                      {t('premium.unlockPremiumFeatures').toUpperCase()}
-                    </Text>
-                  </View>
-
-                  {/* Plan Selection */}
-                  <View style={styles.planSelectionContainer}>
-                    <TouchableOpacity
-                      style={[
-                        styles.planOption,
-                        selectedPlan === 'yearly' && styles.planOptionSelected,
-                      ]}
-                      onPress={() => handlePlanSelection('yearly')}
-                      activeOpacity={0.8}
-                    >
-                      <Text
-                        style={[
-                          styles.planOptionText,
-                          selectedPlan === 'yearly' && styles.planOptionTextSelected,
-                        ]}
-                      >
-                        {t('premium.modal.yearly')}
-                      </Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={[
-                        styles.planOption,
-                        selectedPlan === 'lifetime' && styles.planOptionSelected,
-                      ]}
-                      onPress={() => handlePlanSelection('lifetime')}
-                      activeOpacity={0.8}
-                    >
-                      <Text
-                        style={[
-                          styles.planOptionText,
-                          selectedPlan === 'lifetime' && styles.planOptionTextSelected,
-                        ]}
-                      >
-                        {t('premium.modal.lifetime')}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-
-                  {/* Price Display - Only show when user is logged in */}
-                  {user && (
-                    <View style={styles.priceRow}>
-                      <Text style={styles.oldPrice}>
-                        {selectedPlan === 'yearly' ? '$69' : '$129'}
-                      </Text>
-                      <Text style={styles.planPrice}>
-                        {selectedPlan === 'yearly' ? '$49' : '$89'}
-                      </Text>
-                      <Text style={styles.paymentFrequency}>
-                        {selectedPlan === 'yearly'
-                          ? t('premium.modal.onceAYear')
-                          : t('premium.modal.oneTimePayment')}
-                      </Text>
-                    </View>
-                  )}
-
-                  {/* Features List */}
-                  <View style={styles.featuresList}>
-                    <View style={styles.featureItem}>
-                      <AppIcon name="microphone" size={16} color="#fff" />
-                      <Text style={styles.featureText}>
-                        {t('premium.modal.benefits.unlimitedVoice')}
-                      </Text>
-                    </View>
-                    <View style={styles.featureItem}>
-                      <AppIcon name="webhook" size={16} color="#fff" />
-                      <Text style={styles.featureText}>
-                        {t('premium.modal.benefits.webhookIntegrations')}
-                      </Text>
-                    </View>
-                    <View style={styles.featureItem}>
-                      <AppIcon name="check-decagram" size={16} color="#fff" />
-                      <Text style={styles.featureText}>
-                        {t('premium.modal.benefits.earlyAccess')}
-                      </Text>
-                    </View>
-                    <View style={styles.featureItem}>
-                      <AdFreeIcon size={16} color="#fff" />
-                      <Text style={styles.featureText}>{t('premium.modal.benefits.adFree')}</Text>
-                    </View>
-                    <View style={styles.featureItem}>
-                      <AppIcon name="history" size={16} color="#fff" />
-                      <Text style={styles.featureText}>
-                        {t('premium.modal.benefits.exportHistory')}
-                      </Text>
-                    </View>
-                    <View style={styles.featureItem}>
-                      <AppIcon name="audio-lines" size={16} color="#fff" />
-                      <Text style={styles.featureText}>
-                        {t('premium.modal.benefits.advancedVoice')}
-                      </Text>
-                    </View>
-                  </View>
-
-                  {/* Payment Button */}
-                  <TouchableOpacity
-                    style={[
-                      styles.paymentButton,
-                      !user && styles.googleButton,
-                      (isLoading || premiumLoading) && styles.buttonDisabled,
-                    ]}
-                    onPress={handlePayment}
-                    disabled={isLoading || premiumLoading}
-                    activeOpacity={0.8}
-                  >
-                    {isLoading || premiumLoading ? (
-                      <ActivityIndicator color={user ? '#fff' : '#4285F4'} />
-                    ) : (
-                      <View style={styles.buttonContentWrapper}>
-                        {user ? null : (
-                          <View style={styles.googleIconWrapper}>
-                            <GoogleLogo size={20} />
-                          </View>
-                        )}
-                        <Text style={user ? styles.paymentButtonText : styles.googleButtonText}>
-                          {getPlanButtonText()}
-                        </Text>
-                      </View>
-                    )}
-                  </TouchableOpacity>
-
-                  {/* Restore Purchase Button - Only show when user is logged in */}
-                  {user && (
-                    <TouchableOpacity
-                      style={styles.restoreButton}
-                      onPress={handleRestorePurchase}
-                      disabled={isRestoring}
-                    >
-                      {isRestoring ? (
-                        <ActivityIndicator color="#999" size="small" />
-                      ) : (
-                        <>
-                          <AppIcon name="refresh" size={16} color="#999" />
-                          <Text style={styles.restoreButtonText}>
-                            {t('premium.modal.restorePurchase')}
-                          </Text>
-                        </>
-                      )}
-                    </TouchableOpacity>
-                  )}
-                </View>
-              </ScrollView>
-            </View>
-          </View>
+          {renderModalContent()}
         </TouchableOpacity>
       </TouchableOpacity>
     </Modal>
