@@ -1524,11 +1524,13 @@ const MainScreen: React.FC = () => {
   }, [openInCalcMode, isSpeechMuted, historyEnabled, continuousMode]);
 
   // Stop recording when continuous mode is turned off
+  const prevContinuousModeRef = useRef(continuousMode);
   useEffect(() => {
-    // If continuous mode is disabled and we're currently recording, stop the recording
-    if (!continuousMode && isRecording) {
+    // Only stop if continuous mode was just turned OFF (true -> false) while recording
+    if (prevContinuousModeRef.current && !continuousMode && isRecording) {
       stopRecording();
     }
+    prevContinuousModeRef.current = continuousMode;
   }, [continuousMode, isRecording, stopRecording]);
 
   // --- Component Lifecycle & Effects ---

@@ -56,6 +56,7 @@ export const useSpeechRecognition = ({
   const rafPendingRef = useRef<number | null>(null);
   const pendingInterimRef = useRef<string>('');
   const lastInterimSentRef = useRef<string>('');
+  const recordingStartTimeRef = useRef<number>(0);
 
   const initializeSpeech = useCallback(async () => {
     if (Platform.OS === 'web') {
@@ -94,6 +95,7 @@ export const useSpeechRecognition = ({
   const startRecording = useCallback(async () => {
     if (isRecording) return;
     setIsRecording(true);
+    recordingStartTimeRef.current = Date.now();
 
     if (Platform.OS === 'web') {
       // The recognition object should be pre-initialized by initializeSpeech.
@@ -124,30 +126,9 @@ export const useSpeechRecognition = ({
           }
         }
 
-        if (interimText) {
-          if (continuousMode) {
-            setInterimTranscript(interimText);
-          } else {
-            pendingInterimRef.current = interimText;
-            if (rafPendingRef.current == null) {
-              const raf = (globalThis as any).requestAnimationFrame as
-                | ((cb: FrameRequestCallback) => number)
-                | undefined;
-              if (raf) {
-                rafPendingRef.current = raf(() => {
-                  rafPendingRef.current = null;
-                  const text = pendingInterimRef.current;
-                  if (text && text !== lastInterimSentRef.current) {
-                    lastInterimSentRef.current = text;
-                    setInterimTranscript(text);
-                  }
-                });
-              } else if (interimText !== lastInterimSentRef.current) {
-                lastInterimSentRef.current = interimText;
-                setInterimTranscript(interimText);
-              }
-            }
-          }
+        if (interimText && interimText !== lastInterimSentRef.current) {
+          lastInterimSentRef.current = interimText;
+          setInterimTranscript(interimText);
         }
 
         if (finalTranscript) {
@@ -156,7 +137,10 @@ export const useSpeechRecognition = ({
       };
 
       recognition.onend = () => {
-        if (!continuousMode) {
+        // In non-continuous mode, onend fires after each utterance completes
+        // Ignore spurious onend events that fire immediately after starting
+        const timeSinceStart = Date.now() - recordingStartTimeRef.current;
+        if (!continuousMode && timeSinceStart > 100) {
           setIsRecording(false);
           setInterimTranscript('');
         }
