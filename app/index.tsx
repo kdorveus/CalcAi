@@ -397,7 +397,7 @@ const MainScreen: React.FC = () => {
   const convertCompoundNumbers = useCallback((text: string): string => {
     const compoundRegex =
       /(\d+)\s*(million|milliard|milliarde|milhão|milione|billion|mil millones|billón|bilhão|miliardo|trillion|trilhão|trillione)/g;
-    return text.replace(compoundRegex, (_match, number, multiplier) => {
+    return text.replaceAll(compoundRegex, (_match, number, multiplier) => {
       const num = Number.parseInt(number, 10);
       const multiplierLower = multiplier.toLowerCase();
 
@@ -519,7 +519,7 @@ const MainScreen: React.FC = () => {
       let result = text;
 
       // "X% of Y" pattern
-      result = result.replace(
+      result = result.replaceAll(
         new RegExp(
           `(${numberPattern})\\s*%${wsPattern}${ofWords}${wsPattern}(${numberPattern})(?:${wsPattern}%)?`,
           'gi'
@@ -528,7 +528,7 @@ const MainScreen: React.FC = () => {
       );
 
       // "add X% to Y" pattern
-      result = result.replace(
+      result = result.replaceAll(
         new RegExp(
           `${addWords}${wsPattern}(${numberPattern})\\s*%${wsPattern}${toWords}${wsPattern}(${numberPattern})`,
           'gi'
@@ -537,13 +537,13 @@ const MainScreen: React.FC = () => {
       );
 
       // "X + Y%" pattern
-      result = result.replace(
+      result = result.replaceAll(
         new RegExp(`(${numberPattern})\\s*\\+\\s*(${numberPattern})\\s*%`, 'gi'),
         (_m, base, pct) => `(${cleanNumberString(base)} * (1 + ${cleanNumberString(pct)} / 100))`
       );
 
       // "subtract X% from Y" pattern
-      result = result.replace(
+      result = result.replaceAll(
         new RegExp(
           `${subtractWords}${wsPattern}(${numberPattern})\\s*%${wsPattern}${fromWords}${wsPattern}(${numberPattern})`,
           'gi'
@@ -552,7 +552,7 @@ const MainScreen: React.FC = () => {
       );
 
       // "X - Y%" pattern
-      result = result.replace(
+      result = result.replaceAll(
         new RegExp(`(${numberPattern})\\s*-\\s*(${numberPattern})\\s*%`, 'gi'),
         (_m, base, pct) => `(${cleanNumberString(base)} * (1 - ${cleanNumberString(pct)} / 100))`
       );

@@ -554,25 +554,40 @@ const createWebhookDeleteHandler = (
   };
 };
 
+const isValidWebhookUrl = (url: string): boolean => /^https?:\/\//.test(url.trim());
+
+const createPremiumWebhookHandler = (
+  requirePremium: (action: () => void) => Promise<void>,
+  handleAddWebhookLocal: () => void
+) => {
+  return () => {
+    requirePremium(() => {
+      handleAddWebhookLocal();
+    });
+  };
+};
+
+const createDirectWebhookHandler = (handleAddWebhookLocal: () => void) => {
+  return () => {
+    handleAddWebhookLocal();
+  };
+};
+
 const createAddWebhookHandler = (
   isPremium: boolean,
   localWebhookUrl: string,
   requirePremium: (action: () => void) => Promise<void>,
   handleAddWebhookLocal: () => void
 ) => {
-  const isValidUrl = /^https?:\/\//.test(localWebhookUrl.trim());
+  const isValidUrl = isValidWebhookUrl(localWebhookUrl);
 
-  return () => {
-    if (!isPremium) {
-      requirePremium(() => {
-        if (isValidUrl) {
-          handleAddWebhookLocal();
-        }
-      });
-    } else if (isValidUrl) {
-      handleAddWebhookLocal();
-    }
-  };
+  if (!isValidUrl) {
+    return () => {};
+  }
+
+  return isPremium
+    ? createDirectWebhookHandler(handleAddWebhookLocal)
+    : createPremiumWebhookHandler(requirePremium, handleAddWebhookLocal);
 };
 
 const getBulkSendButtonText = (
