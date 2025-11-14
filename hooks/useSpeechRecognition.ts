@@ -92,160 +92,174 @@ export const useSpeechRecognition = ({
     }
   }, []);
 
+  // Helper: Setup web speech recognition
+  const setupWebRecognition = useCallback(() => {
+    if (!recognitionRef.current) {
+      Alert.alert(t('mainApp.speechNotSupported'));
+      setIsRecording(false);
+      return false;
+    }
+
+    const recognition = recognitionRef.current;
+    recognition.lang = getSpeechRecognitionLanguage(language);
+    recognition.continuous = continuousMode;
+
+    recognition.onresult = (event: any) => {
+      if (isTTSSpeaking.current) return;
+
+      let finalTranscript = '';
+      let interimText = '';
+
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        if (event.results[i].isFinal) {
+          finalTranscript += event.results[i][0].transcript;
+        } else {
+          interimText += event.results[i][0].transcript;
+        }
+      }
+
+      if (interimText && interimText !== lastInterimSentRef.current) {
+        lastInterimSentRef.current = interimText;
+        setInterimTranscript(interimText);
+      }
+
+      if (finalTranscript) {
+        processSpeechResult(finalTranscript.trim(), 'web');
+      }
+    };
+
+    recognition.onend = () => {
+      const timeSinceStart = Date.now() - recordingStartTimeRef.current;
+      if (!continuousMode && timeSinceStart > 100) {
+        setIsRecording(false);
+        setInterimTranscript('');
+      }
+    };
+
+    recognition.onerror = () => {
+      setIsRecording(false);
+      setInterimTranscript('');
+    };
+
+    recognition.start();
+    return true;
+  }, [
+    language,
+    continuousMode,
+    getSpeechRecognitionLanguage,
+    isTTSSpeaking,
+    setInterimTranscript,
+    processSpeechResult,
+    setIsRecording,
+    t,
+  ]);
+
+  // Helper: Setup native speech recognition
+  const setupNativeRecognition = useCallback(async () => {
+    if (!speechInitializedRef.current) {
+      await initializeSpeech();
+    }
+    if (!permissionsGrantedRef.current) {
+      Alert.alert(t('mainApp.permissionRequired'), t('mainApp.microphonePermissionRequired'));
+      setIsRecording(false);
+      return false;
+    }
+
+    const { ExpoSpeechRecognitionModule } = speechModuleRef.current;
+
+    const handleResult = (event: any) => {
+      if (isTTSSpeaking.current) return;
+      if (event.results && event.results.length > 0) {
+        const transcript = event.results[0].transcript;
+        lastTranscriptRef.current = transcript;
+        setInterimTranscript(transcript);
+
+        if (!continuousMode && event.isFinal) {
+          processSpeechResult(transcript.trim(), 'native');
+        }
+      }
+    };
+
+    const handleEnd = () => {
+      if (!continuousMode) {
+        const bufferedTranscript = interimTranscript;
+        if (bufferedTranscript?.trim() && !isTTSSpeaking.current) {
+          processSpeechResult(bufferedTranscript.trim(), 'native');
+        }
+        setIsRecording(false);
+        setInterimTranscript('');
+      }
+    };
+
+    const handleError = () => {
+      setIsRecording(false);
+      setInterimTranscript('');
+    };
+
+    if (speechListenerRef.current) speechListenerRef.current.remove();
+    if (endListenerRef.current) endListenerRef.current.remove();
+    if (errorListenerRef.current) errorListenerRef.current.remove();
+
+    speechListenerRef.current = ExpoSpeechRecognitionModule.addListener('result', handleResult);
+    endListenerRef.current = ExpoSpeechRecognitionModule.addListener('end', handleEnd);
+    errorListenerRef.current = ExpoSpeechRecognitionModule.addListener('error', handleError);
+
+    await ExpoSpeechRecognitionModule.start({
+      lang: getSpeechRecognitionLanguage(language),
+      continuous: continuousMode,
+      interimResults: true,
+    });
+
+    if (continuousMode) {
+      let previousTranscript = '';
+      silenceTimerRef.current = setInterval(() => {
+        if (isTTSSpeaking.current) return;
+
+        const currentTranscript = lastTranscriptRef.current;
+        if (
+          currentTranscript &&
+          currentTranscript === previousTranscript &&
+          currentTranscript.trim()
+        ) {
+          const finalTranscript = currentTranscript.trim();
+          if (finalTranscript) {
+            processSpeechResult(finalTranscript, 'native');
+          }
+        }
+        previousTranscript = currentTranscript;
+      }, 500);
+    }
+
+    return true;
+  }, [
+    initializeSpeech,
+    t,
+    setIsRecording,
+    isTTSSpeaking,
+    setInterimTranscript,
+    continuousMode,
+    processSpeechResult,
+    interimTranscript,
+    language,
+    getSpeechRecognitionLanguage,
+  ]);
+
   const startRecording = useCallback(async () => {
     if (isRecording) return;
     setIsRecording(true);
     recordingStartTimeRef.current = Date.now();
 
     if (Platform.OS === 'web') {
-      // The recognition object should be pre-initialized by initializeSpeech.
-      if (!recognitionRef.current) {
-        // If it's not available, it means the browser doesn't support the API.
-        Alert.alert(t('mainApp.speechNotSupported'));
-        setIsRecording(false);
-        return;
-      }
-
-      const recognition = recognitionRef.current;
-      // Configure properties that might have changed since initialization.
-      recognition.lang = getSpeechRecognitionLanguage(language);
-      recognition.continuous = continuousMode;
-
-      // (Re)assign event listeners to ensure they capture the latest state.
-      recognition.onresult = (event: any) => {
-        if (isTTSSpeaking.current) return;
-
-        let finalTranscript = '';
-        let interimText = '';
-
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) {
-            finalTranscript += event.results[i][0].transcript;
-          } else {
-            interimText += event.results[i][0].transcript;
-          }
-        }
-
-        if (interimText && interimText !== lastInterimSentRef.current) {
-          lastInterimSentRef.current = interimText;
-          setInterimTranscript(interimText);
-        }
-
-        if (finalTranscript) {
-          processSpeechResult(finalTranscript.trim(), 'web');
-        }
-      };
-
-      recognition.onend = () => {
-        // In non-continuous mode, onend fires after each utterance completes
-        // Ignore spurious onend events that fire immediately after starting
-        const timeSinceStart = Date.now() - recordingStartTimeRef.current;
-        if (!continuousMode && timeSinceStart > 100) {
-          setIsRecording(false);
-          setInterimTranscript('');
-        }
-      };
-
-      recognition.onerror = () => {
-        setIsRecording(false);
-        setInterimTranscript('');
-      };
-
-      recognition.start();
+      setupWebRecognition();
     } else {
       try {
-        if (!speechInitializedRef.current) {
-          await initializeSpeech();
-        }
-        if (!permissionsGrantedRef.current) {
-          Alert.alert(t('mainApp.permissionRequired'), t('mainApp.microphonePermissionRequired'));
-          setIsRecording(false);
-          return;
-        }
-
-        const { ExpoSpeechRecognitionModule } = speechModuleRef.current;
-
-        const handleResult = (event: any) => {
-          if (isTTSSpeaking.current) return;
-          if (event.results && event.results.length > 0) {
-            const transcript = event.results[0].transcript;
-            lastTranscriptRef.current = transcript;
-            setInterimTranscript(transcript);
-
-            if (!continuousMode && event.isFinal) {
-              processSpeechResult(transcript.trim(), 'native');
-            }
-          }
-        };
-
-        const handleEnd = () => {
-          if (!continuousMode) {
-            const bufferedTranscript = interimTranscript;
-            if (bufferedTranscript?.trim() && !isTTSSpeaking.current) {
-              processSpeechResult(bufferedTranscript.trim(), 'native');
-            }
-            setIsRecording(false);
-            setInterimTranscript('');
-          }
-        };
-
-        const handleError = () => {
-          setIsRecording(false);
-          setInterimTranscript('');
-        };
-
-        // Remove existing listeners before adding new ones to prevent memory leaks
-        if (speechListenerRef.current) speechListenerRef.current.remove();
-        if (endListenerRef.current) endListenerRef.current.remove();
-        if (errorListenerRef.current) errorListenerRef.current.remove();
-
-        speechListenerRef.current = ExpoSpeechRecognitionModule.addListener('result', handleResult);
-        endListenerRef.current = ExpoSpeechRecognitionModule.addListener('end', handleEnd);
-        errorListenerRef.current = ExpoSpeechRecognitionModule.addListener('error', handleError);
-
-        await ExpoSpeechRecognitionModule.start({
-          lang: getSpeechRecognitionLanguage(language),
-          continuous: continuousMode,
-          interimResults: true,
-        });
-
-        if (continuousMode) {
-          let previousTranscript = '';
-          silenceTimerRef.current = setInterval(() => {
-            if (isTTSSpeaking.current) return;
-
-            const currentTranscript = lastTranscriptRef.current;
-            if (
-              currentTranscript &&
-              currentTranscript === previousTranscript &&
-              currentTranscript.trim()
-            ) {
-              const finalTranscript = currentTranscript.trim();
-              if (finalTranscript) {
-                processSpeechResult(finalTranscript, 'native');
-              }
-            }
-            previousTranscript = currentTranscript;
-          }, 500);
-        }
+        await setupNativeRecognition();
       } catch (error) {
         console.error('Failed to start recording:', error);
         setIsRecording(false);
       }
     }
-  }, [
-    isRecording,
-    setIsRecording,
-    continuousMode,
-    language,
-    getSpeechRecognitionLanguage,
-    isTTSSpeaking,
-    setInterimTranscript,
-    processSpeechResult,
-    interimTranscript,
-    initializeSpeech,
-    t,
-  ]);
+  }, [isRecording, setIsRecording, setupWebRecognition, setupNativeRecognition]);
 
   const stopRecording = useCallback(async () => {
     setIsRecording(false);

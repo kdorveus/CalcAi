@@ -321,6 +321,52 @@ const MainScreen: React.FC = () => {
     return LANGUAGE_PATTERNS[lang] ?? LANGUAGE_PATTERNS.en;
   }, []); // Dependencies: none
 
+  // Helper functions for regex compilation
+  const createPhraseRegex = useCallback((phrase: string | undefined) => {
+    return phrase ? new RegExp(phrase, 'g') : null;
+  }, []);
+
+  const compileOperationRegexes = useCallback(
+    (operations: any, joinEscaped: (arr: string[]) => string) => {
+      return {
+        addition: operations.addition.length
+          ? new RegExp(`\\b(${joinEscaped(operations.addition)})\\b`, 'g')
+          : null,
+        subtraction: operations.subtraction.length
+          ? new RegExp(`\\b(${joinEscaped(operations.subtraction)})\\b`, 'g')
+          : null,
+        multiplication: operations.multiplication.length
+          ? new RegExp(`\\b(${joinEscaped(operations.multiplication)})\\b`, 'g')
+          : null,
+        division: operations.division.length
+          ? new RegExp(`\\b(${joinEscaped(operations.division)})\\b`, 'g')
+          : null,
+        percentOf: operations.percentOf.length
+          ? new RegExp(`\\b(${joinEscaped(operations.percentOf)})\\b`, 'g')
+          : null,
+        percentage: operations.percentage.length
+          ? new RegExp(`\\b(${joinEscaped(operations.percentage)})\\b`, 'g')
+          : null,
+        power: operations.power.length
+          ? new RegExp(`\\b(${joinEscaped(operations.power)})\\b`, 'g')
+          : null,
+        sqrt: operations.sqrt.length
+          ? new RegExp(`\\b(${joinEscaped(operations.sqrt)})\\b`, 'g')
+          : null,
+        openParen: operations.parentheses.open.length
+          ? new RegExp(`\\b(${joinEscaped(operations.parentheses.open)})\\b`, 'g')
+          : null,
+        closeParen: operations.parentheses.close.length
+          ? new RegExp(`\\b(${joinEscaped(operations.parentheses.close)})\\b`, 'g')
+          : null,
+        decimal: operations.decimal.length
+          ? new RegExp(`\\b(${joinEscaped(operations.decimal)})\\b`, 'g')
+          : null,
+      };
+    },
+    []
+  );
+
   // Precompile regex per language to avoid rebuilding on every normalization
   const compiledLanguageRegex = useMemo(() => {
     const p = getMathPatterns(language);
@@ -330,71 +376,191 @@ const MainScreen: React.FC = () => {
     const numberWordsKeys = Object.keys(p.numbers).join('|');
     const numberWordsRegex = numberWordsKeys ? new RegExp(`\\b(${numberWordsKeys})\\b`, 'g') : null;
 
-    const phraseAddTo = p.specificPhrases.addTo ? new RegExp(p.specificPhrases.addTo, 'g') : null;
-    const phraseSubtractFrom = p.specificPhrases.subtractFrom
-      ? new RegExp(p.specificPhrases.subtractFrom, 'g')
-      : null;
-    const phraseMultiplyBy = p.specificPhrases.multiplyBy
-      ? new RegExp(p.specificPhrases.multiplyBy, 'g')
-      : null;
-    const phraseDivideBy = p.specificPhrases.divideBy
-      ? new RegExp(p.specificPhrases.divideBy, 'g')
-      : null;
+    const phraseRegexes = {
+      phraseAddTo: createPhraseRegex(p.specificPhrases.addTo),
+      phraseSubtractFrom: createPhraseRegex(p.specificPhrases.subtractFrom),
+      phraseMultiplyBy: createPhraseRegex(p.specificPhrases.multiplyBy),
+      phraseDivideBy: createPhraseRegex(p.specificPhrases.divideBy),
+    };
 
-    const addition = p.operations.addition.length
-      ? new RegExp(`\\b(${joinEscaped(p.operations.addition)})\\b`, 'g')
-      : null;
-    const subtraction = p.operations.subtraction.length
-      ? new RegExp(`\\b(${joinEscaped(p.operations.subtraction)})\\b`, 'g')
-      : null;
-    const multiplication = p.operations.multiplication.length
-      ? new RegExp(`\\b(${joinEscaped(p.operations.multiplication)})\\b`, 'g')
-      : null;
-    const division = p.operations.division.length
-      ? new RegExp(`\\b(${joinEscaped(p.operations.division)})\\b`, 'g')
-      : null;
-    const percentOf = p.operations.percentOf.length
-      ? new RegExp(`\\b(${joinEscaped(p.operations.percentOf)})\\b`, 'g')
-      : null;
-    const percentage = p.operations.percentage.length
-      ? new RegExp(`\\b(${joinEscaped(p.operations.percentage)})\\b`, 'g')
-      : null;
-    const power = p.operations.power.length
-      ? new RegExp(`\\b(${joinEscaped(p.operations.power)})\\b`, 'g')
-      : null;
-    const sqrt = p.operations.sqrt.length
-      ? new RegExp(`\\b(${joinEscaped(p.operations.sqrt)})\\b`, 'g')
-      : null;
-    const openParen = p.operations.parentheses.open.length
-      ? new RegExp(`\\b(${joinEscaped(p.operations.parentheses.open)})\\b`, 'g')
-      : null;
-    const closeParen = p.operations.parentheses.close.length
-      ? new RegExp(`\\b(${joinEscaped(p.operations.parentheses.close)})\\b`, 'g')
-      : null;
-    const decimal = p.operations.decimal.length
-      ? new RegExp(`\\b(${joinEscaped(p.operations.decimal)})\\b`, 'g')
-      : null;
+    const operationRegexes = compileOperationRegexes(p.operations, joinEscaped);
 
     return {
       patterns: p,
       numberWordsRegex,
-      phraseAddTo,
-      phraseSubtractFrom,
-      phraseMultiplyBy,
-      phraseDivideBy,
-      addition,
-      subtraction,
-      multiplication,
-      division,
-      percentOf,
-      percentage,
-      power,
-      sqrt,
-      openParen,
-      closeParen,
-      decimal,
+      ...phraseRegexes,
+      ...operationRegexes,
     } as const;
-  }, [language, getMathPatterns]);
+  }, [language, getMathPatterns, createPhraseRegex, compileOperationRegexes]);
+
+  // Helper: Convert compound numbers (e.g., "5million" -> "5000000")
+  const convertCompoundNumbers = useCallback((text: string): string => {
+    const compoundRegex =
+      /(\d+)\s*(million|milliard|milliarde|milhão|milione|billion|mil millones|billón|bilhão|miliardo|trillion|trilhão|trillione)/g;
+    return text.replace(compoundRegex, (_match, number, multiplier) => {
+      const num = Number.parseInt(number, 10);
+      const multiplierLower = multiplier.toLowerCase();
+
+      if (['million', 'milliard', 'milliarde', 'milhão', 'milione'].includes(multiplierLower)) {
+        return (num * 1000000).toString();
+      }
+      if (['billion', 'mil millones', 'bilhão', 'miliardo'].includes(multiplierLower)) {
+        return (num * 1000000000).toString();
+      }
+      if (['trillion', 'billón', 'trilhão', 'trillione'].includes(multiplierLower)) {
+        return (num * 1000000000000).toString();
+      }
+      return num.toString();
+    });
+  }, []);
+
+  // Helper: Get fraction denominator map
+  const getFractionMap = useCallback(
+    (): { [key: string]: number } => ({
+      half: 2,
+      halves: 2,
+      halfs: 2,
+      third: 3,
+      thirds: 3,
+      thir: 3,
+      thirdith: 3,
+      thirdth: 3,
+      fourth: 4,
+      fourths: 4,
+      quarter: 4,
+      quarters: 4,
+      forth: 4,
+      forths: 4,
+      fifth: 5,
+      fifths: 5,
+      fith: 5,
+      fiths: 5,
+      sixth: 6,
+      sixths: 6,
+      sikth: 6,
+      sikths: 6,
+      seventh: 7,
+      sevenths: 7,
+      sevnth: 7,
+      sevnths: 7,
+      eighth: 8,
+      eighths: 8,
+      aith: 8,
+      aiths: 8,
+      eith: 8,
+      eiths: 8,
+      ninth: 9,
+      ninths: 9,
+      nith: 9,
+      niths: 9,
+      tenth: 10,
+      tenths: 10,
+      tinth: 10,
+      tinths: 10,
+      demi: 2,
+      demis: 2,
+      tiers: 3,
+      quart: 4,
+      quarts: 4,
+      cinquième: 5,
+      cinquièmes: 5,
+      sixième: 6,
+      sixièmes: 6,
+      septième: 7,
+      septièmes: 7,
+      huitième: 8,
+      huitièmes: 8,
+      medio: 2,
+      medios: 2,
+      meio: 2,
+      meios: 2,
+      mezzo: 2,
+      mezzi: 2,
+      tercio: 3,
+      tercios: 3,
+      terço: 3,
+      terços: 3,
+      terzo: 3,
+      terzi: 3,
+      cuarto: 4,
+      cuartos: 4,
+      quarto: 4,
+      quartos: 4,
+      quarti: 4,
+      quinto: 5,
+      quintos: 5,
+      quinti: 5,
+      sexto: 6,
+      sextos: 6,
+      sesto: 6,
+      sesti: 6,
+    }),
+    []
+  );
+
+  // Helper: Clean number string for percentage calculations
+  const cleanNumberString = useCallback((str: string): string => {
+    return String(str)
+      .replace(/[ \u00A0\u202F]/g, '')
+      .replaceAll(',', '.');
+  }, []);
+
+  // Helper: Apply percentage operations
+  const applyPercentageOperations = useCallback(
+    (text: string): string => {
+      const numberPattern = String.raw`\d+(?:[ \u00A0\u202F]{0,10}[.,][ \u00A0\u202F]{0,10}\d+)?`;
+      const wsPattern = String.raw`[\s\u00A0\u202F]{1,20}`;
+      const ofWords = '(?:of|de|di|von)';
+      const toWords = '(?:to|à|a|zu)';
+      const addWords = '(?:add|ajouter|adicionar|hinzufügen|aggiungere)';
+      const subtractWords = '(?:subtract|soustraire|subtrair|subtrahieren|sottrarre)';
+      const fromWords = '(?:from|de|von|da)';
+
+      let result = text;
+
+      // "X% of Y" pattern
+      result = result.replace(
+        new RegExp(
+          `(${numberPattern})\\s*%${wsPattern}${ofWords}${wsPattern}(${numberPattern})(?:${wsPattern}%)?`,
+          'gi'
+        ),
+        (_m, p1, p2) => `(${cleanNumberString(p2)} * ${cleanNumberString(p1)} / 100)`
+      );
+
+      // "add X% to Y" pattern
+      result = result.replace(
+        new RegExp(
+          `${addWords}${wsPattern}(${numberPattern})\\s*%${wsPattern}${toWords}${wsPattern}(${numberPattern})`,
+          'gi'
+        ),
+        (_m, p1, p2) => `(${cleanNumberString(p2)} * (1 + ${cleanNumberString(p1)} / 100))`
+      );
+
+      // "X + Y%" pattern
+      result = result.replace(
+        new RegExp(`(${numberPattern})\\s*\\+\\s*(${numberPattern})\\s*%`, 'gi'),
+        (_m, base, pct) => `(${cleanNumberString(base)} * (1 + ${cleanNumberString(pct)} / 100))`
+      );
+
+      // "subtract X% from Y" pattern
+      result = result.replace(
+        new RegExp(
+          `${subtractWords}${wsPattern}(${numberPattern})\\s*%${wsPattern}${fromWords}${wsPattern}(${numberPattern})`,
+          'gi'
+        ),
+        (_m, p1, p2) => `(${cleanNumberString(p2)} * (1 - ${cleanNumberString(p1)} / 100))`
+      );
+
+      // "X - Y%" pattern
+      result = result.replace(
+        new RegExp(`(${numberPattern})\\s*-\\s*(${numberPattern})\\s*%`, 'gi'),
+        (_m, base, pct) => `(${cleanNumberString(base)} * (1 - ${cleanNumberString(pct)} / 100))`
+      );
+
+      return result;
+    },
+    [cleanNumberString]
+  );
 
   // Normalize spoken math expressions
   const normalizeSpokenMath = useCallback(
@@ -411,40 +577,10 @@ const MainScreen: React.FC = () => {
         '$1$2'
       );
 
-      // Handle compound numbers (e.g., "5million", "3billion", "2trillion") FIRST
-      const compoundRegex =
-        /(\d+)\s*(million|milliard|milliarde|milhão|milione|billion|mil millones|billón|bilhão|miliardo|trillion|trilhão|trillione)/g;
-      normalized = normalized.replace(compoundRegex, (_match, number, multiplier) => {
-        const num = Number.parseInt(number, 10);
-        let result = num;
+      // Handle compound numbers
+      normalized = convertCompoundNumbers(normalized);
 
-        // Apply multiplier based on the word
-        switch (multiplier.toLowerCase()) {
-          case 'million':
-          case 'milliard': // French for billion
-          case 'milliarde': // German for billion
-          case 'milhão': // Portuguese for million
-          case 'milione': // Italian for million
-            result = num * 1000000;
-            break;
-          case 'billion':
-          case 'mil millones': // Spanish for billion
-          case 'bilhão': // Portuguese for billion
-          case 'miliardo': // Italian for billion
-            result = num * 1000000000;
-            break;
-          case 'trillion':
-          case 'billón': // Spanish for trillion
-          case 'trilhão': // Portuguese for trillion
-          case 'trillione': // Italian for trillion
-            result = num * 1000000000000;
-            break;
-        }
-
-        return result.toString();
-      });
-
-      // Convert spelled-out numbers (basic numbers and standalone large numbers)
+      // Convert spelled-out numbers
       const numWords = patterns.numbers;
       if (compiled.numberWordsRegex) {
         normalized = normalized.replace(compiled.numberWordsRegex, (match) => numWords[match]);
@@ -454,123 +590,19 @@ const MainScreen: React.FC = () => {
         m.replace(/[ \u00A0\u202F]/g, '')
       );
 
-      // BULLETPROOF fraction logic - works for ANY fraction
-      // "1/200 of 2562" → "(1/200) * 2562" = 12.81
-      // "3 fourths of 100" → "(3/4) * 100" = 75
-      // "1 third of 90" → "(1/3) * 90" = 30
-
+      // Handle numeric fractions: "1/200 of 2562" → "(1/200) * 2562"
       normalized = normalized.replace(
         /(\d+)\s?\/\s?(\d+)\s+(?:of|de|di|von)\s+(\d+(?:\.\d+)?)/gi,
         '(($1/$2) * $3)'
       );
 
-      // Pattern 2: Convert fraction words to division, then multiply
-      // "X [fraction word] of Y" → "(X / [denominator]) * Y"
-      // This handles ANY fraction word by converting it to the denominator number
-
-      // Map fraction words to their denominators (all languages)
-      const fractionMap: { [key: string]: number } = {
-        // English
-        half: 2,
-        halves: 2,
-        halfs: 2,
-        third: 3,
-        thirds: 3,
-        thir: 3,
-        thirdith: 3,
-        thirdth: 3,
-        fourth: 4,
-        fourths: 4,
-        quarter: 4,
-        quarters: 4,
-        forth: 4,
-        forths: 4,
-        fifth: 5,
-        fifths: 5,
-        fith: 5,
-        fiths: 5,
-        sixth: 6,
-        sixths: 6,
-        sikth: 6,
-        sikths: 6,
-        seventh: 7,
-        sevenths: 7,
-        sevnth: 7,
-        sevnths: 7,
-        eighth: 8,
-        eighths: 8,
-        aith: 8,
-        aiths: 8,
-        eith: 8,
-        eiths: 8,
-        ninth: 9,
-        ninths: 9,
-        nith: 9,
-        niths: 9,
-        tenth: 10,
-        tenths: 10,
-        tinth: 10,
-        tinths: 10,
-        // French
-        demi: 2,
-        demis: 2,
-        tiers: 3,
-        quart: 4,
-        quarts: 4,
-        cinquième: 5,
-        cinquièmes: 5,
-        sixième: 6,
-        sixièmes: 6,
-        septième: 7,
-        septièmes: 7,
-        huitième: 8,
-        huitièmes: 8,
-        // Spanish/Portuguese/Italian share many words (all Romance languages)
-        medio: 2,
-        medios: 2,
-        meio: 2,
-        meios: 2,
-        mezzo: 2,
-        mezzi: 2,
-        tercio: 3,
-        tercios: 3,
-        terço: 3,
-        terços: 3,
-        terzo: 3,
-        terzi: 3,
-        cuarto: 4,
-        cuartos: 4,
-        quarto: 4,
-        quartos: 4,
-        quarti: 4,
-        quinto: 5,
-        quintos: 5,
-        quinti: 5,
-        sexto: 6,
-        sextos: 6,
-        sesto: 6,
-        sesti: 6,
-        séptimo: 7,
-        séptimos: 7,
-        octavo: 8,
-        octavos: 8,
-        // German
-        halb: 2,
-        halbe: 2,
-        drittel: 3,
-        viertel: 4,
-        fünftel: 5,
-        sechstel: 6,
-      };
-
+      // Handle word fractions: "3 fourths of 100" → "(3/4) * 100"
+      const fractionMap = getFractionMap();
       normalized = normalized.replace(
         /(\d+)\s+([a-zàáâãäåèéêëìíîïòóôõöùúûüýÿ]{2,20})\s+(?:of|de|di|von)\s+(\d+(?:\.\d+)?)/gi,
         (match, numerator, fractionWord, number) => {
           const denominator = fractionMap[fractionWord.toLowerCase()];
-          if (denominator) {
-            return `((${numerator}/${denominator}) * ${number})`;
-          }
-          return match; // If not a fraction word, leave unchanged
+          return denominator ? `((${numerator}/${denominator}) * ${number})` : match;
         }
       );
 
@@ -580,71 +612,8 @@ const MainScreen: React.FC = () => {
       normalized = normalized.replace(/\b(\d{1,3})(?:,\d{3})+\b/g, (m) => m.replaceAll(',', ''));
       normalized = normalized.replace(/\b(\d+),(\d+)\b/g, '$1.$2');
 
-      // Extract common patterns to reduce regex complexity
-      const numberPattern = String.raw`\d+(?:[ \u00A0\u202F]{0,10}[.,][ \u00A0\u202F]{0,10}\d+)?`;
-      const wsPattern = String.raw`[\s\u00A0\u202F]{1,20}`;
-      const ofWords = '(?:of|de|di|von)';
-      const toWords = '(?:to|à|a|zu)';
-      const addWords = '(?:add|ajouter|adicionar|hinzufügen|aggiungere)';
-
-      normalized = normalized.replace(
-        new RegExp(
-          `(${numberPattern})\\s*%${wsPattern}${ofWords}${wsPattern}(${numberPattern})(?:${wsPattern}%)?`,
-          'gi'
-        ),
-        (_m, p1, p2) =>
-          `(${String(p2)
-            .replace(/[ \u00A0\u202F]/g, '')
-            .replaceAll(',', '.')} * ${String(p1)
-            .replace(/[ \u00A0\u202F]/g, '')
-            .replaceAll(',', '.')} / 100)`
-      );
-
-      normalized = normalized.replace(
-        new RegExp(
-          `${addWords}${wsPattern}(${numberPattern})\\s*%${wsPattern}${toWords}${wsPattern}(${numberPattern})`,
-          'gi'
-        ),
-        (_m, p1, p2) =>
-          `(${String(p2)
-            .replace(/[ \u00A0\u202F]/g, '')
-            .replaceAll(',', '.')} * (1 + ${String(p1)
-            .replace(/[ \u00A0\u202F]/g, '')
-            .replaceAll(',', '.')} / 100))`
-      );
-      normalized = normalized.replace(
-        new RegExp(`(${numberPattern})\\s*\\+\\s*(${numberPattern})\\s*%`, 'gi'),
-        (_m, base, pct) =>
-          `(${String(base)
-            .replace(/[ \u00A0\u202F]/g, '')
-            .replaceAll(',', '.')} * (1 + ${String(pct)
-            .replace(/[ \u00A0\u202F]/g, '')
-            .replaceAll(',', '.')} / 100))`
-      );
-
-      const subtractWords = '(?:subtract|soustraire|subtrair|subtrahieren|sottrarre)';
-      const fromWords = '(?:from|de|von|da)';
-      normalized = normalized.replace(
-        new RegExp(
-          `${subtractWords}${wsPattern}(${numberPattern})\\s*%${wsPattern}${fromWords}${wsPattern}(${numberPattern})`,
-          'gi'
-        ),
-        (_m, p1, p2) =>
-          `(${String(p2)
-            .replace(/[ \u00A0\u202F]/g, '')
-            .replaceAll(',', '.')} * (1 - ${String(p1)
-            .replace(/[ \u00A0\u202F]/g, '')
-            .replaceAll(',', '.')} / 100))`
-      );
-      normalized = normalized.replace(
-        new RegExp(`(${numberPattern})\\s*-\\s*(${numberPattern})\\s*%`, 'gi'),
-        (_m, base, pct) =>
-          `(${String(base)
-            .replace(/[ \u00A0\u202F]/g, '')
-            .replaceAll(',', '.')} * (1 - ${String(pct)
-            .replace(/[ \u00A0\u202F]/g, '')
-            .replaceAll(',', '.')} / 100))`
-      );
+      // Apply all percentage operations
+      normalized = applyPercentageOperations(normalized);
 
       // Handle language-specific phrase patterns
       if (compiled.phraseAddTo) normalized = normalized.replace(compiled.phraseAddTo, '$1 + $2');
@@ -706,7 +675,7 @@ const MainScreen: React.FC = () => {
 
       return normalized;
     },
-    [compiledLanguageRegex]
+    [compiledLanguageRegex, convertCompoundNumbers, applyPercentageOperations, getFractionMap]
   ); // Dependencies: compiled per language
 
   // Handle input and calculation (used by keypad and speech)
@@ -1212,50 +1181,46 @@ const MainScreen: React.FC = () => {
     ]
   );
 
-  // Consolidated web keyboard handling (space to record, paste, keypad, mute, reset)
-  const handleGlobalKeyDown = useCallback(
+  // Helper: Handle spacebar recording toggle
+  const handleSpacebarRecording = useCallback(
     (e: KeyboardEvent) => {
-      // Spacebar toggles recording
-      if (e.code === 'Space') {
-        e.preventDefault();
-        if (isRecording) {
-          setIsRecording(false);
-        } else {
-          speechRecognition.startRecording();
-        }
-        return;
+      e.preventDefault();
+      if (isRecording) {
+        setIsRecording(false);
+      } else {
+        speechRecognition.startRecording();
       }
+    },
+    [isRecording, speechRecognition]
+  );
 
-      // Paste support
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
-        e.preventDefault();
-        navigator.clipboard.readText().then((text) => {
-          const filtered = text.replace(/[^0-9+\-*/.()%^]/g, '');
-          if (filtered) {
-            for (const char of filtered.split('')) {
-              onKeypadPress(char);
-            }
+  // Helper: Handle paste operation
+  const handlePasteOperation = useCallback(
+    (e: KeyboardEvent) => {
+      e.preventDefault();
+      navigator.clipboard.readText().then((text) => {
+        const filtered = text.replace(/[^0-9+\-*/.()%^]/g, '');
+        if (filtered) {
+          for (const char of filtered.split('')) {
+            onKeypadPress(char);
           }
-        });
-        return;
-      }
+        }
+      });
+    },
+    [onKeypadPress]
+  );
 
-      // Mute toggle
-      if (e.key.toLowerCase() === 'm') {
-        toggleSpeechMute();
-        return;
-      }
+  // Helper: Handle calculator reset
+  const handleCalculatorReset = useCallback((e: KeyboardEvent) => {
+    setBubbles([]);
+    setKeypadInput('');
+    setPreviewResult(null);
+    e.preventDefault();
+  }, []);
 
-      // Ctrl+Backspace reset
-      if (e.key === 'Backspace' && e.ctrlKey) {
-        setBubbles([]);
-        setKeypadInput('');
-        setPreviewResult(null);
-        e.preventDefault();
-        return;
-      }
-
-      // Calculator keypad mapping
+  // Helper: Map and handle calculator keys
+  const handleCalculatorKey = useCallback(
+    (e: KeyboardEvent) => {
       const allowed = [
         '0',
         '1',
@@ -1282,6 +1247,7 @@ const MainScreen: React.FC = () => {
       if (key === '*') key = '×';
       if (key.toLowerCase() === 'x') key = '×';
       if (key === '/') key = '÷';
+
       if (allowed.includes(key) || key === 'Backspace' || key === 'Enter') {
         if (key === 'Backspace') {
           onKeypadPress('⌫');
@@ -1293,7 +1259,41 @@ const MainScreen: React.FC = () => {
         e.preventDefault();
       }
     },
-    [isRecording, onKeypadPress, toggleSpeechMute, speechRecognition.startRecording]
+    [onKeypadPress]
+  );
+
+  // Consolidated web keyboard handling (space to record, paste, keypad, mute, reset)
+  const handleGlobalKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if (e.code === 'Space') {
+        handleSpacebarRecording(e);
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
+        handlePasteOperation(e);
+        return;
+      }
+
+      if (e.key.toLowerCase() === 'm') {
+        toggleSpeechMute();
+        return;
+      }
+
+      if (e.key === 'Backspace' && e.ctrlKey) {
+        handleCalculatorReset(e);
+        return;
+      }
+
+      handleCalculatorKey(e);
+    },
+    [
+      toggleSpeechMute,
+      handleSpacebarRecording,
+      handlePasteOperation,
+      handleCalculatorReset,
+      handleCalculatorKey,
+    ]
   );
 
   useEffect(() => {

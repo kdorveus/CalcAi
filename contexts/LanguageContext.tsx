@@ -87,52 +87,62 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({ children }) 
     }
   }, []);
 
+  // Helper: Traverse translation object by keys
+  const traverseTranslation = useCallback(
+    (
+      translationObj: string | string[] | Translations,
+      keys: string[]
+    ): string | string[] | Translations | null => {
+      let current: string | string[] | Translations = translationObj;
+
+      for (const k of keys) {
+        if (typeof current === 'object' && !Array.isArray(current) && current[k] !== undefined) {
+          current = current[k];
+        } else {
+          return null;
+        }
+      }
+
+      return current;
+    },
+    []
+  );
+
+  // Helper: Get translation with fallback
+  const getTranslationWithFallback = useCallback(
+    (keys: string[]): string => {
+      // Try current language
+      const currentLangTranslations = TRANSLATIONS[language] || TRANSLATIONS[DEFAULT_LANGUAGE];
+      const translation = traverseTranslation(currentLangTranslations, keys);
+
+      if (translation !== null && typeof translation === 'string') {
+        return translation;
+      }
+
+      // Try default language fallback
+      const fallbackTranslation = traverseTranslation(TRANSLATIONS[DEFAULT_LANGUAGE], keys);
+
+      if (fallbackTranslation !== null && typeof fallbackTranslation === 'string') {
+        return fallbackTranslation;
+      }
+
+      return keys.join('.');
+    },
+    [language, traverseTranslation]
+  );
+
   // Translation function
   const t = useCallback(
     (key: string): string => {
       try {
         const keys = key.split('.');
-        let translation: string | string[] | Translations = TRANSLATIONS[language];
-
-        if (!translation) {
-          // Fallback to default language if current language not found
-          translation = TRANSLATIONS[DEFAULT_LANGUAGE];
-        }
-
-        for (const k of keys) {
-          if (
-            typeof translation === 'object' &&
-            !Array.isArray(translation) &&
-            translation[k] !== undefined
-          ) {
-            translation = translation[k];
-          } else {
-            // If key not found, try default language
-            let fallbackTranslation: string | string[] | Translations =
-              TRANSLATIONS[DEFAULT_LANGUAGE];
-            for (const fallbackKey of keys) {
-              if (
-                typeof fallbackTranslation === 'object' &&
-                !Array.isArray(fallbackTranslation) &&
-                fallbackTranslation[fallbackKey] !== undefined
-              ) {
-                fallbackTranslation = fallbackTranslation[fallbackKey];
-              } else {
-                // If still not found, return the key itself
-                return key;
-              }
-            }
-            return typeof fallbackTranslation === 'string' ? fallbackTranslation : key;
-          }
-        }
-
-        return typeof translation === 'string' ? translation : key;
+        return getTranslationWithFallback(keys);
       } catch (error) {
         console.error('Translation error:', error);
         return key;
       }
     },
-    [language]
+    [getTranslationWithFallback]
   );
 
   const contextValue: LanguageContextType = useMemo(

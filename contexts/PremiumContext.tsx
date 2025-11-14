@@ -127,79 +127,68 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
     }
   }, [savePremiumStatus]);
 
+  // Helper: Load cached premium status from storage
+  const loadCachedPremiumStatus = useCallback(async () => {
+    const getItem =
+      Platform.OS === 'web'
+        ? (key: string) => AsyncStorage.getItem(key)
+        : (key: string) => SecureStore.getItemAsync(key);
+
+    const cachedStatus = await getItem(PREMIUM_STATUS_KEY);
+    const cachedTimestamp = await getItem(PREMIUM_TIMESTAMP_KEY);
+
+    if (cachedStatus && cachedTimestamp) {
+      const status = cachedStatus === 'true';
+      setIsPremium(status);
+      setIsPremiumCached(true);
+    }
+  }, []);
+
+  // Helper: Initialize RevenueCat for native platforms
+  const initializeRevenueCat = useCallback(async () => {
+    if (!Purchases || (Platform.OS !== 'android' && Platform.OS !== 'ios')) return;
+
+    try {
+      Purchases.configure({
+        apiKey: process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_KEY || '',
+      });
+
+      const products = await Purchases.getProducts([GOOGLE_PLAY_PRODUCT_ID]);
+      if (products && products.length > 0) {
+        const product = products[0];
+        setProductInfo({
+          productId: product.identifier,
+          price: product.priceString,
+          title: product.title,
+          description: product.description,
+          currency: product.currencyCode,
+        });
+      }
+
+      Purchases.addCustomerInfoUpdateListener(async (customerInfo: any) => {
+        if (customerInfo.entitlements.active.premium) {
+          setIsPremium(true);
+          setIsPremiumCached(true);
+          await savePremiumStatus(true, Date.now());
+        }
+      });
+    } catch {}
+  }, [savePremiumStatus]);
+
   // Initialize IAP and load cached premium status on mount
   useEffect(() => {
     const initialize = async () => {
       try {
-        // Load cached premium status
-        if (Platform.OS === 'web') {
-          // Use AsyncStorage for web
-          const cachedStatus = await AsyncStorage.getItem(PREMIUM_STATUS_KEY);
-          const cachedTimestamp = await AsyncStorage.getItem(PREMIUM_TIMESTAMP_KEY);
-
-          if (cachedStatus && cachedTimestamp) {
-            const status = cachedStatus === 'true';
-
-            setIsPremium(status);
-            setIsPremiumCached(true);
-          }
-        } else {
-          // Use SecureStore for native
-          const cachedStatus = await SecureStore.getItemAsync(PREMIUM_STATUS_KEY);
-          const cachedTimestamp = await SecureStore.getItemAsync(PREMIUM_TIMESTAMP_KEY);
-
-          if (cachedStatus && cachedTimestamp) {
-            const status = cachedStatus === 'true';
-
-            setIsPremium(status);
-            setIsPremiumCached(true);
-          }
-
-          // Initialize IAP for native platforms
-          if (Platform.OS === 'android' || Platform.OS === 'ios') {
-            try {
-              if (Purchases) {
-                // Configure RevenueCat
-                Purchases.configure({
-                  apiKey: process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_KEY || '',
-                });
-
-                // Get the products
-                const products = await Purchases.getProducts([GOOGLE_PLAY_PRODUCT_ID]);
-
-                if (products && products.length > 0) {
-                  const product = products[0];
-                  setProductInfo({
-                    productId: product.identifier,
-                    price: product.priceString,
-                    title: product.title,
-                    description: product.description,
-                    currency: product.currencyCode,
-                  });
-                }
-              }
-            } catch {}
-
-            // Set up purchase listener
-            if (Purchases) {
-              Purchases.addCustomerInfoUpdateListener(async (customerInfo: any) => {
-                // Check if premium entitlement is active
-                if (customerInfo.entitlements.active.premium) {
-                  // For now, just update local state
-                  setIsPremium(true);
-                  setIsPremiumCached(true);
-                  await savePremiumStatus(true, Date.now());
-                }
-              });
-            }
-          }
+        await loadCachedPremiumStatus();
+        if (Platform.OS !== 'web') {
+          await initializeRevenueCat();
         }
       } catch {}
     };
 
     initialize();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [savePremiumStatus]);
+  }, [loadCachedPremiumStatus, initializeRevenueCat]);
 
   // Check premium status when user changes
   useEffect(() => {
@@ -224,94 +213,85 @@ export const PremiumProvider: React.FC<PremiumProviderProps> = ({ children }) =>
     return false;
   };
 
-  // Handle payments based on platform
-  const showPremiumPayment = useCallback(
-    async (planType: 'yearly' | 'lifetime' = 'lifetime'): Promise<void> => {
+  // Helper: Handle Android IAP purchase
+  const handleAndroidPurchase = useCallback(async () => {
+    setPremiumLoading(true);
+    try {
+      if (Purchases) {
+        await Purchases.purchaseProduct(GOOGLE_PLAY_PRODUCT_ID);
+      } else {
+        Alert.alert('Purchase Error', 'In-app purchases are not available on this device.');
+      }
+    } catch (error: any) {
+      if (!error.userCancelled) {
+        Alert.alert(
+          'Purchase Error',
+          'There was an error processing your purchase. Please try again.'
+        );
+      }
+    } finally {
+      setPremiumLoading(false);
+    }
+  }, []);
+
+  // Helper: Handle web/Stripe checkout
+  const handleStripeCheckout = useCallback(
+    async (planType: 'yearly' | 'lifetime') => {
+      setPremiumLoading(true);
       try {
-        // For Android, use Google Play IAP
-        if (Platform.OS === 'android') {
-          setPremiumLoading(true);
-
-          if (Purchases) {
-            try {
-              // Purchase the product
-              await Purchases.purchaseProduct(GOOGLE_PLAY_PRODUCT_ID);
-            } catch (error: any) {
-              if (error.userCancelled) {
-                return;
-              }
-              Alert.alert(
-                'Purchase Error',
-                'There was an error processing your purchase. Please try again.'
-              );
-            }
-          } else {
-            Alert.alert('Purchase Error', 'In-app purchases are not available on this device.');
-          }
-
-          setPremiumLoading(false);
-        } else if (Platform.OS === 'ios') {
-          Alert.alert('Coming Soon', 'iOS in-app purchases are coming soon!');
+        const token = await AsyncStorage.getItem(STORAGE_KEYS.SESSION_TOKEN);
+        if (!token) {
+          Alert.alert('Authentication Required', 'Please sign in to purchase premium.');
+          return;
         }
-        // For web and other platforms, use Stripe Checkout
-        else {
-          setPremiumLoading(true);
 
-          try {
-            const token = await AsyncStorage.getItem(STORAGE_KEYS.SESSION_TOKEN);
-            if (!token) {
-              Alert.alert('Authentication Required', 'Please sign in to purchase premium.');
-              setPremiumLoading(false);
-              return;
-            }
+        const priceId = STRIPE_PRICE_IDS[planType];
+        const response = await axios.post(
+          PREMIUM_ENDPOINTS.CREATE_CHECKOUT,
+          { priceId },
+          { headers: { Authorization: `Bearer ${token}` }, timeout: 10000 }
+        );
 
-            // Get the price ID for the selected plan
-            const priceId = STRIPE_PRICE_IDS[planType];
+        const { url } = response.data;
 
-            // Create checkout session via worker
-            const response = await axios.post(
-              PREMIUM_ENDPOINTS.CREATE_CHECKOUT,
-              { priceId },
-              {
-                headers: { Authorization: `Bearer ${token}` },
-                timeout: 10000,
-              }
-            );
-
-            const { url } = response.data;
-
-            if (Platform.OS === 'web') {
-              // For web, open in the same tab
-              globalThis.window.location.href = url;
-            } else {
-              // For other platforms, use WebBrowser
-              const result = await WebBrowser.openBrowserAsync(url);
-
-              // After browser closes, check premium status
-              if (result.type === 'dismiss' || result.type === 'cancel') {
-                // User closed the browser, check if payment was completed
-                setTimeout(() => {
-                  checkPremiumStatus();
-                }, 1000);
-              }
-            }
-          } catch (error: any) {
-            const errorMessage =
-              error.response?.data?.error ||
-              error.response?.data?.details ||
-              error.message ||
-              'Could not start checkout. Please try again.';
-            Alert.alert('Checkout Error', errorMessage);
-          } finally {
-            setPremiumLoading(false);
+        if (Platform.OS === 'web') {
+          globalThis.window.location.href = url;
+        } else {
+          const result = await WebBrowser.openBrowserAsync(url);
+          if (result.type === 'dismiss' || result.type === 'cancel') {
+            setTimeout(() => checkPremiumStatus(), 1000);
           }
         }
-      } catch {
-        Alert.alert('Error', 'Could not open payment page. Please try again.');
+      } catch (error: any) {
+        const errorMessage =
+          error.response?.data?.error ||
+          error.response?.data?.details ||
+          error.message ||
+          'Could not start checkout. Please try again.';
+        Alert.alert('Checkout Error', errorMessage);
+      } finally {
         setPremiumLoading(false);
       }
     },
     [checkPremiumStatus]
+  );
+
+  // Handle payments based on platform
+  const showPremiumPayment = useCallback(
+    async (planType: 'yearly' | 'lifetime' = 'lifetime'): Promise<void> => {
+      try {
+        if (Platform.OS === 'android') {
+          await handleAndroidPurchase();
+        } else if (Platform.OS === 'ios') {
+          Alert.alert('Coming Soon', 'iOS in-app purchases are coming soon!');
+        } else {
+          await handleStripeCheckout(planType);
+        }
+      } catch {
+        Alert.alert('Error', 'An unexpected error occurred.');
+      }
+    },
+    [handleAndroidPurchase, handleStripeCheckout]
   );
 
   const contextValue = useMemo(

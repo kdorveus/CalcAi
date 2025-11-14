@@ -198,37 +198,39 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
     }
   }, [visible, captureEvent]);
 
-  // Animate bubble entrance
-  useEffect(() => {
-    let translateYListenerId: string | null = null;
-    let scaleListenerId: string | null = null;
-    let isMounted = true;
+  // Helper: Reset animation values to initial state
+  const resetAnimationValues = useCallback(() => {
+    bubbleOpacity.setValue(0);
+    bubbleTranslateY.setValue(INITIAL_TRANSLATE_Y);
+    bubbleScale.setValue(INITIAL_SCALE);
+    translateYValueRef.current = INITIAL_TRANSLATE_Y;
+    scaleValueRef.current = INITIAL_SCALE;
+    setAnimatedTransform(buildTransformString(INITIAL_TRANSLATE_Y, INITIAL_SCALE));
+  }, [bubbleOpacity, bubbleTranslateY, bubbleScale, buildTransformString]);
 
-    if (visible && isWeb && !showFullModal && !forceFullModal && !isPremium) {
-      // Reset animation values
-      bubbleOpacity.setValue(0);
-      bubbleTranslateY.setValue(INITIAL_TRANSLATE_Y);
-      bubbleScale.setValue(INITIAL_SCALE);
-      translateYValueRef.current = INITIAL_TRANSLATE_Y;
-      scaleValueRef.current = INITIAL_SCALE;
-      setAnimatedTransform(buildTransformString(INITIAL_TRANSLATE_Y, INITIAL_SCALE));
-
-      // Animate entrance with spring-like easing
+  // Helper: Create animation listeners
+  const createAnimationListeners = useCallback(
+    (isMountedRef: React.MutableRefObject<boolean>) => {
       const translateYListener = bubbleTranslateY.addListener(({ value }) => {
-        if (!isMounted) return;
+        if (!isMountedRef.current) return;
         translateYValueRef.current = value;
         setAnimatedTransform(buildTransformString(value, scaleValueRef.current));
       });
 
       const scaleListener = bubbleScale.addListener(({ value }) => {
-        if (!isMounted) return;
+        if (!isMountedRef.current) return;
         scaleValueRef.current = value;
         setAnimatedTransform(buildTransformString(translateYValueRef.current, value));
       });
 
-      translateYListenerId = translateYListener;
-      scaleListenerId = scaleListener;
+      return { translateYListener, scaleListener };
+    },
+    [bubbleTranslateY, bubbleScale, buildTransformString]
+  );
 
+  // Helper: Start bubble entrance animation
+  const startBubbleAnimation = useCallback(
+    (listeners: { translateYListener: string; scaleListener: string }) => {
       Animated.parallel([
         Animated.timing(bubbleOpacity, {
           toValue: 1,
@@ -248,31 +250,33 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
           useNativeDriver: false,
         }),
       ]).start(() => {
-        if (translateYListenerId) {
-          bubbleTranslateY.removeListener(translateYListenerId);
-        }
-        if (scaleListenerId) {
-          bubbleScale.removeListener(scaleListenerId);
-        }
+        bubbleTranslateY.removeListener(listeners.translateYListener);
+        bubbleScale.removeListener(listeners.scaleListener);
       });
+    },
+    [bubbleOpacity, bubbleTranslateY, bubbleScale]
+  );
+
+  // Animate bubble entrance
+  useEffect(() => {
+    const isMountedRef = { current: true };
+    let listeners: { translateYListener: string; scaleListener: string } | null = null;
+
+    const shouldShowBubble = visible && isWeb && !showFullModal && !forceFullModal && !isPremium;
+
+    if (shouldShowBubble) {
+      resetAnimationValues();
+      listeners = createAnimationListeners(isMountedRef);
+      startBubbleAnimation(listeners);
     } else {
-      // Reset when hiding
-      bubbleOpacity.setValue(0);
-      bubbleTranslateY.setValue(INITIAL_TRANSLATE_Y);
-      bubbleScale.setValue(INITIAL_SCALE);
-      translateYValueRef.current = INITIAL_TRANSLATE_Y;
-      scaleValueRef.current = INITIAL_SCALE;
-      setAnimatedTransform(buildTransformString(INITIAL_TRANSLATE_Y, INITIAL_SCALE));
+      resetAnimationValues();
     }
 
-    // Cleanup function - ensure listeners are removed
     return () => {
-      isMounted = false;
-      if (translateYListenerId) {
-        bubbleTranslateY.removeListener(translateYListenerId);
-      }
-      if (scaleListenerId) {
-        bubbleScale.removeListener(scaleListenerId);
+      isMountedRef.current = false;
+      if (listeners) {
+        bubbleTranslateY.removeListener(listeners.translateYListener);
+        bubbleScale.removeListener(listeners.scaleListener);
       }
     };
   }, [
@@ -280,11 +284,12 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
     isWeb,
     showFullModal,
     forceFullModal,
-    bubbleOpacity,
+    isPremium,
+    resetAnimationValues,
+    createAnimationListeners,
+    startBubbleAnimation,
     bubbleTranslateY,
     bubbleScale,
-    buildTransformString,
-    isPremium,
   ]);
 
   const handlePayment = async () => {

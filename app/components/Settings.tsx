@@ -525,6 +525,70 @@ const LanguageSettings: React.FC<{
   </View>
 );
 
+const createWebhookToggleHandler = (
+  itemUrl: string,
+  value: boolean,
+  handleToggleWebhook: (url: string, active: boolean) => void,
+  localWebhookUrls: WebhookItem[],
+  setLocalWebhookUrls: (urls: WebhookItem[]) => void
+) => {
+  return () => {
+    handleToggleWebhook(itemUrl, value);
+    const updated = localWebhookUrls.map((webhook) =>
+      webhook.url === itemUrl ? { ...webhook, active: value } : webhook
+    );
+    setLocalWebhookUrls(updated);
+  };
+};
+
+const createWebhookDeleteHandler = (
+  itemUrl: string,
+  handleDeleteWebhookWrapped: (url: string) => void,
+  localWebhookUrls: WebhookItem[],
+  setLocalWebhookUrls: (urls: WebhookItem[]) => void
+) => {
+  return () => {
+    handleDeleteWebhookWrapped(itemUrl);
+    const updated = localWebhookUrls.filter((webhook) => webhook.url !== itemUrl);
+    setLocalWebhookUrls(updated);
+  };
+};
+
+const createAddWebhookHandler = (
+  isPremium: boolean,
+  localWebhookUrl: string,
+  requirePremium: (action: () => void) => Promise<void>,
+  handleAddWebhookLocal: () => void
+) => {
+  const isValidUrl = /^https?:\/\//.test(localWebhookUrl.trim());
+
+  return () => {
+    if (!isPremium) {
+      requirePremium(() => {
+        if (isValidUrl) {
+          handleAddWebhookLocal();
+        }
+      });
+    } else if (isValidUrl) {
+      handleAddWebhookLocal();
+    }
+  };
+};
+
+const getBulkSendButtonText = (
+  isSendingBulk: boolean,
+  bulkDataLength: number,
+  t: (key: string) => string
+): string => {
+  if (isSendingBulk) {
+    return t('settings.bulkData.sending');
+  }
+
+  const itemText =
+    bulkDataLength === 1 ? t('settings.bulkData.item') : t('settings.bulkData.items');
+  return `${t('settings.bulkData.send')} ${bulkDataLength} ${itemText}`;
+};
+
 const WebhookSettings: React.FC<{
   t: (key: string) => string;
   requirePremium: (action: () => void) => Promise<void>;
@@ -593,17 +657,12 @@ const WebhookSettings: React.FC<{
           styles.addButton,
           (!isPremium || !/^https?:\/\//.test(localWebhookUrl.trim())) && styles.addButtonDisabled,
         ]}
-        onPress={() => {
-          if (!isPremium) {
-            requirePremium(() => {
-              if (/^https?:\/\//.test(localWebhookUrl.trim())) {
-                handleAddWebhookLocal();
-              }
-            });
-          } else if (/^https?:\/\//.test(localWebhookUrl.trim())) {
-            handleAddWebhookLocal();
-          }
-        }}
+        onPress={createAddWebhookHandler(
+          isPremium,
+          localWebhookUrl,
+          requirePremium,
+          handleAddWebhookLocal
+        )}
       >
         {isPremium ? (
           <Text style={styles.addButtonText}>{t('settings.webhooks.add')}</Text>
@@ -676,14 +735,14 @@ const WebhookSettings: React.FC<{
                   <Switch
                     value={item.active}
                     onValueChange={(value) => {
-                      const handleToggle = () => {
-                        handleToggleWebhook(item.url, value);
-                        const updated = localWebhookUrls.map((webhook) =>
-                          webhook.url === item.url ? { ...webhook, active: value } : webhook
-                        );
-                        setLocalWebhookUrls(updated);
-                      };
-                      requirePremium(handleToggle);
+                      const toggleHandler = createWebhookToggleHandler(
+                        item.url,
+                        value,
+                        handleToggleWebhook,
+                        localWebhookUrls,
+                        setLocalWebhookUrls
+                      );
+                      requirePremium(toggleHandler);
                     }}
                     trackColor={{ false: '#333', true: '#0066cc' }}
                     thumbColor={item.active ? '#0066cc' : '#f4f3f4'}
@@ -696,13 +755,12 @@ const WebhookSettings: React.FC<{
                     <AppIcon name="pencil" size={20} color="#888888" />
                   </TouchableOpacity>
                   <TouchableOpacity
-                    onPress={() => {
-                      handleDeleteWebhookWrapped(item.url);
-                      const updated = localWebhookUrls.filter(
-                        (webhook) => webhook.url !== item.url
-                      );
-                      setLocalWebhookUrls(updated);
-                    }}
+                    onPress={createWebhookDeleteHandler(
+                      item.url,
+                      handleDeleteWebhookWrapped,
+                      localWebhookUrls,
+                      setLocalWebhookUrls
+                    )}
                     style={styles.deleteButton}
                   >
                     <AppIcon name="close" size={20} color="#888888" />
@@ -1225,15 +1283,7 @@ export const WebhookSettingsComponentV2: React.FC<WebhookSettingsProps> = ({
             >
               <AppIcon name="send" size={20} color="#fff" style={{ marginRight: 8 }} />
               <Text style={styles.bulkSendText}>
-                {isSendingBulk
-                  ? t('settings.bulkData.sending')
-                  : (() => {
-                      const itemText =
-                        bulkData.length === 1
-                          ? t('settings.bulkData.item')
-                          : t('settings.bulkData.items');
-                      return `${t('settings.bulkData.send')} ${bulkData.length} ${itemText}`;
-                    })()}
+                {getBulkSendButtonText(isSendingBulk, bulkData.length, t)}
               </Text>
               {isSendingBulk && (
                 <ActivityIndicator size="small" color="#fff" style={{ marginLeft: 10 }} />
