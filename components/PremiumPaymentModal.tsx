@@ -48,6 +48,140 @@ interface PremiumPaymentModalProps {
 
 type PlanType = 'yearly' | 'lifetime';
 
+// Price Display Component - Extracted to reduce cognitive complexity
+const PriceDisplay: React.FC<{
+  user: any;
+  selectedPlan: PlanType;
+  t: (key: string) => string;
+}> = ({ user, selectedPlan, t }) => {
+  if (!user) return null;
+
+  return (
+    <View style={styles.priceRow}>
+      <Text style={styles.oldPrice}>{selectedPlan === 'yearly' ? '$69' : '$129'}</Text>
+      <Text style={styles.planPrice}>{selectedPlan === 'yearly' ? '$49' : '$89'}</Text>
+      <Text style={styles.paymentFrequency}>
+        {selectedPlan === 'yearly'
+          ? t('premium.modal.onceAYear')
+          : t('premium.modal.oneTimePayment')}
+      </Text>
+    </View>
+  );
+};
+
+// Plan Selection Component - Extracted to reduce cognitive complexity
+const PlanSelection: React.FC<{
+  selectedPlan: PlanType;
+  onPlanSelect: (plan: PlanType) => void;
+  t: (key: string) => string;
+}> = ({ selectedPlan, onPlanSelect, t }) => {
+  return (
+    <View style={styles.planSelectionContainer}>
+      <TouchableOpacity
+        style={[styles.planOption, selectedPlan === 'yearly' && styles.planOptionSelected]}
+        onPress={() => onPlanSelect('yearly')}
+        activeOpacity={0.8}
+      >
+        <Text
+          style={[
+            styles.planOptionText,
+            selectedPlan === 'yearly' && styles.planOptionTextSelected,
+          ]}
+        >
+          {t('premium.modal.yearly')}
+        </Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={[
+          styles.planOption,
+          selectedPlan === 'lifetime' && styles.planOptionSelected,
+        ]}
+        onPress={() => onPlanSelect('lifetime')}
+        activeOpacity={0.8}
+      >
+        <Text
+          style={[
+            styles.planOptionText,
+            selectedPlan === 'lifetime' && styles.planOptionTextSelected,
+          ]}
+        >
+          {t('premium.modal.lifetime')}
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
+};
+
+// Payment Button Component - Extracted to reduce cognitive complexity
+const PaymentButton: React.FC<{
+  user: any;
+  isLoading: boolean;
+  premiumLoading: boolean;
+  onPress: () => void;
+  getPlanButtonText: () => string;
+}> = ({ user, isLoading, premiumLoading, onPress, getPlanButtonText }) => {
+  const isDisabled = isLoading || premiumLoading;
+  const isLoadingState = isLoading || premiumLoading;
+
+  return (
+    <TouchableOpacity
+      style={[
+        styles.paymentButton,
+        !user && styles.googleButton,
+        isDisabled && styles.buttonDisabled,
+      ]}
+      onPress={onPress}
+      disabled={isDisabled}
+      activeOpacity={0.8}
+    >
+      {isLoadingState ? (
+        <ActivityIndicator color={user ? '#fff' : '#4285F4'} />
+      ) : (
+        <View style={styles.buttonContentWrapper}>
+          {!user && (
+            <View style={styles.googleIconWrapper}>
+              <GoogleLogo size={20} />
+            </View>
+          )}
+          <Text style={user ? styles.paymentButtonText : styles.googleButtonText}>
+            {getPlanButtonText()}
+          </Text>
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+};
+
+// Restore Purchase Button Component - Extracted to reduce cognitive complexity
+const RestorePurchaseButton: React.FC<{
+  user: any;
+  isRestoring: boolean;
+  onPress: () => void;
+  t: (key: string) => string;
+}> = ({ user, isRestoring, onPress, t }) => {
+  if (!user) return null;
+
+  return (
+    <TouchableOpacity
+      style={styles.restoreButton}
+      onPress={onPress}
+      disabled={isRestoring}
+    >
+      {isRestoring ? (
+        <ActivityIndicator color="#999" size="small" />
+      ) : (
+        <>
+          <AppIcon name="refresh" size={16} color="#999" />
+          <Text style={styles.restoreButtonText}>
+            {t('premium.modal.restorePurchase')}
+          </Text>
+        </>
+      )}
+    </TouchableOpacity>
+  );
+};
+
 // Extract web bubble component to reduce complexity
 const WebBubble: React.FC<{
   visible: boolean;
@@ -463,53 +597,14 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
             </View>
 
             {/* Plan Selection */}
-            <View style={styles.planSelectionContainer}>
-              <TouchableOpacity
-                style={[styles.planOption, selectedPlan === 'yearly' && styles.planOptionSelected]}
-                onPress={() => handlePlanSelection('yearly')}
-                activeOpacity={0.8}
-              >
-                <Text
-                  style={[
-                    styles.planOptionText,
-                    selectedPlan === 'yearly' && styles.planOptionTextSelected,
-                  ]}
-                >
-                  {t('premium.modal.yearly')}
-                </Text>
-              </TouchableOpacity>
+            <PlanSelection
+              selectedPlan={selectedPlan}
+              onPlanSelect={handlePlanSelection}
+              t={t}
+            />
 
-              <TouchableOpacity
-                style={[
-                  styles.planOption,
-                  selectedPlan === 'lifetime' && styles.planOptionSelected,
-                ]}
-                onPress={() => handlePlanSelection('lifetime')}
-                activeOpacity={0.8}
-              >
-                <Text
-                  style={[
-                    styles.planOptionText,
-                    selectedPlan === 'lifetime' && styles.planOptionTextSelected,
-                  ]}
-                >
-                  {t('premium.modal.lifetime')}
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Price Display - Only show when user is logged in */}
-            {user && (
-              <View style={styles.priceRow}>
-                <Text style={styles.oldPrice}>{selectedPlan === 'yearly' ? '$69' : '$129'}</Text>
-                <Text style={styles.planPrice}>{selectedPlan === 'yearly' ? '$49' : '$89'}</Text>
-                <Text style={styles.paymentFrequency}>
-                  {selectedPlan === 'yearly'
-                    ? t('premium.modal.onceAYear')
-                    : t('premium.modal.oneTimePayment')}
-                </Text>
-              </View>
-            )}
+            {/* Price Display */}
+            <PriceDisplay user={user} selectedPlan={selectedPlan} t={t} />
 
             {/* Features List */}
             <View style={styles.featuresList}>
@@ -542,51 +637,21 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
             </View>
 
             {/* Payment Button */}
-            <TouchableOpacity
-              style={[
-                styles.paymentButton,
-                !user && styles.googleButton,
-                (isLoading || premiumLoading) && styles.buttonDisabled,
-              ]}
+            <PaymentButton
+              user={user}
+              isLoading={isLoading}
+              premiumLoading={premiumLoading}
               onPress={handlePayment}
-              disabled={isLoading || premiumLoading}
-              activeOpacity={0.8}
-            >
-              {isLoading || premiumLoading ? (
-                <ActivityIndicator color={user ? '#fff' : '#4285F4'} />
-              ) : (
-                <View style={styles.buttonContentWrapper}>
-                  {user ? null : (
-                    <View style={styles.googleIconWrapper}>
-                      <GoogleLogo size={20} />
-                    </View>
-                  )}
-                  <Text style={user ? styles.paymentButtonText : styles.googleButtonText}>
-                    {getPlanButtonText()}
-                  </Text>
-                </View>
-              )}
-            </TouchableOpacity>
+              getPlanButtonText={getPlanButtonText}
+            />
 
-            {/* Restore Purchase Button - Only show when user is logged in */}
-            {user && (
-              <TouchableOpacity
-                style={styles.restoreButton}
-                onPress={handleRestorePurchase}
-                disabled={isRestoring}
-              >
-                {isRestoring ? (
-                  <ActivityIndicator color="#999" size="small" />
-                ) : (
-                  <>
-                    <AppIcon name="refresh" size={16} color="#999" />
-                    <Text style={styles.restoreButtonText}>
-                      {t('premium.modal.restorePurchase')}
-                    </Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            )}
+            {/* Restore Purchase Button */}
+            <RestorePurchaseButton
+              user={user}
+              isRestoring={isRestoring}
+              onPress={handleRestorePurchase}
+              t={t}
+            />
           </View>
         </ScrollView>
       </View>
