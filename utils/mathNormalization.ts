@@ -26,8 +26,13 @@ export interface CompiledLanguageRegex {
 export function convertCompoundNumbers(text: string): string {
   // First, handle patterns like "X million Y" or "X million Y,ZZZ" where Y is additional thousands
   // Pattern: number + multiplier + optional additional number (with or without thousands separator)
-  const compoundWithAdditionRegex =
-    /(\d+(?:\.\d+)?)\s*(million|milliard|milliarde|milhão|milione|billion|mil millones|billón|bilhão|miliardo|trillion|trilhão|trillione)\s+(\d{1,3}(?:,\d{3})*|\d+)/g;
+  // Simplified regex: extract multiplier words to reduce alternation complexity
+  const multiplierWords =
+    'million|milliard|milliarde|milhão|milione|billion|mil millones|billón|bilhão|miliardo|trillion|trilhão|trillione';
+  const compoundWithAdditionRegex = new RegExp(
+    `(\\d+(?:\\.\\d+)?)\\s*(${multiplierWords})\\s+(\\d{1,3}(?:,\\d{3})*|\\d+)`,
+    'g'
+  );
 
   text = text.replaceAll(compoundWithAdditionRegex, (_match, number, multiplier, additional) => {
     const num = Number.parseFloat(number);

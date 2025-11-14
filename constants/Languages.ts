@@ -2015,13 +2015,14 @@ export const LANGUAGE_PATTERNS: { [key: string]: LanguagePatterns } = {
 };
 
 // Patterns for "X percent of that" calculations - language-specific
+// Simplified regex patterns to reduce complexity
 export const PERCENT_OF_THAT_PATTERNS: { [key: string]: RegExp } = {
-  en: /(?:what'?s|whats|what is|calculate|find|get)?\s{0,3}(\d+(?:\.\d+)?)\s{0,3}(?:percent|%|percentage)\s{0,3}(?:of)?\s{0,3}(?:that|it|the last|previous|result)/i,
-  fr: /(?:quel est|quelle est|combien est|combien fait|calcule|trouve|obtenir)?\s{0,3}(\d+(?:[,.]\d+)?)\s{0,3}(?:pour cent|%|pourcentage)\s{0,3}(?:de)?\s{0,3}(?:ça|cela|celui|le dernier|précédent|résultat|celui-là)/i,
-  es: /(?:cuál es|cuánto es|cuánto es|calcula|encuentra|obtener)?\s{0,3}(\d+(?:[,.]\d+)?)\s{0,3}(?:por ciento|%|porcentaje)\s{0,3}(?:de)?\s{0,3}(?:eso|ese|el último|anterior|resultado)/i,
-  de: /(?:was ist|wie viel ist|berechnen|finden|erhalten)?\s{0,3}(\d+(?:[,.]\d+)?)\s{0,3}(?:prozent|%)\s{0,3}(?:von)?\s{0,3}(?:das|es|der letzte|vorherige|ergebnis)/i,
-  pt: /(?:qual é|quanto é|calcular|encontrar|obter)?\s{0,3}(\d+(?:[,.]\d+)?)\s{0,3}(?:por cento|%|porcentagem)\s{0,3}(?:de)?\s{0,3}(?:isso|aquele|o último|anterior|resultado)/i,
-  it: /(?:qual è|quanto è|calcolare|trovare|ottenere)?\s{0,3}(\d+(?:[,.]\d+)?)\s{0,3}(?:per cento|%|percentuale)\s{0,3}(?:di)?\s{0,3}(?:quello|quella|l'ultimo|precedente|risultato)/i,
+  en: /\s*(\d+(?:\.\d+)?)\s*(?:percent|%|percentage)\s*(?:of\s+)?(?:that|it|the last|previous|result)/i,
+  fr: /\s*(\d+(?:[,.]\d+)?)\s*(?:pour cent|%|pourcentage)\s*(?:de\s+)?(?:ça|cela|celui|le dernier|précédent|résultat|celui-là)/i,
+  es: /\s*(\d+(?:[,.]\d+)?)\s*(?:por ciento|%|porcentaje)\s*(?:de\s+)?(?:eso|ese|el último|anterior|resultado)/i,
+  de: /\s*(\d+(?:[,.]\d+)?)\s*(?:prozent|%)\s*(?:von\s+)?(?:das|es|der letzte|vorherige|ergebnis)/i,
+  pt: /\s*(\d+(?:[,.]\d+)?)\s*(?:por cento|%|porcentagem)\s*(?:de\s+)?(?:isso|aquele|o último|anterior|resultado)/i,
+  it: /\s*(\d+(?:[,.]\d+)?)\s*(?:per cento|%|percentuale)\s*(?:di\s+)?(?:quello|quella|l'ultimo|precedente|risultato)/i,
 };
 
 // Legacy export for backward compatibility (defaults to English)
