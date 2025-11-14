@@ -59,6 +59,7 @@ const WebBubble: React.FC<{
   onClose: () => void;
   captureEvent: (event: string) => void;
   isMobile: boolean;
+  t: (key: string) => string;
 }> = ({
   visible,
   bubbleOpacity,
@@ -69,6 +70,7 @@ const WebBubble: React.FC<{
   onClose,
   captureEvent,
   isMobile,
+  t,
 }) => {
   if (!visible) return null;
 
@@ -105,7 +107,7 @@ const WebBubble: React.FC<{
               style={[styles.webBubbleText, isMobile && styles.webBubbleTextMobile]}
               numberOfLines={1}
             >
-              Unlock Premium Features?
+              {t('premium.unlockPremiumFeatures')}?
             </Text>
           </View>
           <TouchableOpacity
@@ -292,28 +294,24 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
     bubbleScale,
   ]);
 
-  const handlePayment = async () => {
-    // If not logged in, trigger login first
-    if (!user) {
-      setIsLoading(true);
-      try {
-        const loginResult = await signInWithGoogle();
-        // After successful login, redirect to payment
-        if (loginResult) {
-          captureEvent('payment_initiated', {
-            plan: selectedPlan,
-            price: selectedPlan === 'yearly' ? '$49' : '$89',
-          });
-          await showPremiumPayment(selectedPlan);
-        }
-      } catch (error) {
-        console.error('Login failed:', error);
+  const handleLoginAndPayment = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const loginResult = await signInWithGoogle();
+      if (loginResult) {
+        captureEvent('payment_initiated', {
+          plan: selectedPlan,
+          price: selectedPlan === 'yearly' ? '$49' : '$89',
+        });
+        await showPremiumPayment(selectedPlan);
       }
-      setIsLoading(false);
-      return;
+    } catch (error) {
+      console.error('Login failed:', error);
     }
+    setIsLoading(false);
+  }, [signInWithGoogle, captureEvent, selectedPlan, showPremiumPayment]);
 
-    // User is logged in, proceed with payment
+  const processPayment = useCallback(async () => {
     captureEvent('payment_initiated', {
       plan: selectedPlan,
       price: selectedPlan === 'yearly' ? '$49' : '$89',
@@ -321,8 +319,14 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
     setIsLoading(true);
     await showPremiumPayment(selectedPlan);
     setIsLoading(false);
-    // We don't close the modal here because we don't know if payment was successful
-    // The premium status will be checked in PremiumContext after payment
+  }, [captureEvent, selectedPlan, showPremiumPayment]);
+
+  const handlePayment = async () => {
+    if (!user) {
+      await handleLoginAndPayment();
+      return;
+    }
+    await processPayment();
   };
 
   const handleRestorePurchase = async () => {
@@ -394,6 +398,7 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
         onClose={handleClose}
         captureEvent={captureEvent}
         isMobile={isMobile}
+        t={t}
       />
     );
   }
@@ -441,7 +446,7 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
                   {/* Title */}
                   <View style={styles.titleContainer}>
                     <Text style={styles.title} numberOfLines={1}>
-                      UNLOCK PREMIUM FEATURES
+                      {t('premium.unlockPremiumFeatures').toUpperCase()}
                     </Text>
                   </View>
 
@@ -506,44 +511,35 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
                     <View style={styles.featureItem}>
                       <AppIcon name="microphone" size={16} color="#fff" />
                       <Text style={styles.featureText}>
-                        <Text style={styles.featureTextNormal}>Unlimited </Text>
-                        <Text style={styles.featureTextBold}>voice requests</Text>
+                        {t('premium.modal.benefits.unlimitedVoice')}
                       </Text>
                     </View>
                     <View style={styles.featureItem}>
                       <AppIcon name="webhook" size={16} color="#fff" />
                       <Text style={styles.featureText}>
-                        <Text style={styles.featureTextNormal}>Webhook </Text>
-                        <Text style={styles.featureTextBold}>integrations</Text>
+                        {t('premium.modal.benefits.webhookIntegrations')}
                       </Text>
                     </View>
                     <View style={styles.featureItem}>
                       <AppIcon name="check-decagram" size={16} color="#fff" />
                       <Text style={styles.featureText}>
-                        <Text style={styles.featureTextNormal}>Early access to </Text>
-                        <Text style={styles.featureTextBold}>new features</Text>
+                        {t('premium.modal.benefits.earlyAccess')}
                       </Text>
                     </View>
                     <View style={styles.featureItem}>
                       <AdFreeIcon size={16} color="#fff" />
-                      <Text style={styles.featureText}>
-                        <Text style={styles.featureTextBold}>Ad-free</Text>
-                        <Text style={styles.featureTextNormal}> experience</Text>
-                      </Text>
+                      <Text style={styles.featureText}>{t('premium.modal.benefits.adFree')}</Text>
                     </View>
                     <View style={styles.featureItem}>
                       <AppIcon name="history" size={16} color="#fff" />
                       <Text style={styles.featureText}>
-                        <Text style={styles.featureTextNormal}>Export </Text>
-                        <Text style={styles.featureTextBold}>history</Text>
-                        <Text style={styles.featureTextNormal}> data</Text>
+                        {t('premium.modal.benefits.exportHistory')}
                       </Text>
                     </View>
                     <View style={styles.featureItem}>
                       <AppIcon name="audio-lines" size={16} color="#fff" />
                       <Text style={styles.featureText}>
-                        <Text style={styles.featureTextBold}>Continuous </Text>
-                        <Text style={styles.featureTextNormal}>listening mode</Text>
+                        {t('premium.modal.benefits.advancedVoice')}
                       </Text>
                     </View>
                   </View>

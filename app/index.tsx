@@ -505,6 +505,30 @@ const MainScreen: React.FC = () => {
       .replaceAll(',', '.');
   }, []);
 
+  // Helper: Normalize decimal separators and spaces
+  const normalizeDecimalsAndSpaces = useCallback((text: string, compiled: any): string => {
+    let result = text;
+    result = result.replace(/[\u00A0\u202F\u2007]/g, ' ');
+    if (compiled.decimal) result = result.replace(compiled.decimal, '.');
+    result = result.replace(/(\d)\s*\.\s*(\d)/g, '$1.$2');
+    result = result.replace(/\b(\d{1,3})(?:,\d{3})+\b/g, (m) => m.replaceAll(',', ''));
+    result = result.replace(/\b(\d+),(\d+)\b/g, '$1.$2');
+    return result;
+  }, []);
+
+  // Helper: Apply number word conversions and compound numbers
+  const applyNumberConversions = useCallback((text: string, compiled: any): string => {
+    let result = convertCompoundNumbers(text);
+    const numWords = compiled.patterns.numbers;
+    if (compiled.numberWordsRegex) {
+      result = result.replace(compiled.numberWordsRegex, (match: string) => numWords[match]);
+    }
+    result = result.replace(/\b(\d{1,3})(?:[ \u00A0\u202F]\d{3})+\b/g, (m) =>
+      m.replace(/[ \u00A0\u202F]/g, '')
+    );
+    return result;
+  }, [convertCompoundNumbers]);
+
   // Helper: Apply percentage operations
   const applyPercentageOperations = useCallback(
     (text: string): string => {
@@ -570,25 +594,13 @@ const MainScreen: React.FC = () => {
       }
       let normalized = text.toLowerCase();
       const compiled = compiledLanguageRegex;
-      const patterns = compiled.patterns;
 
       normalized = normalized.replace(
         /([a-zàáâãäåèéêëìíîïòóôõöùúûüýÿ])-([a-zàáâãäåèéêëìíîïòóôõöùúûüýÿ])/gi,
         '$1$2'
       );
 
-      // Handle compound numbers
-      normalized = convertCompoundNumbers(normalized);
-
-      // Convert spelled-out numbers
-      const numWords = patterns.numbers;
-      if (compiled.numberWordsRegex) {
-        normalized = normalized.replace(compiled.numberWordsRegex, (match) => numWords[match]);
-      }
-
-      normalized = normalized.replace(/\b(\d{1,3})(?:[ \u00A0\u202F]\d{3})+\b/g, (m) =>
-        m.replace(/[ \u00A0\u202F]/g, '')
-      );
+      normalized = applyNumberConversions(normalized, compiled);
 
       // Handle numeric fractions: "1/200 of 2562" → "(1/200) * 2562"
       normalized = normalized.replace(
@@ -606,13 +618,7 @@ const MainScreen: React.FC = () => {
         }
       );
 
-      normalized = normalized.replace(/[\u00A0\u202F\u2007]/g, ' ');
-      if (compiled.decimal) normalized = normalized.replace(compiled.decimal, '.');
-      normalized = normalized.replace(/(\d)\s*\.\s*(\d)/g, '$1.$2');
-      normalized = normalized.replace(/\b(\d{1,3})(?:,\d{3})+\b/g, (m) => m.replaceAll(',', ''));
-      normalized = normalized.replace(/\b(\d+),(\d+)\b/g, '$1.$2');
-
-      // Apply all percentage operations
+      normalized = normalizeDecimalsAndSpaces(normalized, compiled);
       normalized = applyPercentageOperations(normalized);
 
       // Handle language-specific phrase patterns
@@ -624,59 +630,31 @@ const MainScreen: React.FC = () => {
       if (compiled.phraseDivideBy)
         normalized = normalized.replace(compiled.phraseDivideBy, '$2 / $3');
 
-      // --- General Replacements (Now run AFTER specific phrases) ---
-      // Common operator words to symbols - Use word boundaries for robustness
-
-      // Addition
+      // Common operator words to symbols
       if (compiled.addition) normalized = normalized.replace(compiled.addition, ' + ');
-
-      // Subtraction
       if (compiled.subtraction) normalized = normalized.replace(compiled.subtraction, ' - ');
-
-      // Multiplication
       if (compiled.multiplication) normalized = normalized.replace(compiled.multiplication, ' * ');
-
-      // Division
       if (compiled.division) normalized = normalized.replace(compiled.division, ' / ');
-
-      // Percentage "of"
       if (compiled.percentOf && !/%/.test(normalized))
         normalized = normalized.replace(compiled.percentOf, ' * 0.01 * ');
-
-      // Percentage
       if (compiled.percentage) normalized = normalized.replace(compiled.percentage, ' % ');
-
-      // Power
       if (compiled.power) normalized = normalized.replace(compiled.power, ' ^ ');
-
-      // Square root
       if (compiled.sqrt) normalized = normalized.replace(compiled.sqrt, ' sqrt ');
-
-      // Open parentheses
       if (compiled.openParen) normalized = normalized.replace(compiled.openParen, ' ( ');
-
-      // Close parentheses
       if (compiled.closeParen) normalized = normalized.replace(compiled.closeParen, ' ) ');
 
-      // Final cleanup:
-      // 1) Preserve 'sqrt' tokens
+      // Final cleanup
       normalized = normalized.replace(/\bsqrt\b/g, '__SQRT__');
-      // 2) Remove apostrophes/quotes that can leak from contractions like what's
-      normalized = normalized.replace(/[’'"`]+/g, ' ');
-      // 3) Remove ALL remaining letters (including accented characters like à, é, ñ, etc.)
+      normalized = normalized.replace(/[''"`]+/g, ' ');
       normalized = normalized.replace(/[a-zA-ZÀ-ÿ]+/g, ' ');
-      // 4) Restore 'sqrt'
       normalized = normalized.replaceAll('__SQRT__', ' sqrt ');
-      // 5) Collapse duplicate plus operators that can arise from phrase joins (e.g., "+ +")
       normalized = normalized.replace(/\+\s*\+/g, '+');
-
-      // Consolidate spaces and trim
       normalized = normalized.replace(/\s+/g, ' ').trim();
 
       return normalized;
     },
-    [compiledLanguageRegex, convertCompoundNumbers, applyPercentageOperations, getFractionMap]
-  ); // Dependencies: compiled per language
+    [compiledLanguageRegex, applyNumberConversions, normalizeDecimalsAndSpaces, applyPercentageOperations, getFractionMap]
+  );
 
   // Handle input and calculation (used by keypad and speech)
   const handleInput = useCallback(

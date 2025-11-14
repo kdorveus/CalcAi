@@ -54,8 +54,8 @@ export const useSpeechRecognition = ({
   const silenceTimerRef = useRef<NodeJS.Timeout | number | null>(null);
   const lastProcessedTranscriptRef = useRef<string>('');
   const rafPendingRef = useRef<number | null>(null);
-  const pendingInterimRef = useRef<string>('');
-  const lastInterimSentRef = useRef<string>('');
+  const pendingInterimRef = useRef('');
+  const lastInterimSentRef = useRef('');
   const recordingStartTimeRef = useRef<number>(0);
 
   const initializeSpeech = useCallback(async () => {
@@ -89,6 +89,37 @@ export const useSpeechRecognition = ({
       console.error('Failed to initialize speech recognition:', error);
       speechInitializedRef.current = false;
       permissionsGrantedRef.current = false;
+    }
+  }, []);
+
+  const cleanupWebRecognition = useCallback(() => {
+    if (rafPendingRef.current != null) {
+      const caf = (globalThis as any).cancelAnimationFrame as
+        | ((handle: number) => void)
+        | undefined;
+      if (caf) {
+        caf(rafPendingRef.current);
+      }
+      rafPendingRef.current = null;
+      pendingInterimRef.current = '';
+      lastInterimSentRef.current = '';
+    }
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+    }
+  }, []);
+
+  const cleanupNativeRecognition = useCallback(async () => {
+    try {
+      if (speechModuleRef.current) {
+        const { ExpoSpeechRecognitionModule } = speechModuleRef.current;
+        await ExpoSpeechRecognitionModule.stop();
+      }
+      if (speechListenerRef.current) speechListenerRef.current.remove();
+      if (endListenerRef.current) endListenerRef.current.remove();
+      if (errorListenerRef.current) errorListenerRef.current.remove();
+    } catch (error) {
+      console.debug('Error stopping speech recognition:', error);
     }
   }, []);
 
@@ -273,34 +304,11 @@ export const useSpeechRecognition = ({
     }
 
     if (Platform.OS === 'web') {
-      if (rafPendingRef.current != null) {
-        const caf = (globalThis as any).cancelAnimationFrame as
-          | ((handle: number) => void)
-          | undefined;
-        if (caf) {
-          caf(rafPendingRef.current);
-        }
-        rafPendingRef.current = null;
-        pendingInterimRef.current = '';
-        lastInterimSentRef.current = '';
-      }
-      if (recognitionRef.current) {
-        recognitionRef.current.stop();
-      }
+      cleanupWebRecognition();
     } else {
-      try {
-        if (speechModuleRef.current) {
-          const { ExpoSpeechRecognitionModule } = speechModuleRef.current;
-          await ExpoSpeechRecognitionModule.stop();
-        }
-        if (speechListenerRef.current) speechListenerRef.current.remove();
-        if (endListenerRef.current) endListenerRef.current.remove();
-        if (errorListenerRef.current) errorListenerRef.current.remove();
-      } catch (error) {
-        console.debug('Error stopping speech recognition:', error);
-      }
+      await cleanupNativeRecognition();
     }
-  }, [setIsRecording, setInterimTranscript]);
+  }, [setIsRecording, setInterimTranscript, cleanupWebRecognition, cleanupNativeRecognition]);
 
   return {
     startRecording,
