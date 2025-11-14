@@ -57,6 +57,7 @@ export const useSpeechRecognition = ({
   const pendingInterimRef = useRef('');
   const lastInterimSentRef = useRef('');
   const recordingStartTimeRef = useRef<number>(0);
+  const shouldStopRef = useRef<boolean>(false);
 
   const initializeSpeech = useCallback(async () => {
     if (Platform.OS === 'web') {
@@ -161,9 +162,22 @@ export const useSpeechRecognition = ({
 
     recognition.onend = () => {
       const timeSinceStart = Date.now() - recordingStartTimeRef.current;
-      if (!continuousMode && timeSinceStart > 100) {
+      // In continuous mode, only stop if explicitly requested by user
+      if (continuousMode && !shouldStopRef.current && timeSinceStart > 100) {
+        // Restart recognition in continuous mode unless user stopped it
+        try {
+          recognition.start();
+        } catch (error) {
+          console.debug('Recognition restart failed:', error);
+        }
+      } else if (!continuousMode && timeSinceStart > 100) {
         setIsRecording(false);
         setInterimTranscript('');
+      } else if (shouldStopRef.current) {
+        // User explicitly stopped, so actually stop
+        setIsRecording(false);
+        setInterimTranscript('');
+        shouldStopRef.current = false;
       }
     };
 
@@ -277,6 +291,7 @@ export const useSpeechRecognition = ({
 
   const startRecording = useCallback(async () => {
     if (isRecording) return;
+    shouldStopRef.current = false;
     setIsRecording(true);
     recordingStartTimeRef.current = Date.now();
 
@@ -293,6 +308,7 @@ export const useSpeechRecognition = ({
   }, [isRecording, setIsRecording, setupWebRecognition, setupNativeRecognition]);
 
   const stopRecording = useCallback(async () => {
+    shouldStopRef.current = true;
     setIsRecording(false);
     setInterimTranscript('');
     lastProcessedTranscriptRef.current = '';
