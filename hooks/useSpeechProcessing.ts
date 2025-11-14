@@ -1,7 +1,7 @@
 import type React from 'react';
 import { useCallback } from 'react';
 import { Platform } from 'react-native';
-import { PERCENT_OF_THAT_PATTERN } from '../constants/Languages';
+import { getPercentOfThatPattern } from '../constants/Languages';
 import type { ChatBubble } from '../types';
 import { MATH_ERROR } from '../utils/calculationUtils';
 import type { CompiledLanguageRegex } from '../utils/mathNormalization';
@@ -9,6 +9,7 @@ import { normalizeSpokenMath } from '../utils/mathNormalization';
 
 export interface UseSpeechProcessingParams {
   compiledLanguageRegex: CompiledLanguageRegex;
+  language: string;
   handleInput: (val: string, type: 'user' | 'keypad' | 'speech') => string;
   handleCalculationResult: (equation: string, result: string, source: 'keypad' | 'speech') => void;
   lastProcessedTranscriptRef: React.MutableRefObject<string>;
@@ -23,6 +24,7 @@ export interface UseSpeechProcessingParams {
 
 export function useSpeechProcessing({
   compiledLanguageRegex,
+  language,
   handleInput,
   handleCalculationResult,
   lastProcessedTranscriptRef,
@@ -51,9 +53,13 @@ export function useSpeechProcessing({
         processedEquation = processedEquation.trim();
         processedEquation = processedEquation.replace(/[+\-*/%=.,\s]+$/g, '').trim();
 
-        const percentMatch = PERCENT_OF_THAT_PATTERN.exec(transcript);
+        // Use language-specific pattern for "X% of that" calculations
+        const percentOfThatPattern = getPercentOfThatPattern(language);
+        const percentMatch = percentOfThatPattern.exec(transcript);
         if (percentMatch && lastResultRef.current !== null) {
-          const percentage = Number.parseFloat(percentMatch[1]);
+          // Handle comma decimal separators (French locale)
+          const percentageStr = percentMatch[1].replace(',', '.');
+          const percentage = Number.parseFloat(percentageStr);
           processedEquation = `${lastResultRef.current} * ${percentage} / 100`;
         }
 
@@ -109,6 +115,7 @@ export function useSpeechProcessing({
     },
     [
       compiledLanguageRegex,
+      language,
       handleInput,
       handleCalculationResult,
       lastProcessedTranscriptRef,

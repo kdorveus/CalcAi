@@ -604,7 +604,7 @@ export const TRANSLATIONS: Record<string, Translations> = {
           earlyAccess: 'Accès anticipé aux nouvelles fonctionnalités',
           adFree: 'Expérience sans publicité',
           exportHistory: "Exporter l'historique des calculs",
-          advancedVoice: 'Commandes vocales avancées',
+          advancedVoice: 'Mode continue avancé',
           prioritySupport: 'Support prioritaire',
         },
       },
@@ -2014,9 +2014,20 @@ export const LANGUAGE_PATTERNS: { [key: string]: LanguagePatterns } = {
   },
 };
 
-// Pattern for "X percent of that" calculations
-const PERCENT_OF_THAT_PREFIX = "(?:what'?s|whats|calculate|find|get)?";
-export const PERCENT_OF_THAT_PATTERN = new RegExp(
-  `${PERCENT_OF_THAT_PREFIX}\\s{0,3}(\\d+(?:\\.\\d+)?)\\s{0,3}(?:percent|%|percentage)\\s{0,3}(?:of)?\\s{0,3}(?:that|it|the last|previous|result)`,
-  'i'
-);
+// Patterns for "X percent of that" calculations - language-specific
+export const PERCENT_OF_THAT_PATTERNS: { [key: string]: RegExp } = {
+  en: /(?:what'?s|whats|what is|calculate|find|get)?\s{0,3}(\d+(?:\.\d+)?)\s{0,3}(?:percent|%|percentage)\s{0,3}(?:of)?\s{0,3}(?:that|it|the last|previous|result)/i,
+  fr: /(?:quel est|quelle est|combien est|combien fait|calcule|trouve|obtenir)?\s{0,3}(\d+(?:[,.]\d+)?)\s{0,3}(?:pour cent|%|pourcentage)\s{0,3}(?:de)?\s{0,3}(?:ça|cela|celui|le dernier|précédent|résultat|celui-là)/i,
+  es: /(?:cuál es|cuánto es|cuánto es|calcula|encuentra|obtener)?\s{0,3}(\d+(?:[,.]\d+)?)\s{0,3}(?:por ciento|%|porcentaje)\s{0,3}(?:de)?\s{0,3}(?:eso|ese|el último|anterior|resultado)/i,
+  de: /(?:was ist|wie viel ist|berechnen|finden|erhalten)?\s{0,3}(\d+(?:[,.]\d+)?)\s{0,3}(?:prozent|%)\s{0,3}(?:von)?\s{0,3}(?:das|es|der letzte|vorherige|ergebnis)/i,
+  pt: /(?:qual é|quanto é|calcular|encontrar|obter)?\s{0,3}(\d+(?:[,.]\d+)?)\s{0,3}(?:por cento|%|porcentagem)\s{0,3}(?:de)?\s{0,3}(?:isso|aquele|o último|anterior|resultado)/i,
+  it: /(?:qual è|quanto è|calcolare|trovare|ottenere)?\s{0,3}(\d+(?:[,.]\d+)?)\s{0,3}(?:per cento|%|percentuale)\s{0,3}(?:di)?\s{0,3}(?:quello|quella|l'ultimo|precedente|risultato)/i,
+};
+
+// Legacy export for backward compatibility (defaults to English)
+export const PERCENT_OF_THAT_PATTERN = PERCENT_OF_THAT_PATTERNS.en;
+
+// Helper function to get pattern for a specific language
+export function getPercentOfThatPattern(language: string): RegExp {
+  return PERCENT_OF_THAT_PATTERNS[language] || PERCENT_OF_THAT_PATTERNS.en;
+}

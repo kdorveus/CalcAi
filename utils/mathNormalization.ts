@@ -22,11 +22,37 @@ export interface CompiledLanguageRegex {
 }
 
 // Helper: Convert compound numbers (e.g., "5million" -> "5000000")
+// Also handles patterns like "1 million 250,000" -> "1250000"
 export function convertCompoundNumbers(text: string): string {
+  // First, handle patterns like "X million Y" or "X million Y,ZZZ" where Y is additional thousands
+  // Pattern: number + multiplier + optional additional number (with or without thousands separator)
+  const compoundWithAdditionRegex =
+    /(\d+(?:\.\d+)?)\s*(million|milliard|milliarde|milhão|milione|billion|mil millones|billón|bilhão|miliardo|trillion|trilhão|trillione)\s+(\d{1,3}(?:,\d{3})*|\d+)/g;
+
+  text = text.replaceAll(compoundWithAdditionRegex, (_match, number, multiplier, additional) => {
+    const num = Number.parseFloat(number);
+    const additionalNum = Number.parseInt(additional.replaceAll(',', ''), 10);
+    const multiplierLower = multiplier.toLowerCase();
+
+    let baseValue = 0;
+    if (['million', 'milliard', 'milliarde', 'milhão', 'milione'].includes(multiplierLower)) {
+      baseValue = num * 1000000;
+    } else if (['billion', 'mil millones', 'bilhão', 'miliardo'].includes(multiplierLower)) {
+      baseValue = num * 1000000000;
+    } else if (['trillion', 'billón', 'trilhão', 'trillione'].includes(multiplierLower)) {
+      baseValue = num * 1000000000000;
+    } else {
+      baseValue = num;
+    }
+
+    return (baseValue + additionalNum).toString();
+  });
+
+  // Then handle simple patterns like "5million" or "2.5 million" -> "5000000" or "2500000"
   const compoundRegex =
-    /(\d+)\s*(million|milliard|milliarde|milhão|milione|billion|mil millones|billón|bilhão|miliardo|trillion|trilhão|trillione)/g;
+    /(\d+(?:\.\d+)?)\s*(million|milliard|milliarde|milhão|milione|billion|mil millones|billón|bilhão|miliardo|trillion|trilhão|trillione)/g;
   return text.replaceAll(compoundRegex, (_match, number, multiplier) => {
-    const num = Number.parseInt(number, 10);
+    const num = Number.parseFloat(number);
     const multiplierLower = multiplier.toLowerCase();
 
     if (['million', 'milliard', 'milliarde', 'milhão', 'milione'].includes(multiplierLower)) {
@@ -138,8 +164,16 @@ export function normalizeDecimalsAndSpaces(text: string, compiled: CompiledLangu
   result = result.replace(/[\u00A0\u202F\u2007]/g, ' ');
   if (compiled.decimal) result = result.replace(compiled.decimal, '.');
   result = result.replace(/(\d)\s*\.\s*(\d)/g, '$1.$2');
+
+  // Remove thousands separators (commas in groups of 3 digits: 1,000 or 250,000)
   result = result.replace(/\b(\d{1,3})(?:,\d{3})+\b/g, (m) => m.replaceAll(',', ''));
-  result = result.replace(/\b(\d+),(\d+)\b/g, '$1.$2');
+
+  // Convert remaining commas between digits to periods (these are decimal separators)
+  // Only match commas that are NOT part of thousands separators (already removed above)
+  // Pattern: digit(s), digit(s) where the comma is clearly a decimal separator
+  // We check that it's not a thousands separator pattern by ensuring it doesn't match the thousands pattern
+  result = result.replace(/\b(\d+),(\d{1,2})\b/g, '$1.$2');
+
   return result;
 }
 

@@ -9,6 +9,7 @@ export default function Root({ children }: { readonly children: ReactNode }) {
   return (
     <html lang="en">
       <head>
+        <title>calcAI</title>
         <meta charSet="utf-8" />
         <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
         <meta

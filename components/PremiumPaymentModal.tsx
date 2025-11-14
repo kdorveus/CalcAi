@@ -93,10 +93,7 @@ const PlanSelection: React.FC<{
       </TouchableOpacity>
 
       <TouchableOpacity
-        style={[
-          styles.planOption,
-          selectedPlan === 'lifetime' && styles.planOptionSelected,
-        ]}
+        style={[styles.planOption, selectedPlan === 'lifetime' && styles.planOptionSelected]}
         onPress={() => onPlanSelect('lifetime')}
         activeOpacity={0.8}
       >
@@ -163,23 +160,73 @@ const RestorePurchaseButton: React.FC<{
   if (!user) return null;
 
   return (
-    <TouchableOpacity
-      style={styles.restoreButton}
-      onPress={onPress}
-      disabled={isRestoring}
-    >
+    <TouchableOpacity style={styles.restoreButton} onPress={onPress} disabled={isRestoring}>
       {isRestoring ? (
         <ActivityIndicator color="#999" size="small" />
       ) : (
         <>
           <AppIcon name="refresh" size={16} color="#999" />
-          <Text style={styles.restoreButtonText}>
-            {t('premium.modal.restorePurchase')}
-          </Text>
+          <Text style={styles.restoreButtonText}>{t('premium.modal.restorePurchase')}</Text>
         </>
       )}
     </TouchableOpacity>
   );
+};
+
+// Feature Text Component - Renders text with bold keywords when user is not connected
+const FeatureText: React.FC<{
+  text: string;
+  user: any;
+}> = ({ text, user }) => {
+  // If user is connected, render normal text
+  if (user) {
+    return <Text style={styles.featureText}>{text}</Text>;
+  }
+
+  // When not connected, make key words bold
+  // Match key phrases that may appear at different positions in the text
+  // Each feature should have its main keyword/phrase boldened
+  const boldKeywords = [
+    // Special case: "continue" in "Mode continue avancé" (check first)
+    /\b(continue)\b/i,
+    // Longer phrases (multi-word) - main features
+    /\b(Webhook integrations?|Intégrations webhook|Integraciones webhook|Webhook-Integrationen?|Integrações webhook|Integrazioni webhook)\b/i,
+    /\b(Early access|Accès anticipé|Acceso anticipado|Frühzeitiger Zugang|Acesso antecipado|Accesso anticipato)\b/i,
+    // Single words - main features
+    /\b(Unlimited|illimités?|ilimitados?|Unbegrenzte|Illimitati)\b/i,
+    /\b(Ad-free|sans publicité|sin anuncios|Werbefreies|sem anúncios|Senza pubblicità)\b/i,
+    /\b(Export|Exporter|Exportar|Esportare)\b/i,
+    /\b(Advanced|avancées?|avanzados?|Erweiterte|Avançados?|Avanzati)\b/i,
+  ];
+
+  // Find which keyword matches (check all patterns, prioritize first match)
+  let matchedKeyword: string | null = null;
+  let matchIndex: number = -1;
+
+  for (const pattern of boldKeywords) {
+    const match = text.match(pattern);
+    if (match) {
+      matchedKeyword = match[0];
+      matchIndex = match.index!;
+      break; // Use first match found
+    }
+  }
+
+  if (matchedKeyword && matchIndex !== -1) {
+    const beforeText = text.substring(0, matchIndex);
+    const afterText = text.substring(matchIndex + matchedKeyword.length);
+
+    return (
+      <Text style={styles.featureText}>
+        {beforeText && <Text style={styles.featureTextNormal}>{beforeText}</Text>}
+        <Text style={styles.featureTextBold}>{matchedKeyword}</Text>
+        {afterText && <Text style={styles.featureTextNormal}>{afterText}</Text>}
+      </Text>
+    );
+  }
+
+  // Fallback to normal text if no pattern matches
+  return <Text style={styles.featureText}>{text}</Text>;
 };
 
 // Extract web bubble component to reduce complexity
@@ -597,11 +644,7 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
             </View>
 
             {/* Plan Selection */}
-            <PlanSelection
-              selectedPlan={selectedPlan}
-              onPlanSelect={handlePlanSelection}
-              t={t}
-            />
+            <PlanSelection selectedPlan={selectedPlan} onPlanSelect={handlePlanSelection} t={t} />
 
             {/* Price Display */}
             <PriceDisplay user={user} selectedPlan={selectedPlan} t={t} />
@@ -610,29 +653,27 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
             <View style={styles.featuresList}>
               <View style={styles.featureItem}>
                 <AppIcon name="microphone" size={16} color="#fff" />
-                <Text style={styles.featureText}>{t('premium.modal.benefits.unlimitedVoice')}</Text>
+                <FeatureText text={t('premium.modal.benefits.unlimitedVoice')} user={user} />
               </View>
               <View style={styles.featureItem}>
                 <AppIcon name="webhook" size={16} color="#fff" />
-                <Text style={styles.featureText}>
-                  {t('premium.modal.benefits.webhookIntegrations')}
-                </Text>
+                <FeatureText text={t('premium.modal.benefits.webhookIntegrations')} user={user} />
               </View>
               <View style={styles.featureItem}>
                 <AppIcon name="check-decagram" size={16} color="#fff" />
-                <Text style={styles.featureText}>{t('premium.modal.benefits.earlyAccess')}</Text>
+                <FeatureText text={t('premium.modal.benefits.earlyAccess')} user={user} />
               </View>
               <View style={styles.featureItem}>
                 <AdFreeIcon size={16} color="#fff" />
-                <Text style={styles.featureText}>{t('premium.modal.benefits.adFree')}</Text>
+                <FeatureText text={t('premium.modal.benefits.adFree')} user={user} />
               </View>
               <View style={styles.featureItem}>
                 <AppIcon name="history" size={16} color="#fff" />
-                <Text style={styles.featureText}>{t('premium.modal.benefits.exportHistory')}</Text>
+                <FeatureText text={t('premium.modal.benefits.exportHistory')} user={user} />
               </View>
               <View style={styles.featureItem}>
                 <AppIcon name="audio-lines" size={16} color="#fff" />
-                <Text style={styles.featureText}>{t('premium.modal.benefits.advancedVoice')}</Text>
+                <FeatureText text={t('premium.modal.benefits.advancedVoice')} user={user} />
               </View>
             </View>
 
@@ -915,7 +956,7 @@ const styles = StyleSheet.create({
   },
   featureItem: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: 8,
     paddingVertical: 4,
     marginBottom: 6,
@@ -1058,7 +1099,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255, 149, 0, 0.4)',
     minWidth: 240,
-    maxWidth: 320,
     ...Platform.select({
       web: {
         boxShadow:
@@ -1111,7 +1151,7 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 14,
     fontWeight: '500',
-    flex: 1,
+    flexShrink: 0,
     textAlign: 'left' as any,
   },
   webBubbleTextMobile: {

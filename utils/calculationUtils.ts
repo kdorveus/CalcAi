@@ -25,8 +25,13 @@ export function calculateExpression({
   let expression = val;
   if (type === 'speech') {
     expression = normalizeSpokenMath(val, compiledLanguageRegex);
-    expression = expression.replaceAll(',', '.');
   }
+
+  // Convert comma decimal separators to periods for both speech and keypad input
+  // This handles French locale where comma is used as decimal separator
+  // Only convert commas that are decimal separators (not thousands separators)
+  // Pattern: digit(s) followed by comma followed by digit(s) - this is a decimal
+  expression = expression.replace(/(\d+),(\d+)/g, '$1.$2');
 
   // Replace visual operators with standard ones for mathjs
   expression = expression.replaceAll('×', '*').replaceAll('÷', '/');

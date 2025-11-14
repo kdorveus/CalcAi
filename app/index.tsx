@@ -400,7 +400,10 @@ const MainScreen: React.FC = () => {
     }
     const timeout = setTimeout(() => {
       try {
-        let expression = input.replaceAll('×', '*').replaceAll('÷', '/');
+        // Convert comma decimal separators to periods (handles French locale)
+        // Only convert commas that are decimal separators (not thousands separators)
+        let expression = input.replace(/(\d+),(\d+)/g, '$1.$2');
+        expression = expression.replaceAll('×', '*').replaceAll('÷', '/');
         expression = expression.replace(/(\d+)%/g, '($1 / 100)');
         expression = expression.replaceAll('%', '/100'); // Trailing %
 
@@ -434,6 +437,7 @@ const MainScreen: React.FC = () => {
   // Use speech processing hook
   const processSpeechResult = useSpeechProcessing({
     compiledLanguageRegex,
+    language,
     handleInput,
     handleCalculationResult,
     lastProcessedTranscriptRef: speechRecognition.lastProcessedTranscriptRef,
@@ -472,8 +476,7 @@ const MainScreen: React.FC = () => {
       stopRecording();
     }
     prevContinuousModeRef.current = continuousMode;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [continuousMode, isRecording]); // stopRecording is stable (useCallback), no need to include
+  }, [continuousMode, isRecording, stopRecording]);
 
   // --- Webhook Logic Handlers ---
   const handleSendBulkData = webhookManager.handleSendBulkData;
@@ -481,7 +484,7 @@ const MainScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.container}>
       <Head>
-        <title>CalcAI - AI-Powered Calculator with Voice Recognition</title>
+        <title>calcAI</title>
         <meta
           name="description"
           content="CalcAI is an intelligent calculator app with voice recognition, natural language processing, and advanced mathematical capabilities. Solve complex calculations effortlessly with AI assistance."
