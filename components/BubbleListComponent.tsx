@@ -271,6 +271,8 @@ const BubbleListComponentV2 = React.forwardRef<FlatList, BubbleListComponentProp
         maxToRenderPerBatch={10}
         removeClippedSubviews={Platform.OS !== 'web'}
         initialNumToRender={15}
+        showsVerticalScrollIndicator={false}
+        showsHorizontalScrollIndicator={false}
       />
     );
   }

@@ -2013,3 +2013,10 @@ export const LANGUAGE_PATTERNS: { [key: string]: LanguagePatterns } = {
     },
   },
 };
+
+// Pattern for "X percent of that" calculations
+const PERCENT_OF_THAT_PREFIX = "(?:what'?s|whats|calculate|find|get)?";
+export const PERCENT_OF_THAT_PATTERN = new RegExp(
+  `${PERCENT_OF_THAT_PREFIX}\\s{0,3}(\\d+(?:\\.\\d+)?)\\s{0,3}(?:percent|%|percentage)\\s{0,3}(?:of)?\\s{0,3}(?:that|it|the last|previous|result)`,
+  'i'
+);

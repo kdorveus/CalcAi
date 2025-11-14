@@ -30,7 +30,12 @@ const PrivacyPolicyScreen = () => {
         <View style={styles.headerRightPlaceholder} />
         {/* To balance the back button */}
       </View>
-      <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+        showsHorizontalScrollIndicator={false}
+      >
         <Text style={styles.lastUpdated}>{t('common.lastUpdated')}</Text>
 
         <Text style={styles.heading}>1. Introduction</Text>

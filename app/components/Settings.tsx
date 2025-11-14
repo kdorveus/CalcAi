@@ -1009,7 +1009,12 @@ export const WebhookSettingsComponentV2: React.FC<WebhookSettingsProps> = ({
 
   const ScrollViewContent = (
     <View style={{ flex: 1 }}>
-      <ScrollView style={styles.scrollableArea} contentContainerStyle={styles.contentContainer}>
+      <ScrollView
+        style={styles.scrollableArea}
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+        showsHorizontalScrollIndicator={false}
+      >
         {/* Settings Section */}
         <View
           style={[

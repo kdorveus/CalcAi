@@ -204,6 +204,8 @@ const HistoryModal: React.FC<HistoryModalProps> = ({
               ListEmptyComponent={renderEmptyState}
               onRefresh={handleRefresh}
               refreshing={isRefreshing}
+              showsVerticalScrollIndicator={false}
+              showsHorizontalScrollIndicator={false}
             />
           )}
         </SafeAreaView>

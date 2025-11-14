@@ -441,6 +441,7 @@ const PremiumPaymentModal: React.FC<PremiumPaymentModalProps> = ({
               <ScrollView
                 contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
+                showsHorizontalScrollIndicator={false}
               >
                 <View style={styles.content}>
                   {/* Title */}
